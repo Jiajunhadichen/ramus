@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { NightToggle } from "@/components/NightToggle";
 
 export function SiteHeader() {
   const [email, setEmail] = useState<string | null>(null);
@@ -20,6 +21,7 @@ export function SiteHeader() {
         <Link to="/" className="font-display text-xl font-bold">Ramus</Link>
         {email && <Link to="/gardens" className="text-sm hover:underline" activeProps={{ className: "underline" }}>My gardens</Link>}
         <div className="ml-auto flex items-center gap-3 text-sm">
+          <NightToggle />
           {email ? (<><span className="font-mono text-xs text-muted-foreground">{email}</span><Button variant="outline" size="sm" onClick={signOut}>Sign out</Button></>)
             : <Button asChild variant="outline" size="sm"><Link to="/auth">Sign in</Link></Button>}
         </div>

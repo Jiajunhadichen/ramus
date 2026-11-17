@@ -81,9 +81,9 @@
 
 :root {
   --radius: 0.3rem;
-  --paper: oklch(0.941 0.010 131.4);
-  --sheet: oklch(0.970 0.007 124.4);
-  --ink: oklch(0.254 0.016 160.7);
+  --paper: #E9EDE6;
+  --sheet: #F4F6F1;
+  --ink: #1C2520;
   --muted-ink: oklch(0.503 0.021 155.3);
   --rule: oklch(0.841 0.018 140.0);
   --person-1: oklch(0.509 0.095 159.4);
@@ -115,8 +115,8 @@
   --sidebar-accent: var(--paper); --sidebar-accent-foreground: var(--ink); --sidebar-border: var(--rule); --sidebar-ring: var(--person-1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+/* Night: optional, off by default, toggled in the header */
+:root.dark {
     --paper: oklch(0.188 0.012 155.9);
     --sheet: oklch(0.221 0.015 157.5);
     --ink: oklch(0.911 0.013 149.2);
@@ -129,7 +129,6 @@
     --person-5: oklch(0.770 0.088 213.5);
     --destructive: oklch(0.834 0.068 22.0);
     color-scheme: dark;
-  }
 }
 
 @layer base {
@@ -154,18 +153,39 @@
 .stam-tree .lbl.sel { text-decoration: underline; }
 .stam-tree .node { cursor: pointer; outline: none; }
 .stam-tree .node:focus-visible .selring { display: inline !important; }
-.stam-tree .fade { transition: opacity .7s ease; }
+.stam-tree .fade { transition: opacity .5s ease; }
+.stam-tree .dim { opacity: .3; }
+.stam-tree .merge { opacity: .35; }
+.stam-tree .merge.front { opacity: .85; }
+.stam-tree .merge.dim { opacity: .12; }
+.stam-tree .specimen text { fill: var(--ink); }
+.stam-tree .sp-mono { font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em; }
+.stam-tree .sp-mono.muted { fill: var(--muted-ink); font-size: 11px; letter-spacing: 0; }
+.stam-tree .sp-title { font-family: var(--font-display); font-weight: 700; font-size: 17px; }
+.stam-tree .sp-body { font-family: var(--font-sans); font-size: 12.5px; }
 .stam-tree .off { opacity: 0 !important; pointer-events: none; }
 .stam-tree .leader { stroke: var(--muted-ink); stroke-width: .6; stroke-dasharray: 2 2; }
 .stam-tree .ground { stroke: var(--ink); stroke-width: 1; }
 .stam-tree .selring { fill: none; stroke: var(--ink); stroke-width: 1.2; stroke-dasharray: 3 3; }
 @media (prefers-reduced-motion: no-preference) {
   .stam-tree .pulse { transform-box: fill-box; transform-origin: center; animation: stam-pulse 2.4s ease-in-out infinite; }
-  .stam-tree .fresh-ring { transform-box: fill-box; transform-origin: center; animation: stam-pop .9s ease-out 1 forwards; }
+  .stam-tree .grow-mask { stroke-dasharray: 1 1; stroke-dashoffset: 1; animation: stam-grow .7s ease-out forwards; }
+  .stam-tree .knot-tighten { transform-box: fill-box; transform-origin: center; animation: stam-tighten .4s ease-out 1; }
+}
+@keyframes stam-grow { to { stroke-dashoffset: 0; } }
+@keyframes stam-tighten { from { transform: scale(1.3); } to { transform: scale(1); } }
+/* Motion is growth: with reduced motion on, nothing moves. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 @keyframes stam-pulse { 0%, 100% { opacity: .15; transform: scale(1); } 50% { opacity: .55; transform: scale(1.5); } }
-@keyframes stam-pop { from { opacity: 0; transform: scale(.3); } to { opacity: 1; transform: scale(1); } }
 .stam-tree .pulse { opacity: .3; }
 
 @utility eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em; color: var(--muted-ink); }
 @utility chip { font-size: 12px; line-height: 1; padding: 5px 8px; border-radius: 3px; border: 1px solid currentColor; }
+
+/* Prototype controls: outlined ink, inverting on hover */
+@utility ink-btn { font: 500 14px/1 var(--font-sans); color: var(--ink); background: transparent; border: 1px solid var(--ink); border-radius: 4px; cursor: pointer;
+  &:hover { background: var(--ink); color: var(--sheet); } }
+@utility range-green { accent-color: var(--person-1); height: 2px; }
+@utility essay { font-family: var(--font-display); max-width: 65ch; line-height: 1.95; font-size: 17px; }

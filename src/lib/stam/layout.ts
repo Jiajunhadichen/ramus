@@ -6,12 +6,20 @@ export type Pt = { x: number; y: number };
 export type LNode<T extends LayoutInput = LayoutInput> = T & {
   _i: number; leaves: number; desc: number; depth: number; a: number; sib: number; r: number; x: number; y: number;
   isRoot: boolean; isLeaf: boolean;
-  label0: Pt; anchor: "start" | "middle" | "end"; ly: number; leader: boolean;
+  label0: Pt; anchor: "start" | "middle" | "end"; ly: number; leader: boolean; box?: LabelBox;
 };
 
 const jitter = (id: string) => { let h = 7; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) % 9973; return h / 9973 - 0.5; };
 
-export function computeLayout<T extends LayoutInput>(input: T[]) {
+export type Rect = { x: number; y: number; w: number; h: number };
+export type LayoutOpts = {
+  /** Rectangle (viewBox units) the tree and labels must keep clear of, e.g. the specimen card. */
+  obstacle?: Rect | null;
+  /** Rendered text width; defaults to an estimate so the layout stays pure in tests. */
+  measure?: (label: string, major: boolean) => number;
+};
+
+export function computeLayout<T extends LayoutInput>(input: T[], opts: LayoutOpts = {}) {
   const nodes = input.map((n, i) => ({ ...n, _i: i, leaves: 0, desc: 0, depth: 0, a: 0, sib: 0, r: 0, x: 0, y: 0, isRoot: false, isLeaf: false, label0: { x: 0, y: 0 }, anchor: "start", ly: 0, leader: false })) as LNode<T>[];
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const kids = new Map<string, LNode<T>[]>(nodes.map((n) => [n.id, []]));
@@ -59,7 +67,14 @@ export function computeLayout<T extends LayoutInput>(input: T[]) {
   const minX = Math.min(...xs), maxX = Math.max(...xs);
   const fit = Math.min(1, (CX - 190) / Math.max(1, CX - minX), (W - 210 - CX) / Math.max(1, maxX - CX));
   nodes.forEach((n) => { n.x = CX + (n.x - CX) * fit; });
-  placeLabels(nodes);
+  const ob = opts.obstacle;
+  if (ob) {
+    // shrink the tree toward its root until no node sits under the card
+    const pad = 18;
+    const inside = () => nodes.some((n) => n.x > ob.x - pad && n.x < ob.x + ob.w + pad && n.y > ob.y - pad && n.y < ob.y + ob.h + pad);
+    for (let k = 0; k < 30 && inside(); k++) nodes.forEach((n) => { n.x = CX + (n.x - CX) * 0.97; n.y = CY + (n.y - CY) * 0.97; });
+  }
+  placeLabels(nodes, opts);
   return { nodes, byId, kids, root, R };
 }
 
@@ -71,49 +86,79 @@ export function textWidth(s: string, major: boolean) {
   return w;
 }
 
-function placeLabels(nodes: LNode<any>[]) {
-  const items = nodes.map((n) => {
-    const right = !n.isRoot && n.x >= CX;
-    const x = n.isRoot ? n.x : n.x + (right ? 13 : -13);
-    const y = n.isRoot ? n.y + 30 : n.y + 5;
-    n.anchor = n.isRoot ? "middle" : right ? "start" : "end";
-    n.label0 = { x, y };
-    const major = !!n.knot || n.isRoot;
-    const w = textWidth(n.label, major), h = major ? 20 : 17;
-    const x0 = n.anchor === "start" ? x : n.anchor === "end" ? x - w : x - w / 2;
-    return { n, x0: x0 - 3, x1: x0 + w + 3, h, top: y - h * 0.78 - 1, dy: 0 };
-  });
-  const dots = nodes.map((n) => ({ x: n.x, y: n.y }));
-  for (let iter = 0; iter < 80; iter++) {
-    let moved = false;
-    for (let i = 0; i < items.length; i++) {
-      const a = items[i]!;
-      for (let j = i + 1; j < items.length; j++) {
-        const b = items[j]!;
-        if (a.x1 < b.x0 || b.x1 < a.x0) continue;
-        const at = a.top + a.dy, bt = b.top + b.dy;
-        const ov = Math.min(at + a.h, bt + b.h) - Math.max(at, bt);
-        if (ov > -2) {
-          const push = (ov + 2) / 2 + 0.5;
-          if (at <= bt) { a.dy -= push; b.dy += push; } else { a.dy += push; b.dy -= push; }
-          moved = true;
-        }
-      }
-      for (const d of dots) {
-        if (d.x < a.x0 || d.x > a.x1) continue;
-        const at = a.top + a.dy;
-        if (d.y > at - 5 && d.y < at + a.h + 5 && Math.abs(d.x - a.n.x) + Math.abs(d.y - a.n.y) > 1) {
-          a.dy += d.y > at + a.h / 2 ? -1.5 : 1.5;
-          moved = true;
-        }
-      }
-    }
-    if (!moved) break;
+export type LabelBox = { x0: number; x1: number; top: number; h: number };
+
+/** Points sampled along every branch and merge line, used as obstacles for labels. */
+export function pathSamples(nodes: LNode<any>[], byId: Map<string, LNode<any>>) {
+  const pts: (Pt & { a: string; b: string })[] = [];
+  for (const n of nodes) {
+    n.parents.forEach((pid: string, i: number) => {
+      const p = byId.get(pid);
+      if (!p) return;
+      const c = i === 0 ? curve(p, n, 0.5, 0.3) : quad(p, n);
+      for (let t = 0.04; t < 0.97; t += 0.04) pts.push({ ...bez(c, t), a: p.id, b: n.id });
+    });
   }
-  items.forEach((it) => {
-    it.n.ly = it.n.label0.y + it.dy;
-    it.n.leader = Math.abs(it.dy) > 7;
-  });
+  return pts;
+}
+function quad(a: Pt, b: Pt): Pt[] {
+  // the merge path's quadratic, written as an equivalent cubic
+  const m = mergeCtrl(a, b);
+  return [a, { x: a.x + (2 / 3) * (m.x - a.x), y: a.y + (2 / 3) * (m.y - a.y) }, { x: b.x + (2 / 3) * (m.x - b.x), y: b.y + (2 / 3) * (m.y - b.y) }, b];
+}
+
+export function boxOverlap(a: LabelBox, b: LabelBox, gap = 2) {
+  return !(a.x1 + gap <= b.x0 || b.x1 + gap <= a.x0 || a.top + a.h + gap <= b.top || b.top + b.h + gap <= a.top);
+}
+const hitPt = (b: LabelBox, p: Pt, pad = 3) => p.x > b.x0 - pad && p.x < b.x1 + pad && p.y > b.top - pad && p.y < b.top + b.h + pad;
+const hitRect = (b: LabelBox, r: Rect) => b.x1 > r.x && b.x0 < r.x + r.w && b.top + b.h > r.y && b.top < r.y + r.h;
+
+function placeLabels(nodes: LNode<any>[], opts: LayoutOpts) {
+  const measure = opts.measure ?? textWidth;
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const samples = pathSamples(nodes, byId);
+  const dots = nodes.map((n) => ({ x: n.x, y: n.y, id: n.id }));
+  const ob = opts.obstacle ?? null;
+  const own = (n: LNode<any>, p: { a?: string; b?: string; id?: string }) => p.id === n.id || p.a === n.id || p.b === n.id;
+  const boxFor = (n: LNode<any>, side: "start" | "end" | "middle", w: number, h: number) => {
+    const x = side === "middle" ? n.x : n.x + (side === "start" ? 13 : -13);
+    const y = side === "middle" ? n.y + 30 : n.y + 5;
+    const x0 = side === "start" ? x : side === "end" ? x - w : x - w / 2;
+    return { x, y, box: { x0: x0 - 3, x1: x0 + w + 3, top: y - h * 0.78 - 1, h } };
+  };
+  const cost = (n: LNode<any>, b: LabelBox) => {
+    let c = 0;
+    for (const p of samples) if (!own(n, p) && hitPt(b, p)) c++;
+    for (const d of dots) if (d.id !== n.id && hitPt(b, d, 6)) c += 4;
+    if (ob && hitRect(b, ob)) c += 20;
+    if (b.x0 < 4 || b.x1 > W - 4) c += 20;
+    return c;
+  };
+  // Greedy search: important labels first, each takes the freest spot near its node
+  // (either side, nudged up or down), scored against everything already placed.
+  const order = [...nodes].sort((x, y) => Number(!!y.isRoot) - Number(!!x.isRoot) || Number(!!y.knot) - Number(!!x.knot) || x.depth - y.depth || x._i - y._i);
+  const placed: LabelBox[] = [];
+  const OFFS = [0, -6, 6, -12, 12, -18, 18, -24, 24, -32, 32, -40, 40, -50, 50, -62, 62];
+  for (const n of order) {
+    const major = !!n.knot || n.isRoot;
+    const w = measure(n.label, major), h = major ? 20 : 17;
+    const pref: "start" | "end" | "middle" = n.isRoot ? "middle" : n.x >= CX ? "start" : "end";
+    const sides: ("start" | "end" | "middle")[] = n.isRoot ? ["middle"] : [pref, pref === "start" ? "end" : "start"];
+    let best: { score: number; side: "start" | "end" | "middle"; x: number; y: number; dy: number; box: LabelBox } | null = null;
+    for (const side of sides) for (const dy of OFFS) {
+      const c = boxFor(n, side, w, h);
+      const box = { ...c.box, top: c.box.top + dy };
+      let score = cost(n, box) * 10 + Math.abs(dy) * 0.15 + (side === pref ? 0 : 1.5);
+      for (const q of placed) if (boxOverlap(box, q)) score += 100;
+      if (!best || score < best.score) best = { score, side, x: c.x, y: c.y, dy, box };
+    }
+    placed.push(best!.box);
+    n.anchor = best!.side;
+    n.label0 = { x: best!.x, y: best!.y };
+    n.ly = best!.y + best!.dy;
+    n.leader = Math.abs(best!.dy) > 7;
+    n.box = best!.box;
+  }
 }
 
 export function unit(n: LNode<any>): Pt {
@@ -122,12 +167,15 @@ export function unit(n: LNode<any>): Pt {
   const ux = (dx / d) * 0.6, uy = (dy / d) * 0.6 - 0.4, m = Math.hypot(ux, uy) || 1;
   return { x: ux / m, y: uy / m };
 }
-export function mergePath(a: Pt, b: Pt) {
+function mergeCtrl(a: Pt, b: Pt): Pt {
   const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
   let px = -dy / len, py = dx / len;
   if (py > 0) { px = -px; py = -py; }
   const bend = Math.min(50, len * 0.12);
-  const mx = (a.x + b.x) / 2 + px * bend, my = (a.y + b.y) / 2 + py * bend;
+  return { x: (a.x + b.x) / 2 + px * bend, y: (a.y + b.y) / 2 + py * bend };
+}
+export function mergePath(a: Pt, b: Pt) {
+  const { x: mx, y: my } = mergeCtrl(a, b);
   return `M${a.x.toFixed(1)} ${a.y.toFixed(1)} Q${mx.toFixed(1)} ${my.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
 }
 export function bez(p: Pt[], t: number): Pt {

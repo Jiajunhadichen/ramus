@@ -36,3 +36,11 @@ use the editor.
 - Ideas carry a per-garden `key` that is the Stam JSON id, so import/export round-trips.
 - Archive vs garden: conversations and messages are insert-only (DB triggers reject update/delete); ideas rest on messages via idea_evidence. ideas.message_id/conversation_id/source_excerpt are deprecated and must not be written.
 - Times are never invented: missing times render via formatTime/formatDate in src/lib/stam/evidence.ts as "time unknown".
+
+## Aesthetics (v1.5) — full text in docs/design-principles.md
+- docs/tree-prototype.html is the aesthetic reference; light paper is the default theme, Night is an opt-in .dark class stored in localStorage (never follow the OS setting).
+- Color only means people; states are shown by form (hollow = resting, double ring = knot, dashed = merge/unconfirmed), never by new UI colors.
+- Type voices: serif for ideas/titles, sans for interface, mono for specimen metadata.
+- Motion is growth only (branch draw, knot tighten, tip pulse); everything is disabled under prefers-reduced-motion.
+- Labels never collide: computeLayout takes measured widths and an obstacle rect (specimen card) and scores candidates against labels, nodes and sampled branch/merge points; keep src/lib/stam/focus.test.ts passing.
+- Concept tooltip lines live in REASONS (src/lib/stam/focus.ts); empty states use <Seed/>; garden vocabulary only, never "generate"/magic/sparkles.

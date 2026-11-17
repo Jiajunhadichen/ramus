@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as PrinciplesRouteImport } from './routes/principles'
 import { Route as AuthenticatedGardensRouteImport } from './routes/_authenticated/gardens'
 import { Route as AuthenticatedGIdRouteImport } from './routes/_authenticated/g.$id'
 import { Route as AuthenticatedGIdConversationsCidRouteImport } from './routes/_authenticated/g.$id_.conversations.$cid'
@@ -28,6 +29,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrinciplesRoute = PrinciplesRouteImport.update({
+  id: '/principles',
+  path: '/principles',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedGardensRoute = AuthenticatedGardensRouteImport.update({
@@ -50,6 +56,7 @@ const AuthenticatedGIdConversationsCidRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/principles': typeof PrinciplesRoute
   '/gardens': typeof AuthenticatedGardensRoute
   '/g/$id': typeof AuthenticatedGIdRoute
   '/g/$id/conversations/$cid': typeof AuthenticatedGIdConversationsCidRoute
@@ -57,6 +64,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/principles': typeof PrinciplesRoute
   '/gardens': typeof AuthenticatedGardensRoute
   '/g/$id': typeof AuthenticatedGIdRoute
   '/g/$id/conversations/$cid': typeof AuthenticatedGIdConversationsCidRoute
@@ -66,20 +74,34 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/principles': typeof PrinciplesRoute
   '/_authenticated/gardens': typeof AuthenticatedGardensRoute
   '/_authenticated/g/$id': typeof AuthenticatedGIdRoute
   '/_authenticated/g/$id_/conversations/$cid': typeof AuthenticatedGIdConversationsCidRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/gardens' | '/g/$id' | '/g/$id/conversations/$cid'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/principles'
+    | '/gardens'
+    | '/g/$id'
+    | '/g/$id/conversations/$cid'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/gardens' | '/g/$id' | '/g/$id/conversations/$cid'
+  to:
+    | '/'
+    | '/auth'
+    | '/principles'
+    | '/gardens'
+    | '/g/$id'
+    | '/g/$id/conversations/$cid'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/principles'
     | '/_authenticated/gardens'
     | '/_authenticated/g/$id'
     | '/_authenticated/g/$id_/conversations/$cid'
@@ -89,6 +111,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  PrinciplesRoute: typeof PrinciplesRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -112,6 +135,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/principles': {
+      id: '/principles'
+      path: '/principles'
+      fullPath: '/principles'
+      preLoaderRoute: typeof PrinciplesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/gardens': {
@@ -157,6 +187,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  PrinciplesRoute: PrinciplesRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

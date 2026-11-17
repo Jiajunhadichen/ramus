@@ -1,3 +1,4 @@
+import { Seed } from "@/components/stam-tree/StamTree";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { queryOptions, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -45,14 +46,15 @@ function GardensPage() {
           <Button onClick={() => setNewOpen(true)}>Start a garden</Button>
         </div>
       </div>
+      {data.length === 0 && <Seed><Button onClick={() => setNewOpen(true)}>Start a garden</Button></Seed>}
       <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {data.map((g) => (
           <Link key={g.id} to="/g/$id" params={{ id: g.id }} search={{ idea: undefined }}
             className="block rounded-md border border-rule bg-sheet p-4 transition-colors hover:border-ink">
-            <p className="border-b border-rule pb-1 font-mono text-xs tracking-wider">SPECIMEN Nº {String(g.specimen_no).padStart(3, "0")}</p>
+            <p className="border-b border-rule pb-1 font-mono text-xs tracking-wider">标本 Nº {String(g.specimen_no).padStart(3, "0")}</p>
             <h2 className="mt-2 font-display text-lg font-bold leading-snug">{g.title}</h2>
             <p className="mt-2 font-mono text-xs text-muted-foreground">
-              {g.ideas} ideas · {g.knots} knots · {g.dormant} dormant · {g.merges} merges · {g.people} people
+              {g.ideas} ideas · {g.knots} knots · {g.dormant} resting · {g.merges} merges · {g.people} people
             </p>
             <p className="mt-1 font-mono text-xs text-muted-foreground">Last change {new Date(g.updated_at).toLocaleString()}</p>
           </Link>

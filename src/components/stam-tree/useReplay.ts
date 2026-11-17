@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /** Step state + "Play growth" timer, as in the prototype (1.3s per step). */
-export function useReplay(max: number, opts: { loop?: boolean; autoplay?: boolean } = {}) {
+export function useReplay(max: number, opts: { loop?: boolean; autoplay?: boolean; interval?: number } = {}) {
   const [step, setStepState] = useState(max);
   const [fresh, setFresh] = useState<{ step: number | null; key: number }>({ step: null, key: 0 });
   const [playing, setPlaying] = useState(false);
@@ -27,8 +27,8 @@ export function useReplay(max: number, opts: { loop?: boolean; autoplay?: boolea
         stop(); return;
       }
       setStep(stepRef.current + 1);
-    }, 1300);
-  }, [max, opts.loop, setStep, stop]);
+    }, opts.interval ?? 1300);
+  }, [max, opts.loop, opts.interval, setStep, stop]);
 
   useEffect(() => {
     // when the garden gains a new step, follow it

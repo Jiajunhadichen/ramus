@@ -1,3 +1,4 @@
+import { SiteFooter } from "@/components/SiteFooter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -109,9 +110,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
+        {/* Night is optional and off by default; apply a saved choice before first paint. */}
+        <script dangerouslySetInnerHTML={{ __html: "try{if(localStorage.getItem('ramus-night')==='1')document.documentElement.classList.add('dark')}catch(e){}" }} />
       </head>
       <body>
         {children}
@@ -137,6 +140,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
+      <SiteFooter />
       <Toaster />
     </QueryClientProvider>
   );
