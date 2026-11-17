@@ -154,7 +154,7 @@ Still in force from v1.5.1: pen wobble, left-handed hatching, uneven merge dashe
 
 ## Usable at first sight (v2.3)
 - A person with a university education uses Ramus without being taught: no tutorial, no jargon to learn first. Each panel has one obvious main action; the rest waits under "More".
-- On an idea: "Grow again from here" (main), Let it rest / Revive, Mark as outcome, Edit; under More: Add a branch by hand, Graft a merge, Mark as knot / Reopen knot, Add evidence.
+- On an idea: its state is a two-way switch beside its author, "Growing | Set aside" (set aside = the group stopped here for now; it stays on the tree, drawn hollow, and a line in the naturalist's hand says so). Buttons: "Grow again from here" (main), Mark as outcome, Edit, More (Add a branch by hand, Graft a merge, Mark as knot / Reopen knot, Add evidence). The root is the question: no switch, no outcome. Buttons side by side are always the same size and style.
 - Beauty stays the requirement: a tree someone would screenshot and ask "what made this?". New features express themselves in the existing forms (a margin note in the naturalist's hand, hollow resting branches), never in new UI colors or badges.
 
 ## Showing it (v2.4)

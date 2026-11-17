@@ -39,6 +39,8 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
   const reopenFn = useServerFn(reopenKnot);
   const suggestFn = useServerFn(reviewSuggestion);
   const suggested = idea.confirmed === false;
+  // the root is the question: it is neither set aside nor an outcome
+  const isRoot = !idea.parents.length;
   const stepTitle = data.steps.find((s: any) => s.step === idea.step);
   const byKey = new Map(ideas.map((i) => [i.id, i]));
   const children = ideas.filter((c) => c.parents.includes(idea.id));
@@ -84,11 +86,22 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
       <h2 className="font-display text-[24px] leading-tight"><Upright>{idea.label}</Upright></h2>
       <div className="flex flex-wrap gap-1.5">
         <span className="chip" style={{ color: idea.color }}>{idea.by}</span>
-        <span className="chip">{idea.status === "dormant" ? "Resting, but kept" : "Growing"}</span>
+        {isRoot
+          ? <span className="chip">The question</span>
+          : <span role="radiogroup" aria-label="Is the group still working on it?" className="inline-flex overflow-hidden rounded border border-ink text-[13px]">
+              {(["growing", "dormant"] as const).map((st) => (
+                <button key={st} type="button" role="radio" aria-checked={idea.status === st}
+                  className={"px-2 py-0.5 " + (idea.status === st ? "bg-ink text-sheet" : "hover:bg-ink/10")}
+                  onClick={() => idea.status !== st && run(() => status({ data: { gardenId: data.garden.id, key: idea.id, status: st } }), st === "dormant" ? "Set aside. It stays on the tree, drawn hollow." : "Growing again.")}>
+                  {st === "growing" ? "Growing" : "Set aside"}
+                </button>
+              ))}
+            </span>}
         {idea.knot && <span className="chip">Knot</span>}
         {idea.outcome && <span className="smallcaps">Outcome</span>}
         {idea.parents.length > 1 && <span className="chip">Merged {idea.parents.length} lines</span>}
       </div>
+      {idea.status === "dormant" && !isRoot && <p className="hand text-[15px]">Set aside for now: it stays on the tree, drawn hollow, and can grow again.</p>}
       {suggested && (
         <section aria-label="The gardener's suggestion" className="grid gap-2 rounded-md border border-dashed border-ink p-3">
           <p className="eyebrow">The gardener's suggestion</p>
@@ -194,12 +207,9 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
 
       {!suggested && <div className="mt-2 grid grid-cols-2 gap-2 border-t border-rule pt-3">
         {onGrowAgain && <Button size="sm" className="col-span-2" onClick={() => onGrowAgain(idea.id)}>Grow again from here</Button>}
-        {idea.status === "growing"
-          ? <Button size="sm" variant="outline" onClick={() => run(() => status({ data: { gardenId: data.garden.id, key: idea.id, status: "dormant" } }), "Resting now, still on the tree.")}>Let it rest</Button>
-          : <Button size="sm" variant="outline" onClick={() => run(() => status({ data: { gardenId: data.garden.id, key: idea.id, status: "growing" } }), "Growing again.")}>Revive</Button>}
-        <Button size="sm" variant="outline" onClick={() => run(() => outcomeFn({ data: { gardenId: data.garden.id, key: idea.id, outcome: !idea.outcome } }), idea.outcome ? "Outcome unmarked." : "Outcome marked.")}>{idea.outcome ? "Unmark outcome" : "Mark as outcome"}</Button>
-        <Button size="sm" variant="outline" onClick={() => setDialog("edit")}>Edit</Button>
-        <Button size="sm" variant="outline" aria-expanded={more} onClick={() => setMore(!more)}>{more ? "Less" : "More"}</Button>
+        {(!isRoot || idea.outcome) && <Button size="sm" variant="outline" onClick={() => run(() => outcomeFn({ data: { gardenId: data.garden.id, key: idea.id, outcome: !idea.outcome } }), idea.outcome ? "Outcome unmarked." : "Outcome marked.")}>{idea.outcome ? "Unmark outcome" : "Mark as outcome"}</Button>}
+        <Button size="sm" variant="outline" className={isRoot && !idea.outcome ? "col-span-2" : ""} onClick={() => setDialog("edit")}>Edit</Button>
+        <Button size="sm" variant="outline" className="col-span-2" aria-expanded={more} onClick={() => setMore(!more)}>{more ? "Less" : "More"}</Button>
         {more && <>
           <Button size="sm" variant="outline" onClick={() => setDialog("grow")}>Add a branch by hand</Button>
           <Button size="sm" variant="outline" onClick={() => setDialog("graft")} disabled={!idea.parents.length}>Graft a merge</Button>

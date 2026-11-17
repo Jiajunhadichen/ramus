@@ -21,6 +21,7 @@ import { Upright } from "@/components/epigraph/Epigraph";
 import { Systema } from "@/components/garden/Systema";
 import { Present } from "@/components/garden/Present";
 import { DownloadTree } from "@/components/garden/DownloadTree";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 export const gardenQuery = (id: string) => queryOptions({ queryKey: ["garden", id], queryFn: () => getGarden({ data: { id } }) });
 
@@ -156,11 +157,14 @@ function GardenPage() {
         </div>
         <div className="ml-auto flex flex-wrap gap-2">
           {data.conversations.length > 0 && (
-            <select aria-label="Read a conversation" className="h-9 rounded border border-ink bg-transparent px-2 text-sm" value=""
-              onChange={(e) => e.target.value && navigate({ to: "/g/$id/conversations/$cid", params: { id, cid: e.target.value } })}>
-              <option value="">Conversations ({data.conversations.length})…</option>
-              {(data.conversations as any[]).map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
-            </select>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild><Button variant="outline" size="sm">Conversations ({data.conversations.length})</Button></DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="max-h-[60vh] overflow-y-auto">
+                {(data.conversations as { id: string; title: string }[]).map((c) => (
+                  <DropdownMenuItem key={c.id} onSelect={() => navigate({ to: "/g/$id/conversations/$cid", params: { id, cid: c.id } })}><Upright>{c.title}</Upright></DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           {!data.garden.is_demo && <Button variant="outline" size="sm" onClick={bringIn}>{fresh ? "Bring in conversations" : "Add more"}</Button>}
           <Button variant="outline" size="sm" onClick={exportJson}>Export Stam JSON</Button>
@@ -208,7 +212,7 @@ function GardenPage() {
               ))}
             </div>
             <ReadingSwitch value={level} onChange={changeLevel} />
-            {view === "tree" && <DownloadTree title={data.garden.title} getSvg={() => sheet.current?.querySelector<SVGSVGElement>("svg.stam-tree") ?? null} />}
+            {view === "tree" && <DownloadTree size="default" title={data.garden.title} getSvg={() => sheet.current?.querySelector<SVGSVGElement>("svg.stam-tree") ?? null} />}
             {data.garden.is_demo && <div role="radiogroup" aria-label="Idea language" className="smallcaps flex">{(["zh", "en"] as const).map((lang) => <Button key={lang} size="sm" variant="ghost" role="radio" aria-checked={language === lang} className={language === lang ? "underline" : "text-muted-foreground"} onClick={() => setLanguage(lang)}>{lang === "zh" ? "中文" : "EN"}</Button>)}</div>}
             <span className="text-[15px]" aria-live="polite">
               <span className="smallcaps">Step {r.step} of {max}</span>

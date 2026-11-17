@@ -5,7 +5,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { fileName, saveFile, treePng, treeSvg } from "@/lib/export/treeImage";
 
 /** Save the tree as it is drawn now: a PNG to post or put on a slide, or an SVG for print. */
-export function DownloadTree({ getSvg, title }: { getSvg: () => SVGSVGElement | null; title: string }) {
+export function DownloadTree({ getSvg, title, size = "sm" }: { getSvg: () => SVGSVGElement | null; title: string; size?: "sm" | "default" }) {
   const [busy, setBusy] = useState(false);
   async function save(kind: "png" | "svg") {
     const svg = getSvg();
@@ -23,7 +23,7 @@ export function DownloadTree({ getSvg, title }: { getSvg: () => SVGSVGElement | 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" disabled={busy}>{busy ? "Saving…" : "Download"}</Button>
+        <Button variant="outline" size={size} disabled={busy}>{busy ? "Saving…" : "Download"}</Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onSelect={() => void save("png")}>Image (PNG)</DropdownMenuItem>
