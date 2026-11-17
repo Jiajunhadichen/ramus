@@ -8,8 +8,8 @@ export function Upright({ children }: { children: string }) {
 function Line({ q }: { q: Quote }) {
   return (
     <p className="grid gap-0.5">
-      <span className="hand text-[18px] leading-normal"><Upright>{q.text}</Upright> <span className="whitespace-nowrap text-[15px]"><Upright>{q.cite}</Upright></span></span>
-      {q.gloss && <span className="text-[13px] italic text-muted-foreground">{q.gloss}</span>}
+      <span className="hand text-read leading-normal"><Upright>{q.text}</Upright> <span className="whitespace-nowrap text-ui"><Upright>{q.cite}</Upright></span></span>
+      {q.gloss && <span className="text-note italic text-muted-foreground">{q.gloss}</span>}
     </p>
   );
 }

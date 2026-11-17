@@ -40,6 +40,15 @@
 @font-face { font-family: "Ramus Digits"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/noto-serif-sc-latin-400-normal.woff2") format("woff2"); unicode-range: U+0030-0039; }
 @font-face { font-family: "Ramus Digits"; font-style: italic; font-weight: 400; font-display: swap; src: url("/fonts/noto-serif-sc-latin-400-normal.woff2") format("woff2"); unicode-range: U+0030-0039; }
 
+@theme {
+  --text-note: 13px; --text-note--line-height: 1.4;
+  --text-ui: 15px; --text-ui--line-height: 1.5;
+  --text-read: 18px; --text-read--line-height: 1.55;
+  --text-head: 24px; --text-head--line-height: 1.25;
+  --text-title: 40px; --text-title--line-height: 1.1;
+  --text-cover: 64px; --text-cover--line-height: 1.0;
+}
+
 @theme inline {
   --radius-sm: 0px;
   --radius-md: 0px;

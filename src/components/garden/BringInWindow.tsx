@@ -201,7 +201,7 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
           <DialogTitle className="font-display">
             {target.kind === "more" && target.resumeFrom ? <>Grow again from “<Upright>{target.resumeFrom.label}</Upright>”</> : target.kind === "more" && !target.fresh ? "Add more to this tree" : "Bring in the conversations"}
           </DialogTitle>
-          <DialogDescription className="hand text-[16px]">
+          <DialogDescription className="hand text-ui">
             Drop or paste everything that belongs together: chats, meeting notes, transcripts, any file. Ramus puts them in the order things were said.
           </DialogDescription>
         </DialogHeader>
@@ -209,12 +209,12 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
         {/* once something is kept, finish this reading first; more can be added right after */}
         {!busy && !items.some((it) => it.kept) && (
           <div
-            className={"grid gap-2  border border-dashed bg-sheet p-3 transition-colors " + (over ? "border-ink" : "border-ink/40")}
+            className={"grid gap-2  border bg-sheet p-3 transition-colors " + (over ? "border-ink" : "border-rule")}
             onDragOver={(e) => { e.preventDefault(); setOver(true); }}
             onDragLeave={() => setOver(false)}
             onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setOver(false); const files = [...e.dataTransfer.files]; if (files.length) void addFiles(files); }}>
             <textarea autoFocus aria-label="Paste anything" placeholder={items.length ? "Paste or drop more here" : "Paste or drop anything here"}
-              className={"w-full resize-y bg-transparent text-[15px] outline-none " + (items.length ? "min-h-[64px]" : "min-h-[160px]")}
+              className={"w-full resize-y bg-transparent text-ui outline-none " + (items.length ? "min-h-[64px]" : "min-h-[160px]")}
               value={typed} onChange={(e) => setTyped(e.target.value)}
               onPaste={(e) => {
                 const files = [...e.clipboardData.files];
@@ -223,7 +223,7 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
                 else if (text.trim() && !typed.trim()) { e.preventDefault(); addText(text); }
               }} />
             <div className="flex items-center gap-3">
-              <button type="button" className="text-sm underline underline-offset-4" onClick={() => picker.current?.click()}>or choose files</button>
+              <button type="button" className="text-ui underline underline-offset-4" onClick={() => picker.current?.click()}>or choose files</button>
               {typed.trim() && <Button size="sm" variant="outline" className="ml-auto" onClick={() => { addText(typed); setTyped(""); }}>Add</Button>}
               <input ref={picker} type="file" multiple className="sr-only" onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ""; if (files.length) void addFiles(files); }} />
             </div>
@@ -233,14 +233,14 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
         {target.kind === "more" && !target.fresh && !busy && (
           <div className="grid gap-1.5">
             {target.resumeFrom && (
-              <p className="flex items-baseline gap-2 text-[15px]">
+              <p className="flex items-baseline gap-2 text-ui">
                 <span className="hand">The discussion picks up again from “<Upright>{target.resumeFrom.label}</Upright>”; new ideas grow from there.</span>
-                {onClearResume && <button type="button" className="text-xs text-muted-foreground underline underline-offset-4" onClick={onClearResume}>not from there</button>}
+                {onClearResume && <button type="button" className="text-note text-muted-foreground underline underline-offset-4" onClick={onClearResume}>not from there</button>}
               </p>
             )}
             <input aria-label="Anything to tell the gardener" value={told} onChange={(e) => setTold(e.target.value)} maxLength={600}
               placeholder="Anything to tell the gardener? e.g. “Product says the cost won’t come down, so we went back to the fabric.”"
-              className="h-9 w-full  border border-rule bg-transparent px-3 text-[15px] outline-none focus:border-ink" />
+              className="h-9 w-full  border border-rule bg-transparent px-3 text-ui outline-none focus:border-ink" />
           </div>
         )}
 
@@ -250,10 +250,10 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
           </ol>
         )}
 
-        {phase.kind === "keeping" && <p role="status" className="hand text-[16px]">Keeping {phase.of > 1 ? `${phase.n} of ${phase.of}` : "it"} in the archive…</p>}
-        {phase.kind === "reading" && <p role="status" className="hand text-[16px]">The gardener is reading{phase.progress.of > 1 ? ` (part ${phase.progress.part} of ${phase.progress.of})` : ""}… It traces who raised what, in the order it was said.</p>}
+        {phase.kind === "keeping" && <p role="status" className="hand text-ui">Keeping {phase.of > 1 ? `${phase.n} of ${phase.of}` : "it"} in the archive…</p>}
+        {phase.kind === "reading" && <p role="status" className="hand text-ui">The gardener is reading{phase.progress.of > 1 ? ` (part ${phase.progress.part} of ${phase.progress.of})` : ""}… It traces who raised what, in the order it was said.</p>}
         {phase.kind === "failed" && (
-          <p role="alert" className="text-[15px]">
+          <p role="alert" className="text-ui">
             {phase.message}{" "}
             {keptAll && <span className="text-muted-foreground">What you brought in is kept; only the gardener’s reading is missing.</span>}
           </p>
@@ -265,9 +265,9 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
               {phase.kind === "failed" ? (keptAll ? "Let the gardener try again" : "Try again") : target.kind === "more" && !target.fresh ? "Add to the tree" : "That’s everything — grow the tree"}
             </Button>
             {phase.kind === "failed" && keptAll && gardenId && (
-              <button type="button" className="text-sm underline underline-offset-4" onClick={() => { const g = gardenId; reset(); onOpenChange(false); onGrown(g); }}>Go to the garden without it</button>
+              <button type="button" className="text-ui underline underline-offset-4" onClick={() => { const g = gardenId; reset(); onOpenChange(false); onGrown(g); }}>Go to the garden without it</button>
             )}
-            <p className="text-xs text-muted-foreground">These conversations are kept in this garden, word for word. Bring in only conversations whose people agreed to that.</p>
+            <p className="text-note text-muted-foreground">These conversations are kept in this garden, word for word. Bring in only conversations whose people agreed to that.</p>
           </div>
         )}
       </DialogContent>
@@ -281,30 +281,30 @@ function Row({ item, auto, locked, onRemove, onExtra }: { item: Item; auto: Auto
   const t = a ? timeLine(a.draft) : null;
   const words = a ? a.draft.kept.filter((m) => !m.hidden).length : 0;
   return (
-    <li className={"grid gap-1  border bg-sheet px-3 py-2 text-[15px] " + (problem ? "border-rule opacity-70" : "border-rule")}>
+    <li className={"grid gap-1  border bg-sheet px-3 py-2 text-ui " + (problem ? "border-rule opacity-70" : "border-rule")}>
       <div className="flex items-baseline gap-2">
         <span className="min-w-0 flex-1 truncate">{item.name}</span>
-        {item.kept && <span className="smallcaps text-[13px] text-muted-foreground">kept</span>}
+        {item.kept && <span className="smallcaps text-note text-muted-foreground">kept</span>}
         {!locked && <button type="button" aria-label={`Remove ${item.name}`} className="text-muted-foreground hover:text-foreground" onClick={onRemove}>×</button>}
       </div>
-      {item.opening && <span className="text-sm text-muted-foreground">Opening…</span>}
-      {problem && <span className="text-sm">{problem}</span>}
+      {item.opening && <span className="text-ui text-muted-foreground">Opening…</span>}
+      {problem && <span className="text-ui">{problem}</span>}
       {a && !problem && (
         <>
-          <span className="smallcaps text-[13px] text-muted-foreground">
+          <span className="smallcaps text-note text-muted-foreground">
             {KIND_LABEL[a.draft.format]} · {words} message{words === 1 ? "" : "s"} · {a.draft.speakers.length} {a.draft.speakers.length === 1 ? "voice" : "voices"}
             {a.notes.length ? ` · ${a.notes.join(" · ")}` : ""}
           </span>
-          {t?.kind === "span" && <span className="text-sm">{formatWhen(t.from)} – {formatWhen(t.to)}{t.all ? "" : " · lines without a time keep their place"}</span>}
-          {t?.kind === "none" && <span className="text-sm text-muted-foreground">No times in it: kept in the order it was written.</span>}
+          {t?.kind === "span" && <span className="text-ui">{formatWhen(t.from)} – {formatWhen(t.to)}{t.all ? "" : " · lines without a time keep their place"}</span>}
+          {t?.kind === "none" && <span className="text-ui text-muted-foreground">No times in it: kept in the order it was written.</span>}
           {t?.kind === "clock" && (
-            <label className="flex flex-wrap items-center gap-2 text-sm">
+            <label className="flex flex-wrap items-center gap-2 text-ui">
               <span className="text-muted-foreground">Clock times, but no day. Which day was it? (optional)</span>
               <input type="date" disabled={locked} className="h-8  border border-input bg-transparent px-2" value={item.extra.conversationDate ?? ""} onChange={(e) => onExtra({ conversationDate: e.target.value || null })} />
             </label>
           )}
           {t?.kind === "offsets" && (
-            <label className="flex flex-wrap items-center gap-2 text-sm">
+            <label className="flex flex-wrap items-center gap-2 text-ui">
               <span className="text-muted-foreground">Times count from the start of the recording. When did it start? (optional)</span>
               <input type="datetime-local" disabled={locked} className="h-8  border border-input bg-transparent px-2" value={item.extra.recordingStart ?? ""} onChange={(e) => onExtra({ recordingStart: e.target.value || null })} />
             </label>

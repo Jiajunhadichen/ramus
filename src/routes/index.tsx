@@ -62,12 +62,12 @@ function Landing() {
           notes={all.slice(0, shown)} ariaLabel="The origin of Ramus, growing from a seed" />
         <figcaption className="mt-1 flex flex-wrap items-baseline justify-center gap-x-4">
           <span className="eyebrow">Step {r.step} of {max} · The origin of Ramus</span>
-          {done && <button type="button" className="text-[15px] italic text-muted-foreground underline underline-offset-4 hover:text-foreground" onClick={() => r.play()}>Grow again</button>}
+          {done && <button type="button" className="text-ui italic text-muted-foreground underline underline-offset-4 hover:text-foreground" onClick={() => r.play()}>Grow again</button>}
         </figcaption>
       </figure>
       <section className="grid gap-5">
-        <h1 className="font-display text-[40px] font-normal leading-[1.1] xl:text-[64px]">Ideas grow <em>between</em> people.</h1>
-        <p className="font-display text-[22px] leading-snug xl:text-[26px]">Ramus remembers who planted every branch, and what grew from it.</p>
+        <h1 className="font-display text-title font-normal leading-[1.1] xl:text-cover">Ideas grow <em>between</em> people.</h1>
+        <p className="font-display text-head leading-snug xl:text-head">Ramus remembers who planted every branch, and what grew from it.</p>
         <Epigraph n={2} />
         <div><Button asChild><Link to="/gardens">Start a garden</Link></Button></div>
       </section>

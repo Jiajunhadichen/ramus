@@ -83,15 +83,15 @@ export function Present({ title, nodes, steps = {}, level = "form", main: suppli
       className="fixed inset-0 z-[60] grid grid-rows-[auto_1fr_auto] overflow-auto bg-background text-foreground">
       <header className="flex items-baseline gap-4 px-8 pt-5">
         <p className="eyebrow"><Upright>{title}</Upright></p>
-        <Button variant="ghost" size="sm" className="smallcaps ml-auto" onClick={onClose}>Leave</Button>
+        <Button variant="ghost" size="sm" className="ml-auto" onClick={onClose}>Leave</Button>
       </header>
 
       {slide.kind === "question" ? (
         <main className="grid place-content-center gap-5 px-8 text-center">
           <p className="eyebrow">The question</p>
-          {root && <h2 className="font-display text-[44px] leading-tight sm:text-[64px]"><Upright>{root.label}</Upright></h2>}
-          {root?.note && <p className="mx-auto max-w-[48ch] text-[20px] text-muted-foreground"><Upright>{root.note}</Upright></p>}
-          <p className="smallcaps text-[16px]">
+          {root && <h2 className="font-display text-title leading-tight sm:text-cover"><Upright>{root.label}</Upright></h2>}
+          {root?.note && <p className="mx-auto max-w-[48ch] text-head text-muted-foreground"><Upright>{root.note}</Upright></p>}
+          <p className="smallcaps text-head">
             {[...new Map(nodes.map((n) => [n.by, n.color])).entries()].map(([name, c], i) => (
               <span key={name}>{i > 0 && <span className="text-muted-foreground"> · </span>}<span style={{ color: c }}><Upright>{name}</Upright></span></span>
             ))}
@@ -112,10 +112,10 @@ export function Present({ title, nodes, steps = {}, level = "form", main: suppli
               const back = returns.filter((r) => r.step === ch.step && label.has(r.key));
               const when = dateOf?.(ch.step);
               return <>
-                <p className="eyebrow">{ROMAN[slide.n] ?? slide.n + 1} · step {slide.n + 1} of {s.chapters.length}{when ? ` · ${when}` : ""}</p>
-                {ch.title && <h2 className="font-display text-[34px] leading-tight"><Upright>{ch.title}</Upright></h2>}
+                <p className="eyebrow border-t border-ink pt-2">{ROMAN[slide.n] ?? slide.n + 1} · step {slide.n + 1} of {s.chapters.length}{when ? ` · ${when}` : ""}</p>
+                {ch.title && <h2 className="font-display text-title leading-tight"><Upright>{ch.title}</Upright></h2>}
                 {back.map((r) => (
-                  <p key={r.key} className="hand text-[19px]">The group went back to “<Upright>{label.get(r.key)!}</Upright>”{r.why ? <>: <Upright>{r.why}</Upright></> : null}, and grew again from there.</p>
+                  <p key={r.key} className="hand text-head">The group went back to “<Upright>{label.get(r.key)!}</Upright>”{r.why ? <>: <Upright>{r.why}</Upright></> : null}, and grew again from there.</p>
                 ))}
                 <ol className="grid gap-4">
                   {written.slice(0, MAX_ENTRIES).map((e) => (
@@ -123,20 +123,20 @@ export function Present({ title, nodes, steps = {}, level = "form", main: suppli
                       how={back.some((r) => r.key === e.from[0]?.id) && e.from.length === 1 ? `grows again from ${e.from[0]!.label}` : grewFrom(e, root?.id ?? null)} />
                   ))}
                 </ol>
-                {rest > 0 && <p className="text-[15px] text-muted-foreground">and {rest} more in this step</p>}
+                {rest > 0 && <p className="text-note text-muted-foreground">and {rest} more in this step</p>}
               </>;
             })() : (
               <>
                 <p className="eyebrow">Where it has reached</p>
-                {root && <p className="hand text-[18px]">From “<Upright>{root.label}</Upright>”</p>}
+                {root && <p className="hand text-head">From “<Upright>{root.label}</Upright>”</p>}
                 {reached.map((n) => (
                   <div key={n.id} className="grid gap-1">
-                    <h2 className="font-display text-[36px] leading-tight" style={{ color: n.color }}><Upright>{n.label}</Upright></h2>
-                    {n.note && <p className="text-[18px] text-muted-foreground"><Upright>{n.note}</Upright></p>}
-                    <p className="smallcaps text-[14px]"><Upright>{n.by}</Upright></p>
+                    <h2 className="font-display text-title leading-tight" style={{ color: n.color }}><Upright>{n.label}</Upright></h2>
+                    {n.note && <p className="text-head text-muted-foreground"><Upright>{n.note}</Upright></p>}
+                    <p className="smallcaps text-note"><Upright>{n.by}</Upright></p>
                   </div>
                 ))}
-                <p className="smallcaps text-[14px] text-muted-foreground">{nodes.length} ideas · {s.chapters.length} steps · {new Set(nodes.map((n) => n.by)).size} voices</p>
+                <p className="smallcaps text-note text-muted-foreground"><span className="whitespace-nowrap">{nodes.length} ideas</span> · <span className="whitespace-nowrap">{s.chapters.length} steps</span> · <span className="whitespace-nowrap">{new Set(nodes.map((n) => n.by)).size} voices</span></p>
               </>
             )}
           </aside>

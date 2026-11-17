@@ -50,14 +50,14 @@ function AuthPage() {
       <SiteHeader />
       <main className="page"><div className="mt-16 max-w-sm border border-rule bg-sheet p-6">
         <p className="eyebrow">{mode === "in" ? "Welcome back" : "New collector"}</p>
-        <h1 className="font-display text-2xl">{mode === "in" ? "Sign in" : "Create an account"}</h1>
+        <h1 className="font-display text-head">{mode === "in" ? "Sign in" : "Create an account"}</h1>
         <form onSubmit={submit} className="mt-5 grid gap-4">
           <div className="grid gap-1.5"><Label htmlFor="email">Email</Label><Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
           <div className="grid gap-1.5"><Label htmlFor="pw">Password</Label><Input id="pw" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} /></div>
-          {msg && <p className={"text-sm " + (msg.err ? "text-destructive" : "text-muted-foreground")} role="status">{msg.text}</p>}
+          {msg && <p className={"text-ui " + (msg.err ? "text-destructive" : "text-muted-foreground")} role="status">{msg.text}</p>}
           <Button type="submit" disabled={busy}>{busy ? "…" : mode === "in" ? "Sign in" : "Create account"}</Button>
         </form>
-        <button type="button" className="mt-4 text-sm underline underline-offset-4" onClick={() => { setMode(mode === "in" ? "up" : "in"); setMsg(null); }}>
+        <button type="button" className="mt-4 text-ui underline underline-offset-4" onClick={() => { setMode(mode === "in" ? "up" : "in"); setMsg(null); }}>
           {mode === "in" ? "No account yet? Create one" : "Already have an account? Sign in"}
         </button>
       </div></main>

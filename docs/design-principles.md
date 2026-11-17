@@ -168,3 +168,11 @@ Still in force from v1.5.1: pen wobble, left-handed hatching, uneven merge dashe
 3. One running head: SiteHeader on every page, `bare` on the home page (no background or rule, same positions). Day · Night lives only in the header.
 4. One grammar for buttons: small caps mean “go somewhere” (tabs, header and footer links, Day · Night); roman sentence case means “do something”. Every button is 36px high, 15px text-face, no letter-spacing. At most one filled (ink) button per screen, for the main action; everything else is outline, inverting to ink on hover. Focus is a 1px ink outline offset 2px.
 5. Square corners, no shadows: paper doesn’t float. Radius is 0 everywhere; rounded-full only for true circles (colour dots, swatches, knot rings, radio dots, switch thumbs, Present progress dots). Floating surfaces are sheet with a 1px ink border; inputs have a 1px rule border that turns ink on focus.
+
+### House style, part 2 (v2.7)
+- One type scale, six sizes only: note 13/1.4, ui 15/1.5, read 18/1.55, head 24/1.25, title 40/1.1, cover 64/1.0 (`text-note` … `text-cover`). Present uses note, head, title, cover; the Story at most note, ui, read, head. SVG tree sizes are separate.
+- Small caps label things; they are never on things you click. Navigation (tabs, header links, Day · Night, footer links, language) is roman 15px: active = ink + underline, inactive = muted ink. Small caps remain for eyebrows, specimen label and stamps, metadata/stats lines, Story/Present step lines and speaker names.
+- A dashed line means only “two lines recombined”, in the tree. The interface has no dashed borders: suggestions and drop zones use a 1px rule border (drop zone turns ink while dragging); status lines have no border; trash cards are ruled at opacity .7.
+- Two weights of rule: every separator is 1px rule; a 1px ink rule only opens a Story chapter or a Present step. Control outlines and the specimen frame stay ink.
+- Visible text says “Ramus file”, not “Stam JSON” (format unchanged). Sentence case everywhere. Stats lines wrap only at “ · ”; each number + word is nowrap.
+- Delete forever is a destructive text button apart from Restore; its dialog defaults focus to Cancel and confirms with a filled destructive button.

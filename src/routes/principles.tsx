@@ -62,19 +62,19 @@ function Principles() {
     <SiteHeader />
     <main className="page py-16"><div className="measure">
       <p className="eyebrow">Principles</p>
-      <h1 className="mt-3 font-display text-[40px] leading-[1.1]">Why the garden grows this way</h1>
+      <h1 className="mt-3 font-display text-title leading-[1.1]">Why the garden grows this way</h1>
       <Epigraph n={3} className="mt-8" />
       <p className="essay mt-8 text-muted-foreground">Fourteen rules shape every part of Ramus. Each one comes from a thinker who studied how ideas, systems or groups grow. They are written here as plainly as we can.</p>
       {grouped.map((g) => (
         <section key={g.name} className="mt-14">
-          <h2 className="smallcaps border-b border-rule pb-2 text-[18px]">{g.name}</h2>
+          <h2 className="smallcaps border-b border-rule pb-2 text-read">{g.name}</h2>
           {g.pair && <Epigraph n={g.pair} className="mt-5" />}
           <ol className="mt-8 grid gap-10">
             {g.titles.map((t) => PRINCIPLES.find((p) => p.title === t)).filter((p): p is (typeof PRINCIPLES)[number] => !!p).map((p) => (
               <li key={p.title} className="essay">
-                <h3 className="font-display text-[24px] leading-tight"><span className="smallcaps mr-3 text-[15px] text-muted-foreground">{String(PRINCIPLES.indexOf(p) + 1).padStart(2, "0")}</span>{p.title}</h3>
+                <h3 className="font-display text-head leading-tight"><span className="smallcaps mr-3 text-ui text-muted-foreground">{String(PRINCIPLES.indexOf(p) + 1).padStart(2, "0")}</span>{p.title}</h3>
                 <p className="mt-2">{p.text}</p>
-                <p className="smallcaps mt-2 text-[13px] text-muted-foreground">{p.source}</p>
+                <p className="smallcaps mt-2 text-note text-muted-foreground">{p.source}</p>
               </li>
             ))}
           </ol>

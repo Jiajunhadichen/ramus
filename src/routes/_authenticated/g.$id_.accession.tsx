@@ -39,7 +39,7 @@ export const Route = createFileRoute("/_authenticated/g/$id_/accession")({
 });
 
 type Received = { input: PrepareInput; file: File | null; name: string | null; from: string | null };
-const selectCls = "h-9  border border-input bg-sheet px-2 text-sm";
+const selectCls = "h-9  border border-input bg-sheet px-2 text-ui";
 const SELF = new Set<Format>(["chatgpt", "claude", "notes"]);
 
 /** Open received files (zip, docx, text, json); the original kept is what the opener chose, never a whole export. */
@@ -192,7 +192,7 @@ function AccessionPage() {
       <main className="page grid justify-items-start gap-5 py-16">
         <p className="eyebrow">Kept in the archive</p>
         <AccessionStamp no={kept.no} line={kept.line} />
-        <p className="text-[15px]">{kept.added === 0 ? "0 new messages: everything here was already kept." : `${kept.added} new message${kept.added === 1 ? "" : "s"}`}{kept.already > 0 && kept.added > 0 ? ` · ${kept.already} already kept` : ""}</p>
+        <p className="text-ui">{kept.added === 0 ? "0 new messages: everything here was already kept." : `${kept.added} new message${kept.added === 1 ? "" : "s"}`}{kept.already > 0 && kept.added > 0 ? ` · ${kept.already} already kept` : ""}</p>
         <div className="flex flex-wrap justify-center gap-4">
           {kept.added > 0 && <Button disabled={reading} onClick={async () => { if (await read(kept.batchId)) navigate({ to: "/g/$id", params: { id }, search: { idea: undefined } }); }}>{reading ? "The gardener is reading…" : "Let the gardener grow the tree"}</Button>}
           <Link to="/g/$id/conversations/$cid" params={{ id, cid: kept.conversationId }} className="underline underline-offset-4">Read the conversation</Link>
@@ -212,41 +212,41 @@ function AccessionPage() {
     <main className="page grid gap-6 py-8">
       <div>
         <Link to="/g/$id" params={{ id }} search={{ idea: undefined }} className="eyebrow hover:underline">← {ctx.garden.title}</Link>
-        <h1 className="mt-2 font-display text-[40px] leading-[1.1]">Accession</h1>
-        <p className="hand mt-1 text-[18px]">Keep the original. Prepare the structure. Never change the words.</p>
+        <h1 className="mt-2 font-display text-title leading-[1.1]">Accession</h1>
+        <p className="hand mt-1 text-read">Keep the original. Prepare the structure. Never change the words.</p>
       </div>
 
       <section aria-label="Receive" className="grid gap-2">
         {received && (received.name || pasted) ? (
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[15px]">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-ui">
             <span className="eyebrow">Received</span>
             <span>{received.name ?? `pasted text, ${paste.split(/\r?\n/).filter((l) => l.trim()).length} lines`}</span>
-            <button type="button" className="text-sm underline underline-offset-4" onClick={startOver}>Start over</button>
-            {queue.length > 0 && <span className="text-sm text-muted-foreground">Next: {queue.map((f) => f.name).join(", ")}</span>}
+            <button type="button" className="text-ui underline underline-offset-4" onClick={startOver}>Start over</button>
+            {queue.length > 0 && <span className="text-ui text-muted-foreground">Next: {queue.map((f) => f.name).join(", ")}</span>}
           </div>
         ) : (
-          <div className=" border border-dashed border-ink/40 bg-sheet p-3"
+          <div className=" border border-rule bg-sheet p-3"
             onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (e.dataTransfer.files.length) void receiveFiles(e.dataTransfer.files); }}>
-            <textarea aria-label="Paste anything" className="min-h-[160px] w-full resize-y bg-transparent text-[15px] outline-none"
+            <textarea aria-label="Paste anything" className="min-h-[160px] w-full resize-y bg-transparent text-ui outline-none"
               placeholder="Paste or drop anything here" value={paste}
               onPaste={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); void receiveFiles([...e.clipboardData.files]); } else setPasted(true); }}
               onChange={(e) => receiveText(e.target.value)} />
             <div className="flex flex-wrap items-center gap-3">
-              <label className="cursor-pointer text-sm underline underline-offset-4">or choose a file<input type="file" multiple className="sr-only" onChange={(e) => { if (e.target.files) void receiveFiles(e.target.files); e.target.value = ""; }} /></label>
-              {(received || refusal) && <button type="button" className="text-sm underline underline-offset-4" onClick={startOver}>Start over</button>}
+              <label className="cursor-pointer text-ui underline underline-offset-4">or choose a file<input type="file" multiple className="sr-only" onChange={(e) => { if (e.target.files) void receiveFiles(e.target.files); e.target.value = ""; }} /></label>
+              {(received || refusal) && <button type="button" className="text-ui underline underline-offset-4" onClick={startOver}>Start over</button>}
             </div>
           </div>
         )}
-        {received?.from && received.from !== received.name && <p className="hand text-[16px]">{received.from}</p>}
-        {refusal && <p role="alert" className=" border border-rule bg-sheet px-3 py-2 text-[15px]">{refusal}</p>}
+        {received?.from && received.from !== received.name && <p className="hand text-ui">{received.from}</p>}
+        {refusal && <p role="alert" className=" border border-rule bg-sheet px-3 py-2 text-ui">{refusal}</p>}
       </section>
 
       {draft && (
         <section aria-label="Prepare" className="grid gap-6">
           <div className=" border border-rule bg-sheet p-4">
-            <div className="flex flex-wrap items-baseline gap-x-2 text-[15px]">
+            <div className="flex flex-wrap items-baseline gap-x-2 text-ui">
               <span>Read as</span>
-              <select aria-label="Read as" className="border-0 border-b border-dotted border-ink bg-transparent text-[15px]" value={draft.format}
+              <select aria-label="Read as" className="border-0 border-b border-dotted border-ink bg-transparent text-ui" value={draft.format}
                 onChange={(e) => setOptions((o) => ({ ...o, readAs: e.target.value as Format }))} disabled={!draft.readAs.some((r) => ["whatsapp", "vtt", "srt", "transcript", "lines", "notes"].includes(r.format))}>
                 {(draft.readAs.some((r) => r.format === draft.format) ? draft.readAs : [{ format: draft.format, confidence: 1 }, ...draft.readAs]).map((r) => <option key={r.format} value={r.format}>{FORMAT_LABEL[r.format]}</option>)}
                 {["whatsapp", "vtt", "srt", "transcript", "lines", "notes"].includes(draft.format) && (["lines", "notes"] as Format[]).filter((f) => !draft.readAs.some((r) => r.format === f)).map((f) => <option key={f} value={f}>{FORMAT_LABEL[f]}</option>)}
@@ -258,13 +258,13 @@ function AccessionPage() {
               <span>· times read as {options.timeZone}</span>
               {draft.report.recordingStated && (
                 <span className="flex items-baseline gap-1">· recording started
-                  <input type="datetime-local" step={1} aria-label="Recording started at" className="border-0 border-b border-dotted border-ink bg-transparent text-[15px]"
+                  <input type="datetime-local" step={1} aria-label="Recording started at" className="border-0 border-b border-dotted border-ink bg-transparent text-ui"
                     value={draft.report.recordingStated} onChange={(e) => setOptions((o) => ({ ...o, recordingStart: e.target.value || null }))} />
                   <span className="hand">as the transcript states</span>
                 </span>
               )}
             </div>
-            <div className="rule-dotted mt-3 pt-2 text-sm text-muted-foreground">Parser {draft.report.parser}{draft.report.masked.phone + draft.report.masked.email > 0 ? ` · masked ${draft.report.masked.phone} phone, ${draft.report.masked.email} email` : ""}</div>
+            <div className="rule-dotted mt-3 pt-2 text-ui text-muted-foreground">Parser {draft.report.parser}{draft.report.masked.phone + draft.report.masked.email > 0 ? ` · masked ${draft.report.masked.phone} phone, ${draft.report.masked.email} email` : ""}</div>
           </div>
 
           <LookFirst draft={draft} options={options} setOptions={setOptions} />
@@ -277,8 +277,8 @@ function AccessionPage() {
                 const sel = v.type === "person" ? v.id : v.type;
                 return (
                   <div key={s.label} className="grid gap-2  border border-rule p-3 md:grid-cols-[14em_1fr_18em]">
-                    <div><span className="font-medium" style={{ color: colorOf(s.label || null) }}>{s.label || "Whose notes"}</span> <span className="smallcaps text-[13px] text-muted-foreground">{s.count}</span>{s.remembered && <span className="hand ml-2">remembered</span>}</div>
-                    <div className="grid gap-0.5 text-sm text-muted-foreground">{s.samples.map((x, i) => <span key={i} className="truncate">“{x}”</span>)}</div>
+                    <div><span className="font-medium" style={{ color: colorOf(s.label || null) }}>{s.label || "Whose notes"}</span> <span className="smallcaps text-note text-muted-foreground">{s.count}</span>{s.remembered && <span className="hand ml-2">remembered</span>}</div>
+                    <div className="grid gap-0.5 text-ui text-muted-foreground">{s.samples.map((x, i) => <span key={i} className="truncate">“{x}”</span>)}</div>
                     <div className="flex gap-2">
                       <select aria-label={`Who is ${s.label || "the author"}`} className={selectCls + " min-w-0 flex-1"} value={sel}
                         onChange={(e) => { const x = e.target.value; setVoice(s.label, x === "new" ? { type: "new", name: s.label.replace(/^~\s*/, "").trim() || ctx.importerName } : x === "anon" ? { type: "anon" } : x === "none" ? { type: "none" } : { type: "person", id: x }); }}>
@@ -292,7 +292,7 @@ function AccessionPage() {
                   </div>
                 );
               })}
-              {draft.speakers.length > 6 && !allVoices && <button type="button" className="justify-self-start text-sm underline underline-offset-4" onClick={() => setAllVoices(true)}>Show all {draft.speakers.length} voices</button>}
+              {draft.speakers.length > 6 && !allVoices && <button type="button" className="justify-self-start text-ui underline underline-offset-4" onClick={() => setAllVoices(true)}>Show all {draft.speakers.length} voices</button>}
             </div>
           )}
 
@@ -311,7 +311,7 @@ function AccessionPage() {
 
           <div className="grid gap-3  border border-rule bg-sheet p-4">
             {(intoTitle || (over && overTitle)) && (
-              <div className="grid gap-1 text-[15px]">
+              <div className="grid gap-1 text-ui">
                 {intoTitle && into && <label className="flex items-center gap-2"><input type="radio" name="target" checked={target === into} onChange={() => setTarget(into)} />Add to “{intoTitle}”{over?.conversationId === into ? `: ${remaining} new, ${over.kept} already kept` : ""}</label>}
                 {over && overTitle && over.conversationId !== into && <label className="flex items-center gap-2"><input type="radio" name="target" checked={target === over.conversationId} onChange={() => setTarget(over.conversationId)} />Add to “{overTitle}”: {remaining} new, {over.kept} already kept</label>}
                 <label className="flex items-center gap-2"><input type="radio" name="target" checked={target === "new"} onChange={() => setTarget("new")} />Keep as a new conversation</label>
@@ -323,7 +323,7 @@ function AccessionPage() {
               <div className="grid gap-1.5"><Label htmlFor="a-z">Timezone</Label><Input id="a-z" list="tzs" value={options.timeZone ?? ""} onChange={(e) => setOptions((o) => ({ ...o, timeZone: e.target.value }))} /></div>
             </div>
             <datalist id="tzs">{(typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : []).map((z) => <option key={z} value={z} />)}</datalist>
-            <label className="flex items-start gap-2 text-sm">
+            <label className="flex items-start gap-2 text-ui">
               <Checkbox checked={consent} onCheckedChange={(v) => setConsent(v === true)} className="mt-0.5" aria-label="Consent" />
               <span>{SELF.has(draft.format) ? "This is my own conversation / my own notes." : "Everyone in this conversation agreed to have it recorded here."}</span>
             </label>
@@ -341,10 +341,10 @@ function LookFirst({ draft, options, setOptions }: { draft: Draft; options: Prep
   return (
     <div className="grid gap-2">
       <h2 className="eyebrow">Look at these first</h2>
-      {!qs.length && <p className="hand text-[18px]">Nothing needs your eye.</p>}
+      {!qs.length && <p className="hand text-read">Nothing needs your eye.</p>}
       <ol className="grid gap-2">
         {qs.map((q, i) => (
-          <li key={q.kind + i} className="grid gap-2  border border-rule p-3 text-[15px]">
+          <li key={q.kind + i} className="grid gap-2  border border-rule p-3 text-ui">
             <span>{q.text}</span>
             {q.kind === "date-order" && (
               <div className="flex flex-wrap gap-4">
@@ -361,7 +361,7 @@ function LookFirst({ draft, options, setOptions }: { draft: Draft; options: Prep
               <div className="grid gap-1">
                 {draft.segments.map((s) => {
                   const on = !options.segments || options.segments.includes(s.index);
-                  return <label key={s.index} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={on} onChange={() => setOptions((o) => {
+                  return <label key={s.index} className="flex items-center gap-2 text-ui"><input type="checkbox" checked={on} onChange={() => setOptions((o) => {
                     const cur = o.segments ?? draft.segments.map((x) => x.index);
                     return { ...o, segments: on ? cur.filter((x) => x !== s.index) : [...cur, s.index].sort((a, b) => a - b) };
                   })} />{formatWhen(s.from, options.timeZone)} – {formatWhen(s.to, options.timeZone)} · {s.count} messages</label>;
@@ -375,7 +375,7 @@ function LookFirst({ draft, options, setOptions }: { draft: Draft; options: Prep
               <div className="grid gap-1">
                 <Button size="sm" variant="outline" className="w-fit" onClick={() => setOptions((o) => ({ ...o, mask: "all" }))}>Mask before keeping</Button>
                 {q.matches.map((m) => (
-                  <label key={m.value} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Array.isArray(options.mask) && options.mask.includes(m.value)}
+                  <label key={m.value} className="flex items-center gap-2 text-ui"><input type="checkbox" checked={Array.isArray(options.mask) && options.mask.includes(m.value)}
                     onChange={(e) => setOptions((o) => { const cur = Array.isArray(o.mask) ? o.mask : []; const next = e.target.checked ? [...cur, m.value] : cur.filter((x) => x !== m.value); return { ...o, mask: next.length ? next : undefined }; })} />{m.kind}: {m.value}</label>
                 ))}
               </div>
@@ -390,8 +390,8 @@ function LookFirst({ draft, options, setOptions }: { draft: Draft; options: Prep
           <span className="eyebrow">Conversations in this export</span>
           {draft.conversations.map((c) => {
             const on = options.conversations?.includes(c.id) ?? false;
-            return <label key={c.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={on} aria-label={c.title}
-              onChange={() => setOptions((o) => ({ ...o, conversations: on ? (o.conversations ?? []).filter((x) => x !== c.id) : [...(o.conversations ?? []), c.id] }))} />{c.title} <span className="smallcaps text-[13px] text-muted-foreground">{c.date ? c.date.slice(0, 10) : "time unknown"} · {c.count}</span></label>;
+            return <label key={c.id} className="flex items-center gap-2 text-ui"><input type="checkbox" checked={on} aria-label={c.title}
+              onChange={() => setOptions((o) => ({ ...o, conversations: on ? (o.conversations ?? []).filter((x) => x !== c.id) : [...(o.conversations ?? []), c.id] }))} />{c.title} <span className="smallcaps text-note text-muted-foreground">{c.date ? c.date.slice(0, 10) : "time unknown"} · {c.count}</span></label>;
           })}
         </div>
       )}
@@ -421,7 +421,7 @@ function Original({ draft, lit, setLit }: { draft: Draft; lit: number | null; se
         return (
           <div key={i} data-o={i} className={m?.hidden ? "aside" : undefined} onMouseEnter={() => setLit(i)} onMouseLeave={() => setLit(null)}>
             <span className="ln mr-2">{r.role}</span><span className="whitespace-pre-wrap">{r.text}</span>
-            {m?.hidden && <span className="hand ml-2 text-sm">{HIDDEN_NOTE[m.hidden]}</span>}
+            {m?.hidden && <span className="hand ml-2 text-ui">{HIDDEN_NOTE[m.hidden]}</span>}
           </div>
         );
       });
@@ -440,7 +440,7 @@ function Original({ draft, lit, setLit }: { draft: Draft; lit: number | null; se
               className={"grid grid-cols-[2.5em_1fr]" + (m?.hidden || (i < 0 && l.text.trim()) ? " aside" : "")}
               onMouseEnter={() => i >= 0 && setLit(i)} onMouseLeave={() => setLit(null)} onFocus={() => i >= 0 && setLit(i)}>
               <span className="ln pt-1 text-right pr-2">{n + 1}</span>
-              <span className="whitespace-pre-wrap break-words">{l.text || " "}{first && m?.hidden && <span className="hand ml-2 text-sm">{HIDDEN_NOTE[m.hidden]}</span>}</span>
+              <span className="whitespace-pre-wrap break-words">{l.text || " "}{first && m?.hidden && <span className="hand ml-2 text-ui">{HIDDEN_NOTE[m.hidden]}</span>}</span>
             </div>
           );
         })}
@@ -448,7 +448,7 @@ function Original({ draft, lit, setLit }: { draft: Draft; lit: number | null; se
       </>
     );
   }, [draft, setLit]);
-  return <div ref={box} className="original-sample max-h-[60vh] overflow-y-auto  border border-rule bg-sheet p-3 text-[15px]">{body}</div>;
+  return <div ref={box} className="original-sample max-h-[60vh] overflow-y-auto  border border-rule bg-sheet p-3 text-ui">{body}</div>;
 }
 
 function Prepared({ draft, lit, setLit, colorOf, nameOf, tz }: { draft: Draft; lit: number | null; setLit: (i: number | null) => void; colorOf: (l: string | null) => string; nameOf: (l: string | null) => string; tz: string | undefined }) {
@@ -463,12 +463,12 @@ function Prepared({ draft, lit, setLit, colorOf, nameOf, tz }: { draft: Draft; l
           <li key={m.externalId} data-o={i} tabIndex={0} onMouseEnter={() => setLit(i)} onMouseLeave={() => setLit(null)} onFocus={() => setLit(i)} onBlur={() => setLit(null)}
             className={" border border-rule bg-sheet p-3" + (m.hidden ? " opacity-50" : "")}
             style={{ borderLeftWidth: 4, borderLeftColor: colorOf(m.speakerLabel) }}>
-            <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
+            <p className="flex flex-wrap items-baseline gap-x-2 text-ui">
               <span className="font-medium" style={{ color: colorOf(m.speakerLabel) }}>{nameOf(m.speakerLabel)}</span>
-              <span className="smallcaps text-[13px] text-muted-foreground">{m.sentAt ? formatWhen(m.sentAt, tz) : m.offsetMs != null ? formatOffset(m.offsetMs) : "time unknown"}</span>
-              {m.hidden && <span className="hand text-sm">{HIDDEN_NOTE[m.hidden]}</span>}
+              <span className="smallcaps text-note text-muted-foreground">{m.sentAt ? formatWhen(m.sentAt, tz) : m.offsetMs != null ? formatOffset(m.offsetMs) : "time unknown"}</span>
+              {m.hidden && <span className="hand text-ui">{HIDDEN_NOTE[m.hidden]}</span>}
             </p>
-            <p className="mt-1 whitespace-pre-wrap text-[15px]">{m.content}</p>
+            <p className="mt-1 whitespace-pre-wrap text-ui">{m.content}</p>
           </li>
         );
       })}

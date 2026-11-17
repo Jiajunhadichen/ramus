@@ -44,14 +44,14 @@ function ConversationPage() {
   return (
     <main className="page py-8">
       <Link to="/g/$id" params={{ id }} search={{ idea: undefined }} className="eyebrow hover:underline">← {data.garden.title}</Link>
-      <h1 className="mt-2 font-display text-[40px] leading-[1.1]">{data.conversation.title}</h1>
+      <h1 className="mt-2 font-display text-title leading-[1.1]">{data.conversation.title}</h1>
       <p className="eyebrow mt-1">{data.conversation.source} · Happened: {formatDate(data.conversation.happened_at)} · Imported: {data.conversation.imported_at.slice(0, 10)} · recorded with everyone’s consent</p>
       {batches.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-2" aria-label="Accessions">
           {batches.map((b) => <AccessionStamp key={b.id} small no={b.accession_no} line={stampLine({ receivedAt: b.created_at, format: b.source_format, messages: counts.get(b.id) ?? 0 })} />)}
         </div>
       )}
-      <div className="mt-4 flex flex-wrap items-center gap-4 text-sm">
+      <div className="mt-4 flex flex-wrap items-center gap-4 text-ui">
         <label className="flex items-center gap-2"><Switch checked={showAside} onCheckedChange={setShowAside} aria-label="Show set-aside lines" />Show set-aside lines{asideCount ? ` (${asideCount})` : ""}</label>
         <Link to="/g/$id/accession" params={{ id }} search={{ into: cid }} className="underline underline-offset-4">Bring in more</Link>
       </div>
@@ -66,15 +66,15 @@ function ConversationPage() {
                 return (
                   <div key={m.id} id={m.id} className={(k ? "mt-3 " : "") + (m.hidden_reason ? "opacity-50" : "")}>
                     {k === 0 || m.hidden_reason ? (
-                      <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                      <p className="flex flex-wrap items-baseline gap-x-2 text-ui">
                         {k === 0 && <span className="font-medium" style={{ color: who?.color }}>{who?.name ?? m.speaker_label ?? "Unattributed"}</span>}
-                        <span className="smallcaps text-[13px] text-muted-foreground">#{m.sequence + 1} · {m.sent_at ? formatTime(m.sent_at, m.time_precision) : m.offset_ms != null ? formatOffset(m.offset_ms) : "time unknown"}</span>
+                        <span className="smallcaps text-note text-muted-foreground">#{m.sequence + 1} · {m.sent_at ? formatTime(m.sent_at, m.time_precision) : m.offset_ms != null ? formatOffset(m.offset_ms) : "time unknown"}</span>
                         {m.hidden_reason && <span className="hand">{HIDDEN_NOTE[m.hidden_reason]}</span>}
                       </p>
                     ) : null}
                     <p className="mt-1 whitespace-pre-wrap">{m.content}</p>
-                    <div className="mt-1 flex flex-wrap items-baseline gap-2 text-sm">
-                      {batches.length > 0 && <button type="button" className="smallcaps text-[13px] text-muted-foreground underline-offset-4 hover:underline" onClick={() => setOpen({ batchId: m.batch_id, start: m.raw_start, end: m.raw_end })}>See in original</button>}
+                    <div className="mt-1 flex flex-wrap items-baseline gap-2 text-ui">
+                      {batches.length > 0 && <button type="button" className="text-note text-muted-foreground underline-offset-4 hover:underline" onClick={() => setOpen({ batchId: m.batch_id, start: m.raw_start, end: m.raw_end })}>See in original</button>}
                       {born.length > 0 && <span className="eyebrow">Evidence for</span>}
                       {born.map((i) => (
                         <Link key={i.key + i.role} to="/g/$id" params={{ id }} search={{ idea: i.key }} className="chip hover:bg-paper">{ROLE_LABEL[i.role as EvidenceRole] ?? i.role}: {i.label}</Link>
@@ -103,9 +103,9 @@ function OriginalText({ gardenId, batchId, start, end }: { gardenId: string; bat
   const raw = q.data?.raw ?? null;
   useEffect(() => { ref.current?.scrollIntoView({ block: "center" }); }, [start, raw]);
   if (raw === null) return <p className="hand mt-4">{q.isError ? "The original could not be opened." : "Opening the original…"}</p>;
-  if (start == null || end == null) return <pre className="original-sample mt-4 whitespace-pre-wrap text-[14px]">{raw}{"\n"}<span className="hand">This message has no exact span in the original (it came from an export or an earlier import).</span></pre>;
+  if (start == null || end == null) return <pre className="original-sample mt-4 whitespace-pre-wrap text-ui">{raw}{"\n"}<span className="hand">This message has no exact span in the original (it came from an export or an earlier import).</span></pre>;
   return (
-    <pre className="original-sample mt-4 whitespace-pre-wrap text-[14px]">
+    <pre className="original-sample mt-4 whitespace-pre-wrap text-ui">
       {raw.slice(0, start)}<mark ref={ref} className="lit text-inherit">{raw.slice(start, end)}</mark>{raw.slice(end)}
     </pre>
   );

@@ -41,7 +41,7 @@ export const Route = createFileRoute("/_authenticated/g/$id")({
   component: GardenPage,
   errorComponent: ({ error }) => (
     <main className="page grid gap-3 py-16">
-      <h1 className="font-display text-[40px]">No garden here</h1>
+      <h1 className="font-display text-title">No garden here</h1>
       <p>{String((error as Error)?.message).includes("cannot see") ? (error as Error).message : "This garden could not be opened."}</p>
       <Link to="/gardens" className="underline underline-offset-4">Back to my gardens</Link>
     </main>
@@ -152,7 +152,7 @@ function GardenPage() {
       <header className="flex flex-wrap items-end gap-4">
         <div className="grid gap-1.5">
           <p className="eyebrow"><Link to="/gardens" className="hover:underline">My gardens</Link> · Specimen Nº {String(data.garden.specimen_no).padStart(3, "0")}</p>
-          <h1 className="font-display text-[40px] leading-[1.1]">{data.garden.title}</h1>
+          <h1 className="font-display text-title leading-[1.1]">{data.garden.title}</h1>
 
         </div>
         <div className="ml-auto flex flex-wrap gap-2">
@@ -167,12 +167,12 @@ function GardenPage() {
             </DropdownMenu>
           )}
           {!data.garden.is_demo && <Button variant="outline" size="sm" onClick={bringIn}>{fresh ? "Bring in conversations" : "Add more"}</Button>}
-          <Button variant="outline" size="sm" onClick={exportJson}>Export Stam JSON</Button>
+          <Button variant="outline" size="sm" onClick={exportJson}>Export as Ramus file</Button>
         </div>
       </header>
       {data.conversations.length === 0 && !data.garden.is_demo && (
-        <section aria-label="Bring in the first conversations" className="flex flex-wrap items-center gap-x-6 gap-y-2  border border-dashed border-ink/40 bg-sheet px-4 py-3">
-          <p className="font-display text-lg">Nothing has been said here yet.</p>
+        <section aria-label="Bring in the first conversations" className="flex flex-wrap items-center gap-x-6 gap-y-2  border border-rule bg-sheet px-4 py-3">
+          <p className="font-display text-read">Nothing has been said here yet.</p>
           <Button size="sm" onClick={bringIn}>Bring in conversations</Button>
         </section>
       )}
@@ -185,11 +185,11 @@ function GardenPage() {
       <div className="grid gap-6 border-y border-rule py-5 sm:grid-cols-2">
         <section className="min-w-0" aria-label="The question">
           <p className="eyebrow">The question</p>
-          {root && <><Button variant="ghost" onClick={() => select(root.id)} className="h-auto whitespace-normal p-0 text-left font-serif text-[24px] font-normal"><Upright>{root.label}</Upright></Button><p className="mt-1 text-muted-foreground"><Upright>{root.note}</Upright></p></>}
+          {root && <><Button variant="ghost" onClick={() => select(root.id)} className="h-auto whitespace-normal p-0 text-left font-serif text-head font-normal"><Upright>{root.label}</Upright></Button><p className="mt-1 text-muted-foreground"><Upright>{root.note}</Upright></p></>}
         </section>
         <section className="grid min-w-0 content-start gap-3" aria-label="Where it has reached">
           <p className="eyebrow">Where it has reached</p>
-          {outcomes.length ? outcomes.map((n) => <div key={n.id}><Button variant="ghost" onClick={() => select(n.id)} className="h-auto whitespace-normal p-0 text-left font-serif text-[24px] font-normal"><Upright>{n.label}</Upright></Button><p className="mt-1 text-muted-foreground"><Upright>{n.note}</Upright></p><p className="smallcaps mt-1 text-[13px] text-muted-foreground">Step {n.step}{data.steps.find((s: any) => s.step === n.step)?.title ? <> · <Upright>{data.steps.find((s: any) => s.step === n.step)?.title}</Upright></> : null}</p></div>) : <p className="text-muted-foreground">No outcome marked yet.</p>}
+          {outcomes.length ? outcomes.map((n) => <div key={n.id}><Button variant="ghost" onClick={() => select(n.id)} className="h-auto whitespace-normal p-0 text-left font-serif text-head font-normal"><Upright>{n.label}</Upright></Button><p className="mt-1 text-muted-foreground"><Upright>{n.note}</Upright></p><p className="smallcaps mt-1 text-note text-muted-foreground">Step {n.step}{data.steps.find((s: any) => s.step === n.step)?.title ? <> · <Upright>{data.steps.find((s: any) => s.step === n.step)?.title}</Upright></> : null}</p></div>) : <p className="text-muted-foreground">No outcome marked yet.</p>}
         </section>
       </div>
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -197,7 +197,7 @@ function GardenPage() {
           <div className="flex flex-wrap items-center gap-4 border-b border-rule px-4 py-3">
             <Button variant="outline" onClick={mode === "steps" ? r.play : playEvents}>{(mode === "steps" ? r.playing : evPlaying) ? "Pause" : "Play growth"}</Button>
             <Button variant="outline" onClick={() => { r.stop(); stopEv(); setPresenting(true); }}>Present</Button>
-            <div role="radiogroup" aria-label="Replay by" className="smallcaps flex gap-2 text-[13px]">
+            <div role="radiogroup" aria-label="Replay by" className="flex gap-2 text-ui">
               {(["steps", "events"] as const).map((m) => (
                 <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => { r.stop(); stopEv(); setMode(m); setEvIdx(null); }}
                   className={mode === m ? "text-foreground underline underline-offset-4" : "text-muted-foreground hover:text-foreground"}>By {m}</button>
@@ -205,7 +205,7 @@ function GardenPage() {
             </div>
             <input type="range" className="range-green min-w-[160px] flex-1" min={1} max={max} step={1} value={r.step}
               onChange={(e) => { stopEv(); setEvIdx(null); r.setStep(Number(e.target.value)); }} aria-label="Step" />
-            <div role="tablist" aria-label="View" className="smallcaps ml-auto flex gap-3 text-[15px] order-first basis-full sm:basis-auto sm:order-none">
+            <div role="tablist" aria-label="View" className="ml-auto flex gap-3 text-ui order-first basis-full sm:basis-auto sm:order-none">
               {(["tree", "systema"] as const).map((v) => (
                 <button key={v} role="tab" aria-selected={view === v} type="button" onClick={() => setView(v)}
                   className={view === v ? "text-foreground underline underline-offset-4" : "text-muted-foreground hover:text-foreground"}>{v === "tree" ? "Tree" : "Story"}</button>
@@ -213,17 +213,17 @@ function GardenPage() {
             </div>
             <ReadingSwitch value={level} onChange={changeLevel} />
             {view === "tree" && <DownloadTree size="default" title={data.garden.title} getSvg={() => sheet.current?.querySelector<SVGSVGElement>("svg.stam-tree") ?? null} />}
-            {data.garden.is_demo && <div role="radiogroup" aria-label="Idea language" className="smallcaps flex">{(["zh", "en"] as const).map((lang) => <Button key={lang} size="sm" variant="ghost" role="radio" aria-checked={language === lang} className={language === lang ? "underline" : "text-muted-foreground"} onClick={() => setLanguage(lang)}>{lang === "zh" ? "中文" : "EN"}</Button>)}</div>}
-            <span className="text-[15px]" aria-live="polite">
+            {data.garden.is_demo && <div role="radiogroup" aria-label="Idea language" className="flex text-ui">{(["zh", "en"] as const).map((lang) => <Button key={lang} size="sm" variant="ghost" role="radio" aria-checked={language === lang} className={language === lang ? "text-foreground underline underline-offset-4" : "text-muted-foreground"} onClick={() => setLanguage(lang)}>{lang === "zh" ? "中文" : "EN"}</Button>)}</div>}
+            <span className="text-ui" aria-live="polite">
               <span className="smallcaps">Step {r.step} of {max}</span>
               {stepInfo?.title ? <span className="ml-2">{stepInfo.title}</span> : null}
               <span className="eyebrow ml-2">{stepDate(data, ideas, r.step) ?? "time unknown"}</span>
             </span>
           </div>
           {mode === "events" && (
-            <p className="border-b border-rule px-4 py-2 text-[15px]" aria-live="polite" data-testid="event-line">
+            <p className="border-b border-rule px-4 py-2 text-ui" aria-live="polite" data-testid="event-line">
               {currentEvent
-                ? <><span className="smallcaps mr-2 text-[13px] text-muted-foreground">Event {(evIdx ?? 0) + 1} of {events.length}</span>{thoughtSentence(currentEvent, evNames)}</>
+                ? <><span className="smallcaps mr-2 text-note text-muted-foreground">Event {(evIdx ?? 0) + 1} of {events.length}</span>{thoughtSentence(currentEvent, evNames)}</>
                 : <span className="text-muted-foreground">{events.length} events. Play growth to step through what happened to each idea.</span>}
             </p>
           )}

@@ -18,11 +18,11 @@ export function SiteHeader({ bare = false }: { bare?: boolean }) {
   return (
     <header className={bare ? "border-b border-transparent" : "border-b border-rule bg-sheet"}>
       <div className="page flex flex-wrap items-center gap-3 py-3 sm:gap-6">
-        <Link to="/" className="font-display text-xl">Ramus</Link>
-        {email && <Link to="/gardens" className="smallcaps text-[15px] hover:underline" activeProps={{ className: "underline" }}>My gardens</Link>}
-        <div className="ml-auto flex items-center gap-3 text-sm">
+        <Link to="/" className="font-display text-head">Ramus</Link>
+        {email && <Link to="/gardens" className="text-ui text-muted-foreground hover:text-foreground" activeProps={{ className: "!text-foreground underline underline-offset-4" }}>My gardens</Link>}
+        <div className="ml-auto flex items-center gap-3 text-ui">
           <NightToggle />
-          {email ? (<><span className="smallcaps hidden max-w-[240px] truncate text-[13px] text-muted-foreground md:inline">{email}</span><Button variant="outline" size="sm" onClick={signOut}>Sign out</Button></>)
+          {email ? (<><span className="smallcaps hidden max-w-[240px] truncate text-note text-muted-foreground md:inline">{email}</span><Button variant="outline" size="sm" onClick={signOut}>Sign out</Button></>)
             : <Button asChild variant="outline" size="sm"><Link to="/auth">Sign in</Link></Button>}
         </div>
       </div>

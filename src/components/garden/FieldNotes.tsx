@@ -28,7 +28,7 @@ type Props = {
   onGrowAgain?: ((key: string) => void) | undefined;
 };
 
-const selectCls = "h-9 w-full  border border-input bg-sheet px-2 text-sm";
+const selectCls = "h-9 w-full  border border-input bg-sheet px-2 text-ui";
 
 export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged, onGrowAgain }: Props) {
   const [more, setMore] = useState(false);
@@ -73,7 +73,7 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
   return (
     <aside className="sticky top-4 grid gap-3  border border-rule bg-sheet p-5" aria-live="polite">
       <p className="eyebrow">Field notes · Step {idea.step}{stepTitle?.title ? ` · ${stepTitle.title}` : ""}{stepTitle?.date ? ` · ${stepTitle.date}` : ""}</p>
-      <nav aria-label="Lineage" className="smallcaps flex flex-wrap items-baseline gap-x-1.5 text-[13px] text-muted-foreground">
+      <nav aria-label="Lineage" className="smallcaps flex flex-wrap items-baseline gap-x-1.5 text-note text-muted-foreground">
         {lineageOf(idea, byKey).map((n, i, arr) => (
           <span key={n.id} className="inline-flex items-baseline gap-1.5">
             {i === 0 && <span>{data.garden.title}</span>}
@@ -83,12 +83,12 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
           </span>
         ))}
       </nav>
-      <h2 className="font-display text-[24px] leading-tight"><Upright>{idea.label}</Upright></h2>
+      <h2 className="font-display text-head leading-tight"><Upright>{idea.label}</Upright></h2>
       <div className="flex flex-wrap gap-1.5">
         <span className="chip" style={{ color: idea.color }}>{idea.by}</span>
         {isRoot
           ? <span className="chip">The question</span>
-          : <span role="radiogroup" aria-label="Is the group still working on it?" className="inline-flex overflow-hidden  border border-ink text-[13px]">
+          : <span role="radiogroup" aria-label="Is the group still working on it?" className="inline-flex overflow-hidden  border border-ink text-note">
               {(["growing", "dormant"] as const).map((st) => (
                 <button key={st} type="button" role="radio" aria-checked={idea.status === st}
                   className={"px-2 py-0.5 " + (idea.status === st ? "bg-ink text-sheet" : "hover:bg-ink/10")}
@@ -101,56 +101,56 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
         {idea.outcome && <span className="smallcaps">Outcome</span>}
         {idea.parents.length > 1 && <span className="chip">Merged {idea.parents.length} lines</span>}
       </div>
-      {idea.status === "dormant" && !isRoot && <p className="hand text-[15px]">Set aside for now: it stays on the tree, drawn hollow, and can grow again.</p>}
+      {idea.status === "dormant" && !isRoot && <p className="hand text-ui">Set aside for now: it stays on the tree, drawn hollow, and can grow again.</p>}
       {suggested && (
-        <section aria-label="The gardener’s suggestion" className="grid gap-2  border border-dashed border-ink p-3">
+        <section aria-label="The gardener’s suggestion" className="grid gap-2  border border-rule p-3">
           <p className="eyebrow">The gardener’s suggestion</p>
-          <p className="text-sm">The gardener read the conversation and thinks <span style={{ color: idea.color }}>{idea.by}</span> raised this here. People decide.</p>
-          {idea.suggestion?.why && <p className="hand text-[15px]"><Upright>{idea.suggestion.why}</Upright></p>}
-          {idea.suggestion?.knot && <p className="text-sm"><span className="smallcaps text-[13px] text-muted-foreground">It may have settled · </span><Upright>{idea.suggestion.knot.settled}</Upright></p>}
+          <p className="text-ui">The gardener read the conversation and thinks <span style={{ color: idea.color }}>{idea.by}</span> raised this here. People decide.</p>
+          {idea.suggestion?.why && <p className="hand text-ui"><Upright>{idea.suggestion.why}</Upright></p>}
+          {idea.suggestion?.knot && <p className="text-ui"><span className="hand text-note">It may have settled · </span><Upright>{idea.suggestion.knot.settled}</Upright></p>}
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => run(() => suggestFn({ data: { gardenId: data.garden.id, key: idea.id, accept: true } }), "Accepted. It is on the tree now.")}>Accept</Button>
             <Button size="sm" variant="ghost" onClick={() => run(() => suggestFn({ data: { gardenId: data.garden.id, key: idea.id, accept: false } }), "Rejected. It stays in the record, off the tree.")}>Reject</Button>
           </div>
-          {primaryParent?.confirmed === false && <p className="text-xs text-muted-foreground">Accepting it also accepts the suggestion it grows from.</p>}
+          {primaryParent?.confirmed === false && <p className="text-note text-muted-foreground">Accepting it also accepts the suggestion it grows from.</p>}
         </section>
       )}
       {!suggested && idea.suggestion && (
-        <section aria-label="Placed by the gardener" className="grid gap-1.5 border-l-2 border-dashed border-ink/50 pl-3 text-sm">
-          <p className="hand text-[15px]">The gardener placed this from what <span style={{ color: idea.color }}>{idea.by}</span> said.{idea.suggestion.why ? <> <Upright>{idea.suggestion.why}</Upright></> : null}</p>
-          <div><button type="button" className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+        <section aria-label="Placed by the gardener" className="grid gap-1.5 border-l border-rule pl-3 text-ui">
+          <p className="hand text-ui">The gardener placed this from what <span style={{ color: idea.color }}>{idea.by}</span> said.{idea.suggestion.why ? <> <Upright>{idea.suggestion.why}</Upright></> : null}</p>
+          <div><button type="button" className="text-note text-muted-foreground underline underline-offset-4 hover:text-foreground"
             onClick={() => run(() => suggestFn({ data: { gardenId: data.garden.id, key: idea.id, accept: false } }), "Taken off the tree. It stays in the record.")}>Not right? Take it off the tree</button></div>
         </section>
       )}
       {!suggested && !idea.knot && idea.suggestion?.knot && (
-        <section aria-label="A knot the gardener noticed" className="grid gap-2  border border-dashed border-ink p-3 text-sm">
-          <p><span className="smallcaps text-[13px] text-muted-foreground">The gardener thinks this was settled · </span><Upright>{idea.suggestion.knot.settled}</Upright></p>
+        <section aria-label="A knot the gardener noticed" className="grid gap-2  border border-rule p-3 text-ui">
+          <p><span className="hand text-note">The gardener thinks this was settled · </span><Upright>{idea.suggestion.knot.settled}</Upright></p>
           <div><Button size="sm" variant="outline" onClick={() => run(() => knotFn({ data: { gardenId: data.garden.id, key: idea.id, settled: idea.suggestion!.knot!.settled, kind: idea.suggestion!.knot!.kind as "decision" } }), "Knot tied.")}>Tie this knot</Button></div>
         </section>
       )}
       {idea.note && <p className="whitespace-pre-wrap">{idea.note}</p>}
-      {idea.knot && idea.settled && <p className="border-l-2 border-ink pl-3 text-sm"><span className="eyebrow block">Settled</span>{idea.settled}</p>}
+      {idea.knot && idea.settled && <p className="border-l-2 border-ink pl-3 text-ui"><span className="eyebrow block">Settled</span>{idea.settled}</p>}
       <section aria-labelledby="fn-from" className="grid gap-2 border-t border-rule pt-3">
         <h3 id="fn-from" className="eyebrow">Where it came from</h3>
-        <dl className="grid grid-cols-[6.5em_1fr] gap-x-2 gap-y-1.5 text-sm">
+        <dl className="grid grid-cols-[6.5em_1fr] gap-x-2 gap-y-1.5 text-ui">
           <dt className="text-muted-foreground">Grew from</dt><dd className="flex flex-wrap gap-x-2">{links(primaryParent ? [primaryParent] : [], (p) => idea.natures[p.id])}{!primaryParent && <span className="text-muted-foreground"> (the root)</span>}</dd>
           <dt className="text-muted-foreground">Merged lines</dt><dd className="flex flex-wrap gap-x-2">{links(mergeParents, (p) => idea.natures[p.id])}</dd>
         </dl>
         {evidence.length > 0 && (
-          <div className="grid gap-2  border border-rule p-3 text-sm">
+          <div className="grid gap-2  border border-rule p-3 text-ui">
             <span className="eyebrow">Heard in</span>
             <ol className="grid gap-3">
               {evidence.map((e) => (
                 <li key={e.id} className="grid gap-0.5" data-role={e.role}>
-                  <span className="smallcaps text-[13px] text-muted-foreground">{ROLE_LABEL[e.role as EvidenceRole] ?? e.role}</span>
-                  <blockquote className="hand text-[15px]">“{e.content}”</blockquote>
-                  <span className="text-xs">
+                  <span className="smallcaps text-note text-muted-foreground">{ROLE_LABEL[e.role as EvidenceRole] ?? e.role}</span>
+                  <blockquote className="hand text-ui">“{e.content}”</blockquote>
+                  <span className="text-note">
                     <span style={{ color: e.speaker?.color }}>{e.speaker?.name ?? "Unattributed"}</span>
                     {" · "}{formatTime(e.sentAt, e.precision)}
                     {e.conversation && <> · {e.conversation.title} (happened {formatDate(e.conversation.happened_at)})</>}
                   </span>
-                  {e.note && <span className="text-xs text-muted-foreground">{e.note}</span>}
-                  {e.conversation && <Link to="/g/$id/conversations/$cid" params={{ id: data.garden.id, cid: e.conversation.id }} hash={e.messageId} className="text-xs underline underline-offset-4">Read in conversation</Link>}
+                  {e.note && <span className="text-note text-muted-foreground">{e.note}</span>}
+                  {e.conversation && <Link to="/g/$id/conversations/$cid" params={{ id: data.garden.id, cid: e.conversation.id }} hash={e.messageId} className="text-note underline underline-offset-4">Read in conversation</Link>}
                 </li>
               ))}
             </ol>
@@ -160,8 +160,8 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
 
       <section aria-labelledby="fn-changed" className="grid gap-2 border-t border-rule pt-3">
         <h3 id="fn-changed" className="eyebrow">How it changed</h3>
-        {life.length === 0 ? <p className="text-sm text-muted-foreground">Nothing recorded yet.</p> : (
-          <ol className="grid gap-0 text-sm" data-testid="life">
+        {life.length === 0 ? <p className="text-ui text-muted-foreground">Nothing recorded yet.</p> : (
+          <ol className="grid gap-0 text-ui" data-testid="life">
             {life.map((t, i) => {
               const gardener = t.origin === "ai";
               const pending = !t.confirmed && !t.rejected_at && !gardener;
@@ -173,7 +173,7 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
                   {i < life.length - 1 && <span aria-hidden className="absolute left-[4px] top-[12px] bottom-0 border-l border-ink" />}
                   <span aria-hidden className={"absolute left-0 top-[6px] h-[9px] w-[9px] rounded-full border border-ink " + (pending ? "border-dashed bg-sheet" : "bg-ink")} />
                   <span><Upright>{thoughtPhrase(t, names)}</Upright></span>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-note text-muted-foreground">
                     {who && <span style={{ color: people.get(t.person_id!)?.color }}>{who} · </span>}
                     {formatTime(t.occurred_at, t.time_precision)}
                     {pending && " · suggested, not yet confirmed"}
@@ -181,8 +181,8 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
                     {(t as any).corrects_event_id && " · corrects an earlier entry"}
                     {t.rejected_at && " · rejected"}
                   </span>
-                  {t.rationale && <span className="text-xs"><Upright>{t.rationale}</Upright></span>}
-                  {q && <blockquote className="hand text-[13px]">“{q.content}”</blockquote>}
+                  {t.rationale && <span className="text-note"><Upright>{t.rationale}</Upright></span>}
+                  {q && <blockquote className="hand text-note">“{q.content}”</blockquote>}
                   {pending && (
                     <span className="flex gap-2 pt-1">
                       <Button size="sm" variant="outline" onClick={() => run(() => review({ data: { id: t.id, confirm: true } }), "Confirmed.")}>Confirm</Button>
@@ -198,7 +198,7 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
 
       <section aria-labelledby="fn-grew" className="grid gap-2 border-t border-rule pt-3">
         <h3 id="fn-grew" className="eyebrow">What grew from it</h3>
-        <dl className="grid grid-cols-[6.5em_1fr] gap-x-2 gap-y-1.5 text-sm">
+        <dl className="grid grid-cols-[6.5em_1fr] gap-x-2 gap-y-1.5 text-ui">
           <dt className="text-muted-foreground">Grew into</dt><dd className="flex flex-wrap gap-x-2">{links(grewInto, (c) => c.natures[idea.id])}</dd>
           <dt className="text-muted-foreground">Merged into</dt><dd className="flex flex-wrap gap-x-2">{links(mergedInto, (c) => c.natures[idea.id])}</dd>
           <dt className="text-muted-foreground">Descendants</dt><dd data-testid="descendants">{descendants}</dd>
@@ -257,7 +257,7 @@ function TextDialog({ title, question, hint, action, submit, onClose }: { title:
       <form className="grid gap-3" onSubmit={(e) => { e.preventDefault(); submit(t); }}>
         <Label htmlFor="td">{question}</Label>
         <Textarea id="td" required value={t} onChange={(e) => setT(e.target.value)} />
-        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+        {hint && <p className="text-note text-muted-foreground">{hint}</p>}
         <DialogFooter><Button type="submit" disabled={!t.trim()}>{action}</Button></DialogFooter>
       </form>
     </Shell>
@@ -287,7 +287,7 @@ function GrowDialog({ data, idea, currentStep, onSelect, run, onClose }: { data:
         <div className="grid gap-1.5">
           <Label htmlFor="g-label">Label</Label>
           <Input id="g-label" required value={f.label} onChange={(e) => setF({ ...f, label: e.target.value })} />
-          <span className={"text-xs " + (len > MAX_LABEL ? "text-destructive" : "text-muted-foreground")}>{len}/{MAX_LABEL}{len > MAX_LABEL ? " — too long; put the rest in the note" : ""}</span>
+          <span className={"text-note " + (len > MAX_LABEL ? "text-destructive" : "text-muted-foreground")}>{len}/{MAX_LABEL}{len > MAX_LABEL ? " — too long; put the rest in the note" : ""}</span>
         </div>
         <NatureSelect id="g-nature" value={f.nature} onChange={(v) => setF({ ...f, nature: v })} />
         <div className="grid gap-1.5"><Label htmlFor="g-note">Note</Label><Textarea id="g-note" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} /></div>
@@ -363,7 +363,7 @@ function EditDialog({ data, idea, run, onClose }: { data: GardenData; idea: Idea
       <form className="grid gap-3" onSubmit={(e) => { e.preventDefault(); run(() => edit({ data: { gardenId: data.garden.id, key: idea.id, label, note } }), "Saved."); }}>
         <Label htmlFor="e-l">Label</Label>
         <Input id="e-l" value={label} onChange={(e) => setLabel(e.target.value)} />
-        <span className={"text-xs " + (len > MAX_LABEL ? "text-destructive" : "text-muted-foreground")}>{len}/{MAX_LABEL}</span>
+        <span className={"text-note " + (len > MAX_LABEL ? "text-destructive" : "text-muted-foreground")}>{len}/{MAX_LABEL}</span>
         <Label htmlFor="e-n">Note</Label>
         <Textarea id="e-n" value={note} onChange={(e) => setNote(e.target.value)} />
         <DialogFooter><Button type="submit" disabled={!label.trim() || len > MAX_LABEL}>Save</Button></DialogFooter>
@@ -427,7 +427,7 @@ function KnotDialog({ submit, onClose }: { submit: (t: string, kind: Kind) => Pr
         </select>
         <Label htmlFor="td">What is now settled?</Label>
         <Textarea id="td" required value={t} onChange={(e) => setT(e.target.value)} />
-        <p className="text-xs text-muted-foreground">One sentence. Reopening a knot later needs a reason.</p>
+        <p className="text-note text-muted-foreground">One sentence. Reopening a knot later needs a reason.</p>
         <DialogFooter><Button type="submit" disabled={!t.trim() || !kind}>Tie the knot</Button></DialogFooter>
       </form>
     </Shell>

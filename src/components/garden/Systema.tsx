@@ -41,14 +41,14 @@ export function Systema({ title, nodes, steps = {}, level = "record", selected, 
       <Epigraph n={7} className="max-w-[60ch]" />
       {s.root && (
         <header className="grid gap-1 border-b border-rule pb-4 text-center">
-          <p className="eyebrow">The story · {nodes.length} ideas · {s.chapters.length} steps</p>
+          <p className="eyebrow">The story · <span className="whitespace-nowrap">{nodes.length} ideas</span> · <span className="whitespace-nowrap">{s.chapters.length} steps</span></p>
           <Button variant="ghost" onClick={() => onSelect(s.root!.id)}
-            className={"mx-auto h-auto whitespace-normal font-display text-[26px] leading-tight hover:underline " + (selected === s.root.id ? "underline" : "")}>
+            className={"mx-auto h-auto whitespace-normal font-display text-head leading-tight hover:underline " + (selected === s.root.id ? "underline" : "")}>
             <Upright>{s.root.label}</Upright>
           </Button>
-          {s.root.note && <p className="mx-auto max-w-[56ch] text-[15px] text-muted-foreground"><Upright>{s.root.note}</Upright></p>}
-          <p className="text-[13px] italic text-muted-foreground"><Upright>{title}</Upright></p>
-          <p className="smallcaps mt-1 text-[13px]" aria-label="People">
+          {s.root.note && <p className="mx-auto max-w-[56ch] text-ui text-muted-foreground"><Upright>{s.root.note}</Upright></p>}
+          <p className="text-note italic text-muted-foreground"><Upright>{title}</Upright></p>
+          <p className="smallcaps mt-1 text-note" aria-label="People">
             {people.map(([name, c], i) => <span key={name}>{i > 0 && <span className="text-muted-foreground"> · </span>}<span style={{ color: c }}><Upright>{name}</Upright></span></span>)}
           </p>
         </header>
@@ -65,7 +65,7 @@ export function Systema({ title, nodes, steps = {}, level = "record", selected, 
             <section key={ch.step} aria-label={`Step ${ch.step}`} className="grid gap-3 border-t border-ink pt-2">
               <h3 className="eyebrow">{ROMAN[i] ?? ch.step} {ch.title ? <>· <Upright>{ch.title}</Upright></> : null}</h3>
               {back.map((r) => (
-                <p key={r.key} className="hand text-[16px]">
+                <p key={r.key} className="hand text-read">
                   The group went back to{" "}
                   <button type="button" className="underline underline-offset-4" onClick={() => onSelect(r.key)}>“<Upright>{label.get(r.key)!}</Upright>”</button>
                   {r.why ? <>: <Upright>{r.why}</Upright></> : null} and grew again from there.
@@ -77,7 +77,7 @@ export function Systema({ title, nodes, steps = {}, level = "record", selected, 
                 </ol>
               )}
               {named.length > 0 && (
-                <p className="text-[14px] text-muted-foreground">
+                <p className="text-ui text-muted-foreground">
                   {written.length ? "Also in this step: " : "In this step: "}
                   {named.map((e, j) => (
                     <span key={e.id}>{j > 0 && " · "}
@@ -101,7 +101,7 @@ export function StoryEntry({ e, color, how, selected = false, onSelect, large = 
 }) {
   return (
     <li className={"grid gap-x-4 gap-y-0.5 " + (large ? "sm:grid-cols-[7rem_1fr]" : "sm:grid-cols-[6.5rem_1fr]")}>
-      <span className={"smallcaps flex items-baseline pt-0.5 " + (large ? "text-[16px]" : "text-[14px]")} style={{ color }}>
+      <span className={"smallcaps flex items-baseline pt-0.5 " + (large ? "text-read" : "text-ui")} style={{ color }}>
         <span aria-hidden className="mr-2 inline-block size-2 shrink-0 rounded-full align-middle" style={{ background: e.resting ? "transparent" : color, border: `1px solid ${color}` }} />
         <Upright>{e.by}</Upright>
       </span>
@@ -109,14 +109,14 @@ export function StoryEntry({ e, color, how, selected = false, onSelect, large = 
         <p className="leading-snug">
           {onSelect
             ? <button type="button" onClick={() => onSelect(e.id)} aria-current={selected || undefined}
-                className={"text-left font-display hover:underline " + (large ? "text-[24px] " : "text-[19px] ") + (selected ? "underline underline-offset-4 " : "") + (e.resting ? "text-muted-foreground" : "")}><Upright>{e.label}</Upright></button>
-            : <span className={"font-display " + (large ? "text-[24px] " : "text-[19px] ") + (e.resting ? "text-muted-foreground" : "")}><Upright>{e.label}</Upright></span>}
-          {e.knot && <span className="smallcaps ml-2 text-[13px]">· knot</span>}
-          {e.outcome && <span className="smallcaps ml-2 text-[13px]">· outcome</span>}
-          {e.resting && <span className="ml-2 text-[13px] italic text-muted-foreground">resting</span>}
+                className={"text-left font-display hover:underline " + (large ? "text-head " : "text-head ") + (selected ? "underline underline-offset-4 " : "") + (e.resting ? "text-muted-foreground" : "")}><Upright>{e.label}</Upright></button>
+            : <span className={"font-display " + (large ? "text-head " : "text-head ") + (e.resting ? "text-muted-foreground" : "")}><Upright>{e.label}</Upright></span>}
+          {e.knot && <span className="ml-2 text-note italic">· knot</span>}
+          {e.outcome && <span className="smallcaps ml-2 text-note">· outcome</span>}
+          {e.resting && <span className="ml-2 text-note italic text-muted-foreground">resting</span>}
         </p>
-        {how && <p className={"hand " + (large ? "text-[17px]" : "text-[15px]")}><Upright>{how}</Upright></p>}
-        {e.note && <p className={(large ? "text-[17px] " : "text-[15px] ") + "text-muted-foreground"}><Upright>{e.note}</Upright></p>}
+        {how && <p className={"hand " + (large ? "text-read" : "text-ui")}><Upright>{how}</Upright></p>}
+        {e.note && <p className={(large ? "text-read " : "text-ui ") + "text-muted-foreground"}><Upright>{e.note}</Upright></p>}
       </div>
     </li>
   );
