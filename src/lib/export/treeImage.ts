@@ -42,23 +42,29 @@ async function dataUrl(url: string): Promise<string | null> {
   } catch { return null; }
 }
 
-/** The @font-face rules of the page: same-origin sheets read directly, the Google Fonts sheet fetched. */
-async function pageFontCss(): Promise<string> {
-  let css = "";
-  for (const sheet of Array.from(document.styleSheets)) {
-    try {
-      for (const rule of Array.from(sheet.cssRules)) if (rule instanceof CSSFontFaceRule) css += rule.cssText + "\n";
-    } catch {
-      if (sheet.href) { try { css += await (await fetch(sheet.href)).text() + "\n"; } catch { /* left out */ } }
+/** The page's @font-face rules, each with the address its file paths are relative to (fonts are served by Ramus). */
+async function pageFontFaces() {
+  const out: ReturnType<typeof parseFontFaces> = [];
+  const walk = (rules: CSSRuleList, base: string) => {
+    for (const rule of Array.from(rules)) {
+      if (rule instanceof CSSFontFaceRule) out.push(...parseFontFaces(rule.cssText, base));
+      else if (rule instanceof CSSImportRule && rule.styleSheet) { try { walk(rule.styleSheet.cssRules, rule.styleSheet.href ?? base); } catch { /* not readable */ } }
+      else if ("cssRules" in rule) walk((rule as CSSGroupingRule).cssRules, base);
     }
+  };
+  for (const sheet of Array.from(document.styleSheets)) {
+    const base = sheet.href ?? location.href;
+    try { walk(sheet.cssRules, base); }
+    catch { if (sheet.href) { try { out.push(...parseFontFaces(await (await fetch(sheet.href)).text(), sheet.href)); } catch { /* left out */ } } }
   }
-  return css;
+  return out;
 }
 
-export type ExportOptions = { title: string; mark?: string };
+export type ExportOptions = { title: string; mark?: string; embedFonts?: boolean };
 
 /** A standalone SVG string of the tree as it is drawn now. */
-export async function treeSvg(svg: SVGSVGElement, { title, mark = "grown with Ramus" }: ExportOptions): Promise<{ text: string; width: number; height: number }> {
+export async function treeSvg(svg: SVGSVGElement, { title, mark = "grown with Ramus", embedFonts = true }: ExportOptions): Promise<{ text: string; width: number; height: number }> {
+  await document.fonts?.ready;
   const box = svg.viewBox.baseVal;
   const width = box?.width || svg.clientWidth, height = box?.height || svg.clientHeight;
   const clone = svg.cloneNode(true) as SVGSVGElement;
@@ -122,11 +128,13 @@ export async function treeSvg(svg: SVGSVGElement, { title, mark = "grown with Ra
   clone.appendChild(sig);
   for (const f of familiesOf(handFamily)) { const set = used.get(f) ?? new Set<number>(); for (const ch of mark) set.add(ch.codePointAt(0)!); used.set(f, set); }
 
-  // fonts, embedded
-  const faces = facesFor(parseFontFaces(await pageFontCss(), location.href), used);
+  // fonts, embedded: the very files the page draws with
+  const faces = embedFonts ? facesFor(await pageFontFaces(), used) : [];
+  if (embedFonts && !faces.length) throw new Error("the fonts could not be read");
   const rules = (await Promise.all(faces.map(async (f) => {
     const data = await dataUrl(f.url);
-    return data ? `@font-face{font-family:"${f.family}";font-style:${f.style};font-weight:${f.weight};src:url(${data})${f.format ? ` format("${f.format}")` : ""};}` : "";
+    // the unicode-range must travel too: without it a digits-only face or one slice of a CJK font would claim every character
+    return data ? `@font-face{font-family:"${f.family}";font-style:${f.style};font-weight:${f.weight};src:url(${data})${f.format ? ` format("${f.format}")` : ""};${f.range ? `unicode-range:${f.range};` : ""}}` : "";
   }))).join("\n");
   const style = document.createElementNS(SVG_NS, "style");
   style.textContent = rules;
@@ -143,23 +151,80 @@ export async function treeSvg(svg: SVGSVGElement, { title, mark = "grown with Ra
   return { text: new XMLSerializer().serializeToString(clone), width, height };
 }
 
-/** A PNG of the tree at `scale` times the sheet's size. */
+/**
+ * A PNG of the tree at `scale` times the sheet's size. A browser draws an SVG image before its fonts load,
+ * so the shapes are drawn as an image and the words are drawn on top with the page's own loaded fonts,
+ * at the exact places the browser laid them out.
+ */
 export async function treePng(svg: SVGSVGElement, opts: ExportOptions & { scale?: number }): Promise<Blob> {
-  const { text, width, height } = await treeSvg(svg, opts);
+  const { text, width, height } = await treeSvg(svg, { ...opts, embedFonts: false });
   const scale = opts.scale ?? 3;
-  const url = URL.createObjectURL(new Blob([text], { type: "image/svg+xml" }));
+  // lay the export out off screen at one pixel per unit, so positions can be measured
+  const holder = document.createElement("div");
+  holder.setAttribute("aria-hidden", "true");
+  holder.style.cssText = `position:fixed;left:-${width * 2 + 1000}px;top:0;width:${width}px;height:${height}px;pointer-events:none;`;
+  holder.innerHTML = text;
+  document.body.appendChild(holder);
   try {
-    const img = new Image();
-    img.decoding = "sync";
-    img.src = url;
-    await img.decode();
+    const laid = holder.querySelector("svg")!;
+    await document.fonts?.ready;
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(width * scale);
     canvas.height = Math.round(height * scale);
-    canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const ctx = canvas.getContext("2d")!;
+
+    // 1. everything but the words
+    const shapes = laid.cloneNode(true) as SVGSVGElement;
+    shapes.querySelectorAll("text").forEach((t) => t.remove());
+    const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(shapes)], { type: "image/svg+xml" }));
+    try {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    } finally { URL.revokeObjectURL(url); }
+
+    // 2. the words, run by run, where the browser put them
+    const base = new DOMMatrix([scale, 0, 0, scale, 0, 0]);
+    for (const t of Array.from(laid.querySelectorAll("text"))) {
+      const tcs = getComputedStyle(t);
+      if (tcs.display === "none" || tcs.visibility === "hidden") continue;
+      let alpha = 1;
+      for (let el: Element | null = t; el && el !== laid; el = el.parentElement) alpha *= Number(getComputedStyle(el).opacity || 1);
+      const ctm = t.getCTM();
+      if (!ctm) continue;
+      const runs: { node: Text; from: number }[] = [];
+      let at = 0;
+      const walk = (n: Node) => n.childNodes.forEach((c) => { if (c.nodeType === Node.TEXT_NODE) { runs.push({ node: c as Text, from: at }); at += (c as Text).data.length; } else walk(c); });
+      walk(t);
+      const total = t.getNumberOfChars();
+      for (const { node, from } of runs) {
+        const str = node.data;
+        if (!str.trim() || from >= total) continue;
+        const el = node.parentElement!;
+        const cs = getComputedStyle(el);
+        const p = t.getStartPositionOfChar(from);
+        ctx.setTransform(base.multiply(ctm));
+        ctx.globalAlpha = alpha * Number(cs.opacity || 1);
+        ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+        if ("letterSpacing" in ctx) (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = cs.letterSpacing === "normal" ? "0px" : cs.letterSpacing;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "alphabetic";
+        const stroke = cs.stroke, sw = parseFloat(cs.strokeWidth);
+        if (stroke && stroke !== "none" && sw > 0 && cs.paintOrder.startsWith("stroke")) {
+          ctx.lineJoin = "round";
+          ctx.lineWidth = sw;
+          ctx.strokeStyle = stroke;
+          ctx.strokeText(str, p.x, p.y);
+        }
+        if (cs.fill && cs.fill !== "none") { ctx.fillStyle = cs.fill; ctx.fillText(str, p.x, p.y); }
+      }
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
     return await new Promise<Blob>((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("The image could not be made."))), "image/png"));
   } finally {
-    URL.revokeObjectURL(url);
+    holder.remove();
   }
 }
 

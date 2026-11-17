@@ -37,6 +37,8 @@ describe("fonts for an exported tree", () => {
       ["Ramus Digits", "normal", "https://ramus.example/fonts/digits.woff2"],
     ]);
     expect(parseRanges("U+4e00-4e0f, U+4e8c, U+9f??")).toEqual([[0x4e00, 0x4e0f], [0x4e8c, 0x4e8c], [0x9f00, 0x9fff]]);
+    // the range is kept as written, so an embedded face covers exactly what it covered on the page
+    expect(faces.map((f) => f.range)).toEqual(["U+4e00-4e0f, U+4e8c", "U+9f??", null, "U+0030-0039"]);
   });
   it("embeds only the slices that cover characters drawn in that family", () => {
     const used = new Map([["Noto Serif SC", new Set([..."二"].map((c) => c.codePointAt(0)!))], ["Ramus Digits", new Set([0x41])]]);

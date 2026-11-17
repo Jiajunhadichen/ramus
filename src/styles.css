@@ -8,6 +8,14 @@
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
+/* Fonts are served by Ramus itself (OFL), so a downloaded tree can embed exactly the faces on screen
+   and no reader's browser asks a third party for them. Noto Serif SC comes in unicode-range slices. */
+@import "@fontsource/im-fell-double-pica/400.css";
+@import "@fontsource/im-fell-double-pica/400-italic.css";
+@import "@fontsource/im-fell-english/400.css";
+@import "@fontsource/im-fell-english/400-italic.css";
+@import "@fontsource/im-fell-english-sc/400.css";
+@import "@fontsource/noto-serif-sc/400.css";
 
 @custom-variant dark (&:is(.dark *));
 

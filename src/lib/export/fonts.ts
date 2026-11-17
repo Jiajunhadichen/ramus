@@ -3,7 +3,7 @@
  * A Google Fonts stylesheet splits each family into many @font-face slices by unicode-range;
  * an export embeds only the slices that cover characters actually drawn in that family.
  */
-export type FontFace = { family: string; style: string; weight: string; ranges: [number, number][] | null; url: string; format: string | null };
+export type FontFace = { family: string; style: string; weight: string; ranges: [number, number][] | null; range: string | null; url: string; format: string | null };
 
 export function parseFontFaces(css: string, base = ""): FontFace[] {
   const out: FontFace[] = [];
@@ -15,7 +15,7 @@ export function parseFontFaces(css: string, base = ""): FontFace[] {
     if (!family || !m) continue;
     const url = /^(https?:|data:)/i.test(m[1]!) ? m[1]! : new URL(m[1]!, base || "http://localhost/").href;
     const range = prop("unicode-range");
-    out.push({ family, style: prop("font-style") ?? "normal", weight: prop("font-weight") ?? "400", ranges: range ? parseRanges(range) : null, url, format: m[2] ?? null });
+    out.push({ family, style: prop("font-style") ?? "normal", weight: prop("font-weight") ?? "400", ranges: range ? parseRanges(range) : null, range, url, format: m[2] ?? null });
   }
   return out;
 }
