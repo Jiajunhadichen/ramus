@@ -1,0 +1,405 @@
+{
+  "title": "The origin of Ramus",
+  "collected": "Stockholm · 17 Nov 2026, night",
+  "focus": "humans",
+  "steps": {
+    "1": "ChatGPT offers four directions",
+    "2": "Collaboration looks like evolution",
+    "3": "AI speeds up collaboration",
+    "4": "Five readings",
+    "5": "A prompt, or a protocol?",
+    "6": "Growing like a tree",
+    "7": "Website, agent or skill?",
+    "8": "Lovable, and a name",
+    "9": "The garden is settled",
+    "10": "For one person, or between people?"
+  },
+  "nodes": [
+    {
+      "id": "root",
+      "label": "What should we build?",
+      "by": "Founder",
+      "step": 1,
+      "status": "growing",
+      "parents": [],
+      "note": "A project that helps the job search and could become a product of its own. Where to begin?"
+    },
+    {
+      "id": "fitloop",
+      "label": "FitLoop for garment samples",
+      "by": "ChatGPT",
+      "step": 1,
+      "status": "growing",
+      "parents": [
+        "root"
+      ],
+      "note": "Helps small fashion brands keep track of changes to their samples. Ranked the first choice."
+    },
+    {
+      "id": "lesson",
+      "label": "LessonPulse",
+      "by": "ChatGPT",
+      "step": 1,
+      "status": "dormant",
+      "parents": [
+        "root"
+      ],
+      "note": "Helps kids’ coding schools follow each course. Paused, but still on the tree."
+    },
+    {
+      "id": "sustain",
+      "label": "SustainTrace",
+      "by": "ChatGPT",
+      "step": 1,
+      "status": "dormant",
+      "parents": [
+        "root"
+      ],
+      "note": "Helps factories clean their data, trace errors and write reports. Its workflow shape lives on in the engine."
+    },
+    {
+      "id": "azure",
+      "label": "AzureSpend Guard",
+      "by": "ChatGPT",
+      "step": 1,
+      "status": "dormant",
+      "parents": [
+        "root"
+      ],
+      "note": "Turns an existing Azure project into a tool for reading cloud costs."
+    },
+    {
+      "id": "access",
+      "label": "AccessSafe",
+      "by": "Founder",
+      "step": 1,
+      "status": "dormant",
+      "parents": [
+        "root"
+      ],
+      "note": "An existing Azure permissions project: spot the risk, ask, review, apply."
+    },
+    {
+      "id": "engine",
+      "label": "One workflow engine",
+      "by": "ChatGPT",
+      "step": 1,
+      "status": "growing",
+      "knot": true,
+      "parents": [
+        "fitloop",
+        "sustain",
+        "access"
+      ],
+      "note": "These projects share one shape: feedback, revision, review, sign-off."
+    },
+    {
+      "id": "evo",
+      "label": "Collaboration as evolution",
+      "by": "Founder",
+      "step": 2,
+      "status": "growing",
+      "knot": true,
+      "parents": [
+        "engine"
+      ],
+      "note": "People working together start in disorder. They talk, try and fail, and order grows out of it."
+    },
+    {
+      "id": "bvsr",
+      "label": "Variation · selection · retention",
+      "by": "Claude",
+      "step": 2,
+      "status": "growing",
+      "parents": [
+        "evo"
+      ],
+      "note": "Campbell’s blind variation and selective retention; Popper’s trial and error."
+    },
+    {
+      "id": "retain",
+      "label": "Retention is the heart",
+      "by": "Claude",
+      "step": 2,
+      "status": "growing",
+      "parents": [
+        "bvsr"
+      ],
+      "note": "Dawkins’s cumulative selection: order builds up step by step, and what matters is keeping each step."
+    },
+    {
+      "id": "aitool",
+      "label": "AI speeds up collaboration",
+      "by": "Founder",
+      "step": 3,
+      "status": "growing",
+      "parents": [
+        "evo"
+      ],
+      "note": "While a group talks to each other, each person is also talking to an AI."
+    },
+    {
+      "id": "generic",
+      "label": "A general AI group chat",
+      "by": "Claude",
+      "step": 3,
+      "status": "dormant",
+      "parents": [
+        "aitool"
+      ],
+      "note": "The giants are already building AI group chats. No chance head-on."
+    },
+    {
+      "id": "private",
+      "label": "Private channels, shared view",
+      "by": "Founder",
+      "step": 3,
+      "status": "growing",
+      "parents": [
+        "aitool"
+      ],
+      "note": "Like the Delphi method: everyone first thinks alone with an AI, then the thinking is gathered for the team."
+    },
+    {
+      "id": "thermo",
+      "label": "AI as a thermostat",
+      "by": "Claude",
+      "step": 3,
+      "status": "growing",
+      "parents": [
+        "private"
+      ],
+      "note": "Run hot early to spread out, cool down later to converge, and keep everything along the way."
+    },
+    {
+      "id": "woz",
+      "label": "A Wizard of Oz test",
+      "by": "Claude",
+      "step": 3,
+      "status": "growing",
+      "parents": [
+        "private"
+      ],
+      "note": "Before any code, a person plays the AI to see whether the structure helps at all."
+    },
+    {
+      "id": "thesis",
+      "label": "Thesis: LLMs and decisions",
+      "by": "Founder",
+      "step": 3,
+      "status": "growing",
+      "parents": [
+        "root"
+      ],
+      "note": "The master’s thesis starting in January could become the product’s research core."
+    },
+    {
+      "id": "visible",
+      "label": "Making unspoken progress visible",
+      "by": "Founder",
+      "step": 4,
+      "status": "growing",
+      "parents": [
+        "aitool"
+      ],
+      "note": "Show the vague, hard-to-name, sudden progress inside a team’s work."
+    },
+    {
+      "id": "five",
+      "label": "A click and three warnings",
+      "by": "Claude",
+      "step": 4,
+      "status": "growing",
+      "parents": [
+        "visible",
+        "retain"
+      ],
+      "note": "Simon’s safe that clicks when a number is right. Three warnings: don’t converge too fast, don’t expose individuals, don’t force consensus."
+    },
+    {
+      "id": "disagree",
+      "label": "Mapping disagreement",
+      "by": "Claude",
+      "step": 4,
+      "status": "growing",
+      "parents": [
+        "five",
+        "thesis"
+      ],
+      "note": "Is a disagreement about facts, about inferences, or about how much each value weighs?"
+    },
+    {
+      "id": "dual",
+      "label": "Two AI layers and an idea graph",
+      "by": "ChatGPT",
+      "step": 5,
+      "status": "growing",
+      "parents": [
+        "visible"
+      ],
+      "note": "A personal AI and a team AI, with a traceable web of ideas between them."
+    },
+    {
+      "id": "prompt",
+      "label": "A scientific prompt method",
+      "by": "Founder",
+      "step": 5,
+      "status": "growing",
+      "parents": [
+        "five"
+      ],
+      "note": "A method built from philosophy and several sciences, one any large model can follow."
+    },
+    {
+      "id": "protocol",
+      "label": "A collaboration protocol",
+      "by": "Claude",
+      "step": 5,
+      "status": "growing",
+      "knot": true,
+      "parents": [
+        "prompt",
+        "thermo"
+      ],
+      "note": "A prompt is only one layer. It also needs memory, permissions, timing and an interface."
+    },
+    {
+      "id": "grail",
+      "label": "A GRAIL baseline experiment",
+      "by": "Claude",
+      "step": 5,
+      "status": "growing",
+      "parents": [
+        "protocol"
+      ],
+      "note": "On hidden-information tasks, can it beat the decisions of a GPT-4o moderator?"
+    },
+    {
+      "id": "tree",
+      "label": "An evolving tree of ideas",
+      "by": "Founder",
+      "step": 6,
+      "status": "growing",
+      "knot": true,
+      "parents": [
+        "protocol",
+        "dual",
+        "retain"
+      ],
+      "note": "Ideas branch, grow and rest like living things, and they can also merge."
+    },
+    {
+      "id": "dag",
+      "label": "A tree that merges",
+      "by": "Claude",
+      "step": 6,
+      "status": "growing",
+      "parents": [
+        "tree"
+      ],
+      "note": "A Y chromosome only branches; ideas recombine. So underneath, it is a directed acyclic graph."
+    },
+    {
+      "id": "form",
+      "label": "Website, agent and skill",
+      "by": "Claude",
+      "step": 7,
+      "status": "growing",
+      "parents": [
+        "tree"
+      ],
+      "note": "The website is the garden, the agent the gardener, the skill the gardening manual, MCP the garden gate."
+    },
+    {
+      "id": "skill0",
+      "label": "Stage 0: a skill",
+      "by": "Claude",
+      "step": 7,
+      "status": "growing",
+      "parents": [
+        "form"
+      ],
+      "note": "Conversations go in; the idea graph and this tree come out."
+    },
+    {
+      "id": "lovable",
+      "label": "Build the garden with Lovable",
+      "by": "Founder",
+      "step": 8,
+      "status": "growing",
+      "parents": [
+        "form"
+      ],
+      "note": "Sign-in, rooms and the database go to Lovable; the tree is its own component."
+    },
+    {
+      "id": "name",
+      "label": "Ramus or Stam?",
+      "by": "Founder",
+      "step": 8,
+      "status": "growing",
+      "parents": [
+        "form"
+      ],
+      "note": "Ramus is Latin for branch, stam Swedish for trunk. One has to be chosen."
+    },
+    {
+      "id": "garden",
+      "label": "The garden takes shape",
+      "by": "Founder",
+      "step": 9,
+      "status": "growing",
+      "knot": true,
+      "parents": [
+        "form"
+      ],
+      "note": "The idea graph is the tree, the website the garden, the agent the gardener, the skill the manual."
+    },
+    {
+      "id": "kit",
+      "label": "The Lovable prompt kit",
+      "by": "Claude",
+      "step": 9,
+      "status": "growing",
+      "parents": [
+        "garden",
+        "lovable"
+      ],
+      "note": "The discussion, Simon’s ideas and the clicks, turned into prompts ready to build from."
+    },
+    {
+      "id": "personal",
+      "label": "A personal thought garden",
+      "by": "ChatGPT",
+      "step": 10,
+      "status": "dormant",
+      "parents": [
+        "kit"
+      ],
+      "note": "The first user would be yourself, keeping each day’s thinking with AI. Not taken, but it stays on the tree."
+    },
+    {
+      "id": "humans",
+      "label": "Trust in people",
+      "by": "Founder",
+      "step": 10,
+      "status": "growing",
+      "knot": true,
+      "parents": [
+        "kit"
+      ],
+      "note": "People keep making new things, and people make the final call. Ramus is for work between people; AI is only the gardener."
+    },
+    {
+      "id": "tend",
+      "label": "The gardener does not plant",
+      "by": "Claude",
+      "step": 10,
+      "status": "growing",
+      "parents": [
+        "humans"
+      ],
+      "note": "The AI adds no ideas of its own. It records, sorts, reminds and asks."
+    }
+  ]
+}
