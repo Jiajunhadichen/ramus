@@ -6,6 +6,8 @@ export type GardenData = Awaited<ReturnType<typeof import("@/lib/garden.function
 export type Idea = TreeNode & {
   dbId: string; note: string; settled: string | null; contributorId: string | null;
   natures: Record<string, string | null>;
+  /** the gardener's proposal, if this idea came from a harvest: why it grows here, and a knot it thinks was tied */
+  suggestion: { why: string | null; knot: { kind: string; settled: string } | null; conversationId: string | null } | null;
 };
 
 export function toIdeas(d: GardenData): Idea[] {
@@ -22,7 +24,12 @@ export function toIdeas(d: GardenData): Idea[] {
     return {
       id: i.key, dbId: i.id, label: i.label, note: i.note, parents, step: i.step, knot: i.is_knot, outcome: !!i.is_outcome, originQuote: (d.convMessages as any[]).find((m) => (d.evidence as any[]).some((e) => e.idea_id === i.id && e.role === "origin" && e.message_id === m.id))?.content,
       status: i.status, by: c?.name ?? "Unknown", color: c?.color ?? "var(--muted-ink)", settled: i.settled,
-      contributorId: i.contributor_id, natures,
+      contributorId: i.contributor_id, natures, confirmed: i.confirmed !== false,
+      suggestion: i.origin === "ai" ? {
+        why: (d.suggestions as Record<string, any> | undefined)?.[i.id]?.why ?? mine.find((l: any) => l.kind === "primary")?.rationale ?? null,
+        knot: (d.suggestions as Record<string, any> | undefined)?.[i.id]?.knot ?? null,
+        conversationId: (d.suggestions as Record<string, any> | undefined)?.[i.id]?.conversation_id ?? null,
+      } : null,
     };
   });
 }
@@ -32,7 +39,7 @@ export function toStam(d: GardenData, ideas: Idea[]): StamGarden {
   return {
     title: d.garden.title, collected: d.garden.collected, focus,
     steps: Object.fromEntries(d.steps.map((s: any) => [String(s.step), s.title])),
-    nodes: ideas.map((n) => ({ id: n.id, label: n.label, by: n.by, step: n.step, status: n.status, knot: !!n.knot, parents: n.parents, note: n.note })),
+    nodes: ideas.filter((n) => n.confirmed !== false).map((n) => ({ id: n.id, label: n.label, by: n.by, step: n.step, status: n.status, knot: !!n.knot, parents: n.parents, note: n.note })),
   };
 }
 

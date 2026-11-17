@@ -48,6 +48,13 @@ Keep the original. Prepare the structure. Never change the words.
 - Screenshots and recordings are not read yet; Ramus says so plainly instead of failing.
 - One simple window: "Bring in a conversation" opens a single box to paste or drop anything; pasting or dropping anywhere on a garden or the gardens page does the same. No formats to choose, no instructions.
 
+## The gardener reads (harvest, v2.1)
+- After a conversation is kept, "Let the gardener read it" asks the gardener to trace how the people's ideas grew: what was raised, what answered, refined, challenged or split from what, what merged, what went quiet, what was settled.
+- The gardener only proposes. Its proposals are ideas and links with origin 'ai' and confirmed false, drawn dashed on the tree; each one is accepted or rejected by a person (one by one, or all at once). Rejected suggestions stay in the record, off the tree. Accepting records the thought events (raised, merged) as the people's history.
+- Ideas belong to people: every proposal is attributed to whoever wrote its origin message, whatever the model claims; messages by an AI are never an origin. Proposals whose origin, evidence or quote do not check out against the archive are dropped before anything is written.
+- Knots are never tied by the gardener. It may say what it thinks was settled; a person ties the knot.
+- The model is called through Lovable's AI gateway from the server (LOVABLE_API_KEY); prompts and keys never reach the browser. Long conversations: the latest ~90,000 characters are read, and the gardener says so.
+
 ## Glossary
 Garden = a group's space for one long discussion or project. Idea = node. Primary link = "grew from". Merge link = "recombined with". Conversation = a recorded discussion (meeting notes, chat export, transcript). Step = one stage of the discussion, the time axis. Knot = a click, a confirmed milestone. Dormant = stopped growing, kept, can be revived. Suggestion = gardener proposal awaiting review. Harvest = turning a conversation into ideas. Nursery = a member's private space. Gardener = the AI agent. Evidence = a message an idea rests on, with a role (origin, restated, supports, challenges). Nature = how a link grew (refines, answers, challenges, splits, combines).
 

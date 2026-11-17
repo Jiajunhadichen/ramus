@@ -1,4 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useHarvest } from "@/components/garden/Gardener";
 import { queryOptions, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -64,6 +65,8 @@ async function readFiles(files: File[]): Promise<{ received: Received | null; re
 function AccessionPage() {
   const { id } = Route.useParams();
   const { into } = Route.useSearch();
+  const navigate = useNavigate();
+  const { read, reading } = useHarvest(id);
   const qc = useQueryClient();
   const { data: ctx } = useSuspenseQuery(ctxQuery(id));
   const keep = useServerFn(receiveBatch);
@@ -184,6 +187,7 @@ function AccessionPage() {
         <AccessionStamp no={kept.no} line={kept.line} />
         <p className="text-[15px]">{kept.added === 0 ? "0 new messages: everything here was already kept." : `${kept.added} new message${kept.added === 1 ? "" : "s"}`}{kept.already > 0 && kept.added > 0 ? ` · ${kept.already} already kept` : ""}</p>
         <div className="flex flex-wrap justify-center gap-4">
+          <Button disabled={!!reading} onClick={async () => { if (await read(kept.conversationId)) navigate({ to: "/g/$id", params: { id }, search: { idea: undefined } }); }}>{reading ? "The gardener is reading…" : "Let the gardener read it"}</Button>
           <Link to="/g/$id/conversations/$cid" params={{ id, cid: kept.conversationId }} className="underline underline-offset-4">Read the conversation</Link>
           <Link to="/g/$id" params={{ id }} search={{ idea: undefined }} className="underline underline-offset-4">Back to the garden</Link>
           {queue.length > 0 && <button type="button" className="underline underline-offset-4" onClick={() => { const [n, ...rest] = queue; reset(); setQueue(rest); void readFiles([n!]).then((x) => { setReceived(x.received); setRefusal(x.refusal); }); }}>Bring in the next file: {queue[0]!.name}</button>}

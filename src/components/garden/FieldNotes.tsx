@@ -10,7 +10,7 @@ function lineageOf<T extends { id: string; parents: string[] }>(idea: T, byKey: 
   return out;
 }
 import { toast } from "sonner";
-import { addEvidence, editIdea, graftMerge, growBranch, reopenKnot, reviewThought, setKnot, setStatus, setOutcome } from "@/lib/garden.functions";
+import { addEvidence, editIdea, graftMerge, growBranch, reopenKnot, reviewSuggestion, reviewThought, setKnot, setStatus, setOutcome } from "@/lib/garden.functions";
 import { lifeOf, SETTLED_KINDS, thoughtPhrase, type Thought } from "@/lib/stam/thoughts";
 import { MAX_LABEL } from "@/lib/stam/validate";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,8 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
   const outcomeFn = useServerFn(setOutcome);
   const knotFn = useServerFn(setKnot);
   const reopenFn = useServerFn(reopenKnot);
+  const suggestFn = useServerFn(reviewSuggestion);
+  const suggested = idea.confirmed === false;
   const stepTitle = data.steps.find((s: any) => s.step === idea.step);
   const byKey = new Map(ideas.map((i) => [i.id, i]));
   const children = ideas.filter((c) => c.parents.includes(idea.id));
@@ -84,6 +86,25 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
         {idea.outcome && <span className="smallcaps">Outcome</span>}
         {idea.parents.length > 1 && <span className="chip">Merged {idea.parents.length} lines</span>}
       </div>
+      {suggested && (
+        <section aria-label="The gardener's suggestion" className="grid gap-2 rounded-md border border-dashed border-ink p-3">
+          <p className="eyebrow">The gardener's suggestion</p>
+          <p className="text-sm">The gardener read the conversation and thinks <span style={{ color: idea.color }}>{idea.by}</span> raised this here. People decide.</p>
+          {idea.suggestion?.why && <p className="hand text-[15px]"><Upright>{idea.suggestion.why}</Upright></p>}
+          {idea.suggestion?.knot && <p className="text-sm"><span className="smallcaps text-[13px] text-muted-foreground">It may have settled · </span><Upright>{idea.suggestion.knot.settled}</Upright></p>}
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => run(() => suggestFn({ data: { gardenId: data.garden.id, key: idea.id, accept: true } }), "Accepted. It is on the tree now.")}>Accept</Button>
+            <Button size="sm" variant="ghost" onClick={() => run(() => suggestFn({ data: { gardenId: data.garden.id, key: idea.id, accept: false } }), "Rejected. It stays in the record, off the tree.")}>Reject</Button>
+          </div>
+          {primaryParent?.confirmed === false && <p className="text-xs text-muted-foreground">Accepting it also accepts the suggestion it grows from.</p>}
+        </section>
+      )}
+      {!suggested && !idea.knot && idea.suggestion?.knot && (
+        <section aria-label="A knot the gardener noticed" className="grid gap-2 rounded-md border border-dashed border-ink p-3 text-sm">
+          <p><span className="smallcaps text-[13px] text-muted-foreground">The gardener thinks this was settled · </span><Upright>{idea.suggestion.knot.settled}</Upright></p>
+          <div><Button size="sm" variant="outline" onClick={() => run(() => knotFn({ data: { gardenId: data.garden.id, key: idea.id, settled: idea.suggestion!.knot!.settled, kind: idea.suggestion!.knot!.kind as "decision" } }), "Knot tied.")}>Tie this knot</Button></div>
+        </section>
+      )}
       {idea.note && <p className="whitespace-pre-wrap">{idea.note}</p>}
       {idea.knot && idea.settled && <p className="border-l-2 border-ink pl-3 text-sm"><span className="eyebrow block">Settled</span>{idea.settled}</p>}
       <section aria-labelledby="fn-from" className="grid gap-2 border-t border-rule pt-3">
@@ -159,7 +180,7 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
         </dl>
       </section>
 
-      <div className="mt-2 grid grid-cols-2 gap-2 border-t border-rule pt-3">
+      {!suggested && <div className="mt-2 grid grid-cols-2 gap-2 border-t border-rule pt-3">
         <Button size="sm" variant="outline" className="col-span-2" onClick={() => run(() => outcomeFn({ data: { gardenId: data.garden.id, key: idea.id, outcome: !idea.outcome } }), idea.outcome ? "Outcome unmarked." : "Outcome marked.")}>{idea.outcome ? "Unmark" : "Mark as outcome"}</Button>
         <Button size="sm" onClick={() => setDialog("grow")}>Grow a branch</Button>
         <Button size="sm" variant="outline" onClick={() => setDialog("graft")} disabled={!idea.parents.length}>Graft a merge</Button>
@@ -171,7 +192,7 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
           : <Button size="sm" variant="outline" onClick={() => setDialog("knot")}>Mark as knot</Button>}
         <Button size="sm" variant="ghost" onClick={() => setDialog("edit")}>Edit label and note</Button>
         <Button size="sm" variant="ghost" onClick={() => setDialog("evidence")} disabled={!(data.convMessages ?? []).length}>Add evidence</Button>
-      </div>
+      </div>}
 
       {dialog === "grow" && <GrowDialog {...{ data, idea, currentStep, onSelect, run }} onClose={() => setDialog(null)} />}
       {dialog === "graft" && <GraftDialog {...{ data, ideas, idea, run }} onClose={() => setDialog(null)} />}

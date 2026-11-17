@@ -11,6 +11,7 @@ import { FieldNotes } from "@/components/garden/FieldNotes";
 import { handOver } from "@/lib/intake/handover";
 import { useBringIn } from "@/hooks/use-bring-in";
 import { BringInWindow } from "@/components/garden/BringInWindow";
+import { GardenerPanel } from "@/components/garden/Gardener";
 import { stepDate, toIdeas, toStam } from "@/components/garden/model";
 import { maxStep, selectionAt } from "@/lib/stam/layout";
 import { Button } from "@/components/ui/button";
@@ -161,6 +162,11 @@ function GardenPage() {
         </section>
       )}
       <BringInWindow open={bringOpen} onOpenChange={setBringOpen} onReceive={received} />
+      {data.conversations.length > 0 && !data.garden.is_demo && (
+        <GardenerPanel gardenId={id} conversations={data.conversations as { id: string; title: string }[]}
+          suggested={ideas.filter((i) => i.confirmed === false).length}
+          readConversationIds={new Set(Object.values((data.suggestions ?? {}) as Record<string, { conversation_id?: string }>).map((s) => s.conversation_id).filter((c): c is string => !!c))} />
+      )}
       <div className="grid gap-6 border-y border-rule py-5 sm:grid-cols-2">
         <section className="min-w-0" aria-label="The question">
           <p className="eyebrow">The question</p>

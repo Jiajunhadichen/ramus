@@ -1,3 +1,10 @@
+# Ramus v2.1 — The gardener reads (harvest)
+- [x] Pure harvest rules and checks (src/lib/gardener/harvest.ts) with tests; Lovable AI gateway client with fallbacks and plain errors.
+- [x] harvestConversation: proposals written as unconfirmed ideas, dashed on the tree; accept / reject one by one or all; knots only by people.
+- [x] Entry points: "Let the gardener read it" after keeping a conversation, on the conversation page, and on the garden when a conversation is unread.
+- [ ] Check in the preview with real conversations (needs Lovable AI enabled and AI credits).
+- [ ] Reading very long chats in parts instead of only the latest ~90,000 characters.
+
 # Ramus v2.0 — Accession (intake, part 1 of 3: no AI)
 - [x] Migration 0006: intake_batches, message spans and set-aside reasons, speaker_aliases, receive_batch.
 - [x] src/lib/intake: WhatsApp (exports and desktop copies), VTT/SRT, transcript blocks, name lines, notes, ChatGPT, Claude, Slack; invariant tests.

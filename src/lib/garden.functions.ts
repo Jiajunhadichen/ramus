@@ -6,6 +6,8 @@ import { validateGarden, formatError, MAX_LABEL } from "./stam/validate";
 import type { StamGarden, ValidationError } from "./stam/types";
 import { prepare, checkDraft, resolveVoices, isRealName, type PrepareInput, type PrepareOptions, type Format } from "./intake";
 import { nextColor } from "./stam/palette";
+import { checkHarvest, fitMessages, harvestPrompt, parseAnswer } from "./gardener/harvest";
+import { askGardener } from "./gardener/ai";
 import sample from "../../docs/sample-garden.json";
 
 type DB = SupabaseClient<Database>;
@@ -117,7 +119,7 @@ export const listGardens = createServerFn({ method: "GET" })
     const gardens = check(await supabase.from("gardens").select("id,title,specimen_no,updated_at,is_demo").order("updated_at", { ascending: false }));
     const ids = gardens.map((g) => g.id);
     if (!ids.length) return [];
-    const ideas = check(await supabase.from("ideas").select("garden_id,status,is_knot").in("garden_id", ids));
+    const ideas = check(await supabase.from("ideas").select("garden_id,status,is_knot").in("garden_id", ids).eq("confirmed", true).is("rejected_at", null));
     const merges = check(await supabase.from("idea_links").select("garden_id").eq("kind", "merge").in("garden_id", ids));
     const people = check(await supabase.from("contributors").select("garden_id").in("garden_id", ids));
     return gardens.map((g) => {
@@ -140,15 +142,20 @@ export const getGarden = createServerFn({ method: "GET" })
     const [contributors, steps, ideas, links, conversations] = await Promise.all([
       supabase.from("contributors").select("id,name,color,kind").eq("garden_id", data.id).order("created_at"),
       supabase.from("steps").select("step,title,date").eq("garden_id", data.id).order("step"),
-      supabase.from("ideas").select("id,key,label,note,contributor_id,step,status,is_knot,is_outcome,settled,position").eq("garden_id", data.id).order("position"),
-      supabase.from("idea_links").select("parent_id,child_id,kind,position,nature").eq("garden_id", data.id).order("position"),
+      supabase.from("ideas").select("id,key,label,note,contributor_id,step,status,is_knot,is_outcome,settled,position,origin,confirmed").eq("garden_id", data.id).is("rejected_at", null).order("position"),
+      supabase.from("idea_links").select("parent_id,child_id,kind,position,nature,rationale,origin,confirmed").eq("garden_id", data.id).order("position"),
       supabase.from("conversations").select("id,title,happened_at,source,imported_at").eq("garden_id", data.id).order("created_at"),
     ]).then((rs) => rs.map((r: any) => check(r)) as never as [any[], any[], any[], any[], any[]]);
     const convMessages = conversations.length ? check(await supabase.from("messages").select("id,conversation_id,content,contributor_id,sequence,sent_at,time_precision,imported_at").eq("garden_id", data.id).order("sequence")) : [];
     const evidence = check(await supabase.from("idea_evidence").select("id,idea_id,message_id,role,note").eq("garden_id", data.id));
     const thoughts = check(await supabase.from("thought_events").select("id,seq,type,idea_id,related_idea_id,settled_kind,person_id,occurred_at,time_precision,recorded_at,rationale,origin,confirmed,rejected_at,corrects_event_id").eq("garden_id", data.id).order("seq"));
     const thoughtEvidence = check(await supabase.from("thought_event_evidence").select("thought_event_id,message_id").eq("garden_id", data.id));
-    return { viewerId: context.userId, garden, contributors, steps, ideas, links, conversations, convMessages, evidence, thoughts, thoughtEvidence };
+    // what the gardener proposed (rejected suggestions stay in the record, off the tree)
+    const liveIds = new Set(ideas.map((i: { id: string }) => i.id));
+    const liveLinks = links.filter((l: { parent_id: string; child_id: string }) => liveIds.has(l.parent_id) && liveIds.has(l.child_id));
+    const proposed = check(await supabase.from("events").select("idea_id,payload").eq("garden_id", data.id).eq("actor_kind", "ai").eq("type", "idea_created"));
+    const suggestions = Object.fromEntries(proposed.filter((e) => e.idea_id && liveIds.has(e.idea_id)).map((e) => [e.idea_id!, e.payload as { why?: string | null; quote?: string | null; knot?: { kind: string; settled: string } | null; conversation_id?: string }]));
+    return { viewerId: context.userId, garden, contributors, steps, ideas, links: liveLinks, conversations, convMessages, evidence, thoughts, thoughtEvidence, suggestions };
   });
 
 export const getConversation = createServerFn({ method: "GET" })
@@ -435,4 +442,166 @@ export const receiveBatch = createServerFn({ method: "POST" })
       _people: people, _aliases: aliases, _messages: messages,
     })) as { conversation_id: string; accession_no: number; added: number; already_kept: number };
     return { conversationId: r.conversation_id, accessionNo: r.accession_no, added: r.added, alreadyKept: r.already_kept, format: draft.format, voices: draft.speakers.length, messages: draft.kept.length };
+  });
+
+// ---------- the gardener: harvest a conversation into suggested branches ----------
+
+/** All rows of a query, a page at a time (the API returns at most 1000 rows per request). */
+async function allRows<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += 1000) {
+    const rows = check(await page(from, from + 999));
+    out.push(...rows);
+    if (rows.length < 1000) return out;
+  }
+}
+
+export const harvestConversation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { gardenId: string; conversationId: string }) => d)
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    if (!check(await supabase.rpc("can_write_garden", { _garden: data.gardenId }))) fail("You cannot write to this garden.");
+    const garden = check(await supabase.from("gardens").select("id,title").eq("id", data.gardenId).single());
+    const conv = check(await supabase.from("conversations").select("id,title,happened_at").eq("id", data.conversationId).eq("garden_id", data.gardenId).maybeSingle());
+    if (!conv) fail("This conversation is not in this garden.");
+    const people = check(await supabase.from("contributors").select("id,name,kind").eq("garden_id", data.gardenId));
+    const ideaRows = await allRows((a, b) => supabase.from("ideas").select("id,key,label,note,contributor_id,status,is_knot,step,position,rejected_at").eq("garden_id", data.gardenId).order("position").range(a, b));
+    const linkRows = await allRows((a, b) => supabase.from("idea_links").select("parent_id,child_id,kind,position").eq("garden_id", data.gardenId).order("position").range(a, b));
+    const stepRows = check(await supabase.from("steps").select("step").eq("garden_id", data.gardenId));
+    const msgRows = await allRows((a, b) => supabase.from("messages").select("id,sequence,contributor_id,speaker_label,content,sent_at,time_precision,hidden_reason").eq("conversation_id", conv.id).order("sequence").range(a, b));
+
+    const live = ideaRows.filter((i) => !i.rejected_at);
+    const liveIds = new Set(live.map((i) => i.id));
+    const keyOf = new Map(ideaRows.map((i) => [i.id, i.key]));
+    const person = new Map(people.map((p) => [p.id, p]));
+    const parentsOf = (id: string) => linkRows.filter((l) => l.child_id === id && liveIds.has(l.parent_id)).sort((x, y) => (x.kind === "primary" ? -1 : y.kind === "primary" ? 1 : x.position - y.position)).map((l) => keyOf.get(l.parent_id)!);
+    const ideas = live.map((i) => ({ key: i.key, label: i.label, note: i.note, by: person.get(i.contributor_id ?? "")?.name ?? "Unknown", parents: parentsOf(i.id), status: i.status, knot: i.is_knot }));
+    const root = ideas.find((i) => !i.parents.length) ?? fail("This garden has no root to grow from.");
+    const visible = msgRows.filter((m) => !m.hidden_reason && m.content.trim());
+    if (!visible.length) fail("This conversation has no words to read.");
+    const { kept, skipped } = fitMessages(visible);
+    const messages = kept.map((m, i) => {
+      const p = m.contributor_id ? person.get(m.contributor_id) : undefined;
+      return { ref: `m${i + 1}`, id: m.id, speaker: p?.name ?? m.speaker_label ?? null, personId: p?.id ?? null, personIsHuman: p?.kind === "person", sentAt: m.time_precision !== "unknown" ? m.sent_at : null, content: m.content };
+    });
+    const input = { gardenTitle: garden.title, conversationTitle: conv.title, rootKey: root.key, ideas, messages, skipped };
+
+    const prompt = harvestPrompt(input);
+    const asked = await askGardener(prompt.system, prompt.user).catch((e) => fail((e as Error).message));
+    const { proposals, stages, dropped } = checkHarvest(parseAnswer(asked.text), input);
+    if (!proposals.length) return { proposed: 0, dropped, read: kept.length, skipped, model: asked.model };
+
+    // keys and steps for what the gardener proposes
+    const key = new Map(proposals.map((p) => [p.temp, newKey()]));
+    const keyFor = (t: string, isNew: boolean) => (isNew ? key.get(t)! : t);
+    const g = await loadGraph(supabase, data.gardenId);
+    assertValid([...g.nodes, ...proposals.map((p) => ({ id: key.get(p.temp)!, label: p.label, parents: [keyFor(p.parent, p.parentIsNew), ...p.merges.map((m) => keyFor(m.target, m.isNew))] }))]);
+    const base = Math.max(0, ...stepRows.map((s) => s.step), ...ideaRows.map((i) => i.step));
+    const sentOf = new Map(messages.map((m) => [m.id, m.sentAt]));
+    const stepOf = new Map(stages.map((s, i) => [s.n, base + i + 1]));
+    const stageDate = (n: number) => proposals.filter((p) => p.stage === n).map((p) => sentOf.get(p.originMessageId)).filter((t): t is string => !!t).sort()[0]?.slice(0, 10) ?? null;
+    check(await supabase.from("steps").insert(stages.map((s) => ({ garden_id: data.gardenId, step: stepOf.get(s.n)!, title: s.title, date: stageDate(s.n) }))));
+
+    const rows = check(await supabase.from("ideas").insert(proposals.map((p, i) => ({
+      garden_id: data.gardenId, key: key.get(p.temp)!, label: p.label, note: p.note, contributor_id: p.personId,
+      step: stepOf.get(p.stage) ?? base + 1, status: p.status, origin: "ai" as const, confirmed: false,
+      position: ideaRows.length + i, owner_user_id: context.userId,
+    }))).select("id,key"));
+    const idOf = new Map([...g.nodes.map((n) => [n.id, n.dbId] as const), ...rows.map((r) => [r.key, r.id] as const)]);
+    const links = proposals.flatMap((p) => {
+      const child = idOf.get(key.get(p.temp)!)!;
+      return [
+        { garden_id: data.gardenId, parent_id: idOf.get(keyFor(p.parent, p.parentIsNew))!, child_id: child, kind: "primary" as const, nature: p.nature, rationale: p.why, origin: "ai" as const, confirmed: false, position: 0 },
+        ...p.merges.map((m, j) => ({ garden_id: data.gardenId, parent_id: idOf.get(keyFor(m.target, m.isNew))!, child_id: child, kind: "merge" as const, nature: "combines", rationale: m.why, origin: "ai" as const, confirmed: false, position: j + 1 })),
+      ];
+    });
+    check(await supabase.from("idea_links").insert(links));
+    const evidence = proposals.flatMap((p) => {
+      const idea = idOf.get(key.get(p.temp)!)!;
+      return [
+        { garden_id: data.gardenId, idea_id: idea, message_id: p.originMessageId, role: "origin" as const, note: p.quote ? `“${p.quote}”` : null, created_by: context.userId },
+        ...p.evidence.map((e) => ({ garden_id: data.gardenId, idea_id: idea, message_id: e.messageId, role: e.role, note: null, created_by: context.userId })),
+      ];
+    });
+    check(await supabase.from("idea_evidence").insert(evidence));
+    // the audit log says the gardener proposed these, at whose request, and why
+    check(await supabase.from("events").insert(proposals.map((p) => ({
+      garden_id: data.gardenId, actor: context.userId, actor_kind: "ai" as const, type: "idea_created" as const, idea_id: idOf.get(key.get(p.temp)!)!,
+      payload: { suggestion: true, conversation_id: conv.id, label: p.label, why: p.why, quote: p.quote, knot: p.knot, model: asked.model } as never,
+    }))));
+    return { proposed: proposals.length, dropped, read: kept.length, skipped, model: asked.model };
+  });
+
+type SuggestionGraph = {
+  ideas: { id: string; key: string; confirmed: boolean; rejected_at: string | null; contributor_id: string | null }[];
+  links: { parent_id: string; child_id: string; kind: string; confirmed: boolean; origin: string }[];
+};
+async function suggestionGraph(supabase: DB, gardenId: string): Promise<SuggestionGraph> {
+  const ideas = await allRows((a, b) => supabase.from("ideas").select("id,key,confirmed,rejected_at,contributor_id,position").eq("garden_id", gardenId).order("position").range(a, b));
+  const links = await allRows((a, b) => supabase.from("idea_links").select("parent_id,child_id,kind,confirmed,origin").eq("garden_id", gardenId).range(a, b));
+  return { ideas, links };
+}
+
+/** Accept one suggestion, and first any suggested ideas it grows from: people decide, the history records them. */
+async function acceptSuggestion(ctx: Ctx, gardenId: string, g: SuggestionGraph, ideaId: string, seen = new Set<string>()) {
+  const idea = g.ideas.find((i) => i.id === ideaId);
+  if (!idea || idea.confirmed || idea.rejected_at || seen.has(ideaId)) return 0;
+  seen.add(ideaId);
+  let n = 0;
+  const parents = g.links.filter((l) => l.child_id === ideaId);
+  for (const l of parents) n += await acceptSuggestion(ctx, gardenId, g, l.parent_id, seen);
+  check(await ctx.supabase.from("ideas").update({ confirmed: true, updated_at: new Date().toISOString() }).eq("id", ideaId));
+  check(await ctx.supabase.from("idea_links").update({ confirmed: true }).eq("child_id", ideaId).eq("origin", "ai"));
+  idea.confirmed = true;
+  const origin = check(await ctx.supabase.from("idea_evidence").select("message_id").eq("idea_id", ideaId).eq("role", "origin").maybeSingle());
+  const primary = parents.find((l) => l.kind === "primary");
+  await record(ctx, gardenId, "idea_created", ideaId, { accepted_suggestion: true, key: idea.key }, [
+    { type: "raised", idea_id: ideaId, related_idea_id: primary?.parent_id ?? null, person_id: idea.contributor_id, message_id: origin?.message_id ?? null },
+    ...parents.filter((l) => l.kind === "merge").map((l) => ({ type: "merged" as const, idea_id: ideaId, related_idea_id: l.parent_id, rationale: "combines" })),
+  ]);
+  return n + 1;
+}
+
+/** Reject a suggestion and the suggestions that grow from it; they stay in the record, off the tree. */
+async function rejectSuggestion(ctx: Ctx, gardenId: string, g: SuggestionGraph, ideaId: string) {
+  const out = new Set<string>([ideaId]);
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const l of g.links) if (out.has(l.parent_id) && !out.has(l.child_id)) {
+      const child = g.ideas.find((i) => i.id === l.child_id);
+      if (!child || child.rejected_at) continue;
+      if (child.confirmed) fail("People have already grown branches from this suggestion, so it stays. Let it rest instead.");
+      out.add(child.id); grew = true;
+    }
+  }
+  const now = new Date().toISOString();
+  check(await ctx.supabase.from("ideas").update({ rejected_at: now, updated_at: now }).in("id", [...out]).eq("confirmed", false));
+  for (const i of g.ideas) if (out.has(i.id)) i.rejected_at = now;
+  await logEvent(ctx, gardenId, "idea_edited", ideaId, { rejected_suggestion: true, with_descendants: out.size - 1 });
+  return out.size;
+}
+
+export const reviewSuggestion = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { gardenId: string; key: string; accept: boolean }) => d)
+  .handler(async ({ data, context }) => {
+    const g = await suggestionGraph(context.supabase, data.gardenId);
+    const idea = g.ideas.find((i) => i.key === data.key) ?? fail("That idea is not in this garden.");
+    if (idea.confirmed || idea.rejected_at) fail("This suggestion has already been decided.");
+    const n = data.accept ? await acceptSuggestion(context, data.gardenId, g, idea.id) : await rejectSuggestion(context, data.gardenId, g, idea.id);
+    return { decided: n };
+  });
+
+export const reviewAllSuggestions = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { gardenId: string; accept: boolean }) => d)
+  .handler(async ({ data, context }) => {
+    const g = await suggestionGraph(context.supabase, data.gardenId);
+    let n = 0;
+    for (const i of g.ideas) {
+      if (i.confirmed || i.rejected_at) continue;
+      n += data.accept ? await acceptSuggestion(context, data.gardenId, g, i.id) : await rejectSuggestion(context, data.gardenId, g, i.id);
+    }
+    return { decided: n };
   });
