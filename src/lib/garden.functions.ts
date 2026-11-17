@@ -36,6 +36,12 @@ function assertValid(nodes: { id: string; label: string; parents: string[] }[]) 
   if (errs.length) fail(errs.map(formatError).join("\n"));
 }
 
+type Thought = { type: "raised" | "challenged" | "refined" | "merged" | "rested" | "revived" | "settled" | "reopened"; idea_id: string; related_idea_id?: string | null; settled_kind?: string | null; person_id?: string | null; message_id?: string | null; rationale?: string | null };
+/** Audit event + its thought events in one database transaction (record_action). */
+async function record(ctx: Ctx, gardenId: string, type: Database["public"]["Tables"]["events"]["Insert"]["type"], ideaId: string | null, payload: Record<string, unknown>, thoughts: Thought[]) {
+  check(await ctx.supabase.rpc("record_action", { _garden: gardenId, _audit_type: type, _idea: ideaId as string, _payload: payload as never, _thoughts: thoughts as never }));
+}
+
 async function logEvent(ctx: Ctx, gardenId: string, type: Database["public"]["Tables"]["events"]["Insert"]["type"], ideaId: string | null, payload: Record<string, unknown>) {
   check(await ctx.supabase.from("events").insert({ garden_id: gardenId, actor: ctx.userId, actor_kind: "human", type, idea_id: ideaId, payload: payload as never }));
 }
@@ -67,6 +73,7 @@ async function importStamInto(ctx: Ctx, obj: StamGarden, opts: { demo?: boolean 
   const focus = obj.focus && iBy.get(obj.focus);
   if (focus) check(await supabase.from("gardens").update({ focus_idea_id: focus }).eq("id", garden.id));
   await logEvent(ctx, garden.id, "imported", null, { nodes: obj.nodes.length, demo: !!opts.demo });
+  check(await supabase.rpc("seed_thought_events", { _garden: garden.id, _by: ctx.userId }));
   return { ok: true as const, gardenId: garden.id, errors: [] as ValidationError[] };
 }
 
@@ -139,7 +146,9 @@ export const getGarden = createServerFn({ method: "GET" })
     ]).then((rs) => rs.map((r: any) => check(r)) as never as [any[], any[], any[], any[], any[]]);
     const convMessages = conversations.length ? check(await supabase.from("messages").select("id,conversation_id,content,contributor_id,sequence,sent_at,time_precision,imported_at").eq("garden_id", data.id).order("sequence")) : [];
     const evidence = check(await supabase.from("idea_evidence").select("id,idea_id,message_id,role,note").eq("garden_id", data.id));
-    return { garden, contributors, steps, ideas, links, conversations, convMessages, evidence };
+    const thoughts = check(await supabase.from("thought_events").select("id,seq,type,idea_id,related_idea_id,settled_kind,person_id,occurred_at,time_precision,recorded_at,rationale,origin,confirmed,rejected_at,corrects_event_id").eq("garden_id", data.id).order("seq"));
+    const thoughtEvidence = check(await supabase.from("thought_event_evidence").select("thought_event_id,message_id").eq("garden_id", data.id));
+    return { garden, contributors, steps, ideas, links, conversations, convMessages, evidence, thoughts, thoughtEvidence };
   });
 
 export const getConversation = createServerFn({ method: "GET" })
@@ -197,7 +206,11 @@ export const growBranch = createServerFn({ method: "POST" })
     }).select("id").single());
     check(await context.supabase.from("idea_links").insert({ garden_id: data.gardenId, parent_id: parent.dbId, child_id: idea.id, kind: "primary", nature: data.nature || null }));
     if (data.messageId) check(await context.supabase.from("idea_evidence").insert({ garden_id: data.gardenId, idea_id: idea.id, message_id: data.messageId, role: "origin", created_by: context.userId }));
-    await logEvent(context, data.gardenId, "idea_created", idea.id, { key, label, parent: parent.id, step, message_id: data.messageId ?? null });
+    const msg = data.messageId ?? null;
+    await record(context, data.gardenId, "idea_created", idea.id, { key, label, parent: parent.id, step, message_id: msg, nature: data.nature ?? null }, [
+      { type: "raised", idea_id: idea.id, related_idea_id: parent.dbId, person_id: contributorId, message_id: msg },
+      ...(data.nature === "refines" ? [{ type: "refined" as const, idea_id: idea.id, related_idea_id: parent.dbId, person_id: contributorId, message_id: msg }] : []),
+    ]);
     return { key };
   });
 
@@ -211,7 +224,9 @@ export const graftMerge = createServerFn({ method: "POST" })
     if (child.parents.includes(parent.id)) fail("These two ideas are already linked.");
     assertValid(g.nodes.map((n) => (n.id === child.id ? { ...n, parents: [...n.parents, parent.id] } : n)));
     check(await context.supabase.from("idea_links").insert({ garden_id: data.gardenId, parent_id: parent.dbId, child_id: child.dbId, kind: "merge", position: child.parents.length, nature: data.nature || "combines" }));
-    await logEvent(context, data.gardenId, "link_added", child.dbId, { kind: "merge", parent: parent.id, child: child.id });
+    await record(context, data.gardenId, "link_added", child.dbId, { kind: "merge", parent: parent.id, child: child.id }, [
+      { type: "merged", idea_id: child.dbId, related_idea_id: parent.dbId, rationale: data.nature || "combines" },
+    ]);
     return { ok: true };
   });
 
@@ -226,19 +241,21 @@ export const setStatus = createServerFn({ method: "POST" })
     const i = await getIdea(context, data.gardenId, data.key);
     assertValid((await loadGraph(context.supabase, data.gardenId)).nodes);
     check(await context.supabase.from("ideas").update({ status: data.status, updated_at: new Date().toISOString() }).eq("id", i.id));
-    await logEvent(context, data.gardenId, "status_changed", i.id, { from: i.status, to: data.status });
+    await record(context, data.gardenId, "status_changed", i.id, { from: i.status, to: data.status },
+      i.status === data.status ? [] : [{ type: data.status === "dormant" ? "rested" : "revived", idea_id: i.id }]);
     return { ok: true };
   });
 
 export const setKnot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { gardenId: string; key: string; settled: string }) => d)
+  .inputValidator((d: { gardenId: string; key: string; settled: string; kind: "decision" | "result" | "ruled_out" | "conclusion" }) => d)
   .handler(async ({ data, context }) => {
     const settled = data.settled.trim() || fail("Say in one sentence what is now settled.");
     const i = await getIdea(context, data.gardenId, data.key);
     if (i.is_knot) fail("This idea is already a knot.");
     check(await context.supabase.from("ideas").update({ is_knot: true, settled, updated_at: new Date().toISOString() }).eq("id", i.id));
-    await logEvent(context, data.gardenId, "knot_set", i.id, { settled });
+    if (!["decision", "result", "ruled_out", "conclusion"].includes(data.kind)) fail("Say what kind of knot this is.");
+    await record(context, data.gardenId, "knot_set", i.id, { settled, kind: data.kind }, [{ type: "settled", idea_id: i.id, settled_kind: data.kind, rationale: settled }]);
     return { ok: true };
   });
 
@@ -250,7 +267,7 @@ export const reopenKnot = createServerFn({ method: "POST" })
     const i = await getIdea(context, data.gardenId, data.key);
     if (!i.is_knot) fail("This idea is not a knot.");
     check(await context.supabase.from("ideas").update({ is_knot: false, updated_at: new Date().toISOString() }).eq("id", i.id));
-    await logEvent(context, data.gardenId, "knot_reopened", i.id, { reason, was_settled: i.settled });
+    await record(context, data.gardenId, "knot_reopened", i.id, { reason, was_settled: i.settled }, [{ type: "reopened", idea_id: i.id, rationale: reason }]);
     return { ok: true };
   });
 
@@ -297,6 +314,20 @@ export const addEvidence = createServerFn({ method: "POST" })
     check(await context.supabase.from("messages").select("id").eq("id", data.messageId).eq("garden_id", data.gardenId).single());
     const r = await context.supabase.from("idea_evidence").insert({ garden_id: data.gardenId, idea_id: i.id, message_id: data.messageId, role: data.role, note: data.note?.trim() || null, created_by: context.userId });
     if (r.error) fail(r.error.code === "23505" ? (data.role === "origin" ? "This idea already has an origin message." : "This message is already linked with that role.") : r.error.message);
-    await logEvent(context, data.gardenId, "link_added", i.id, { kind: "evidence", role: data.role, message_id: data.messageId });
+    let related: string | null = null;
+    if (data.role === "challenges") {
+      const o = check(await context.supabase.from("idea_evidence").select("idea_id").eq("message_id", data.messageId).eq("role", "origin").neq("idea_id", i.id).limit(1));
+      related = o[0]?.idea_id ?? null;
+    }
+    await record(context, data.gardenId, "link_added", i.id, { kind: "evidence", role: data.role, message_id: data.messageId },
+      data.role === "challenges" ? [{ type: "challenged", idea_id: i.id, related_idea_id: related, message_id: data.messageId, rationale: data.note?.trim() || null }] : []);
+    return { ok: true };
+  });
+
+export const reviewThought = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { id: string; confirm: boolean }) => d)
+  .handler(async ({ data, context }) => {
+    check(await context.supabase.rpc("review_thought_event", { _id: data.id, _confirm: data.confirm }));
     return { ok: true };
   });

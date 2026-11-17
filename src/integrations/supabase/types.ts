@@ -547,6 +547,142 @@ export type Database = {
           },
         ]
       }
+      thought_event_evidence: {
+        Row: {
+          garden_id: string
+          message_id: string
+          thought_event_id: string
+        }
+        Insert: {
+          garden_id: string
+          message_id: string
+          thought_event_id: string
+        }
+        Update: {
+          garden_id?: string
+          message_id?: string
+          thought_event_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "thought_event_evidence_garden_id_fkey"
+            columns: ["garden_id"]
+            isOneToOne: false
+            referencedRelation: "gardens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "thought_event_evidence_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "thought_event_evidence_thought_event_id_fkey"
+            columns: ["thought_event_id"]
+            isOneToOne: false
+            referencedRelation: "thought_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      thought_events: {
+        Row: {
+          confirmed: boolean
+          corrects_event_id: string | null
+          garden_id: string
+          id: string
+          idea_id: string
+          occurred_at: string | null
+          origin: string
+          person_id: string | null
+          rationale: string | null
+          recorded_at: string
+          recorded_by: string | null
+          rejected_at: string | null
+          related_idea_id: string | null
+          seq: number
+          settled_kind: string | null
+          time_precision: string
+          type: string
+        }
+        Insert: {
+          confirmed?: boolean
+          corrects_event_id?: string | null
+          garden_id: string
+          id?: string
+          idea_id: string
+          occurred_at?: string | null
+          origin?: string
+          person_id?: string | null
+          rationale?: string | null
+          recorded_at?: string
+          recorded_by?: string | null
+          rejected_at?: string | null
+          related_idea_id?: string | null
+          seq?: never
+          settled_kind?: string | null
+          time_precision?: string
+          type: string
+        }
+        Update: {
+          confirmed?: boolean
+          corrects_event_id?: string | null
+          garden_id?: string
+          id?: string
+          idea_id?: string
+          occurred_at?: string | null
+          origin?: string
+          person_id?: string | null
+          rationale?: string | null
+          recorded_at?: string
+          recorded_by?: string | null
+          rejected_at?: string | null
+          related_idea_id?: string | null
+          seq?: never
+          settled_kind?: string | null
+          time_precision?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "thought_events_corrects_event_id_fkey"
+            columns: ["corrects_event_id"]
+            isOneToOne: false
+            referencedRelation: "thought_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "thought_events_garden_id_fkey"
+            columns: ["garden_id"]
+            isOneToOne: false
+            referencedRelation: "gardens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "thought_events_idea_id_fkey"
+            columns: ["idea_id"]
+            isOneToOne: false
+            referencedRelation: "ideas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "thought_events_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "contributors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "thought_events_related_idea_id_fkey"
+            columns: ["related_idea_id"]
+            isOneToOne: false
+            referencedRelation: "ideas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -554,6 +690,24 @@ export type Database = {
     Functions: {
       can_write_garden: { Args: { _garden: string }; Returns: boolean }
       is_garden_member: { Args: { _garden: string }; Returns: boolean }
+      record_action: {
+        Args: {
+          _audit_type: string
+          _garden: string
+          _idea: string
+          _payload: Json
+          _thoughts: Json
+        }
+        Returns: undefined
+      }
+      review_thought_event: {
+        Args: { _confirm: boolean; _id: string }
+        Returns: undefined
+      }
+      seed_thought_events: {
+        Args: { _by: string; _garden: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

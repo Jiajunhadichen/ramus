@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { queryOptions, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { replayOrder, thoughtSentence, type Thought } from "@/lib/stam/thoughts";
 import { getGarden } from "@/lib/garden.functions";
 import { StamTree, Legend, Seed } from "@/components/stam-tree/StamTree";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -27,6 +28,13 @@ export const Route = createFileRoute("/_authenticated/g/$id")({
   }),
   loader: ({ context, params }) => context.queryClient.ensureQueryData(gardenQuery(params.id)),
   component: GardenPage,
+  errorComponent: ({ error }) => (
+    <main className="mx-auto grid max-w-[640px] gap-3 px-5 py-16">
+      <h1 className="font-display text-[40px]">No garden here</h1>
+      <p>{String((error as Error)?.message).includes("cannot see") ? (error as Error).message : "This garden could not be opened."}</p>
+      <Link to="/gardens" className="underline underline-offset-4">Back to my gardens</Link>
+    </main>
+  ),
 });
 
 function GardenPage() {
@@ -40,6 +48,36 @@ function GardenPage() {
   const r = useReplay(max);
   const [convOpen, setConvOpen] = useState(false);
   const [view, setView] = useState<"tree" | "systema">("tree");
+  const [mode, setMode] = useState<"steps" | "events">("steps");
+  const events = useMemo(() => replayOrder((data.thoughts ?? []) as Thought[]), [data.thoughts]);
+  const byDb = useMemo(() => new Map(ideas.map((i) => [i.dbId, i])), [ideas]);
+  const [evIdx, setEvIdx] = useState<number | null>(null);
+  const [evPlaying, setEvPlaying] = useState(false);
+  const evTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopEv = () => { if (evTimer.current) clearInterval(evTimer.current); evTimer.current = null; setEvPlaying(false); };
+  function showEvent(i: number) {
+    const ev = events[i]; if (!ev) return;
+    // the tree shows every idea seen up to this event, so the event's idea is always visible
+    const seen = events.slice(0, i + 1).map((e) => byDb.get(e.idea_id)?.step ?? 1);
+    r.setStep(Math.max(1, ...seen));
+    setEvIdx(i);
+    const k = byDb.get(ev.idea_id)?.id; if (k) setSelected(k);
+  }
+  const evIdxRef = useRef<number | null>(null); evIdxRef.current = evIdx;
+  function playEvents() {
+    if (evTimer.current) return stopEv();
+    if (!events.length) return;
+    const start = evIdxRef.current == null || evIdxRef.current >= events.length - 1 ? 0 : evIdxRef.current + 1;
+    showEvent(start); setEvPlaying(true);
+    evTimer.current = setInterval(() => {
+      const n = (evIdxRef.current ?? -1) + 1;
+      if (n >= events.length) { stopEv(); return; }
+      showEvent(n);
+    }, 1600);
+  }
+  useEffect(() => () => stopEv(), []);
+  const currentEvent = evIdx != null ? events[evIdx] : null;
+  const evNames = { idea: (x: string | null) => (x ? byDb.get(x)?.label ?? null : null), person: (x: string | null) => (x ? (data.contributors as any[]).find((c) => c.id === x)?.name ?? null : null) };
 
   const focusKey = data.ideas.find((i: any) => i.id === data.garden.focus_idea_id)?.key;
   const newest = [...ideas].sort((a, b) => b.step - a.step || ideas.indexOf(b) - ideas.indexOf(a))[0]?.id;
@@ -97,9 +135,15 @@ function GardenPage() {
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
         <section className="rounded-md border border-rule bg-sheet" aria-label="Specimen sheet">
           <div className="flex flex-wrap items-center gap-4 border-b border-rule px-4 py-3">
-            <button type="button" className="ink-btn px-3.5 py-2.5" onClick={r.play}>{r.playing ? "Pause" : "Play growth"}</button>
+            <button type="button" className="ink-btn px-3.5 py-2.5" onClick={mode === "steps" ? r.play : playEvents}>{(mode === "steps" ? r.playing : evPlaying) ? "Pause" : "Play growth"}</button>
+            <div role="radiogroup" aria-label="Replay by" className="smallcaps flex gap-2 text-[13px]">
+              {(["steps", "events"] as const).map((m) => (
+                <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => { r.stop(); stopEv(); setMode(m); setEvIdx(null); }}
+                  className={mode === m ? "text-foreground underline underline-offset-4" : "text-muted-foreground hover:text-foreground"}>By {m}</button>
+              ))}
+            </div>
             <input type="range" className="range-green min-w-[160px] flex-1" min={1} max={max} step={1} value={r.step}
-              onChange={(e) => r.setStep(Number(e.target.value))} aria-label="Step" />
+              onChange={(e) => { stopEv(); setEvIdx(null); r.setStep(Number(e.target.value)); }} aria-label="Step" />
             <div role="tablist" aria-label="View" className="smallcaps ml-auto flex gap-3 text-[15px] order-first basis-full sm:basis-auto sm:order-none">
               {(["tree", "systema"] as const).map((v) => (
                 <button key={v} role="tab" aria-selected={view === v} type="button" onClick={() => setView(v)}
@@ -112,6 +156,13 @@ function GardenPage() {
               <span className="eyebrow ml-2">{stepDate(data, ideas, r.step) ?? "time unknown"}</span>
             </span>
           </div>
+          {mode === "events" && (
+            <p className="border-b border-rule px-4 py-2 text-[15px]" aria-live="polite" data-testid="event-line">
+              {currentEvent
+                ? <><span className="smallcaps mr-2 text-[13px] text-muted-foreground">Event {evIdx! + 1} of {events.length}</span>{thoughtSentence(currentEvent, evNames)}</>
+                : <span className="text-muted-foreground">{events.length} events. Play growth to step through what happened to each idea.</span>}
+            </p>
+          )}
           {ideas.length === 0 ? <Seed /> : view === "systema" ? (
             <Systema title={data.garden.title} nodes={ideas} selected={selected} onSelect={(k) => { select(k); }} />
           ) : (

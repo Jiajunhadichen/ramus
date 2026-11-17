@@ -46,3 +46,6 @@ use the editor.
 - Motion is growth only (branch draw, knot tighten, tip pulse); everything is disabled under prefers-reduced-motion.
 - Labels never collide: computeLayout takes measured widths and an obstacle rect (specimen card) and scores candidates against labels, nodes and sampled branch/merge points; keep src/lib/stam/focus.test.ts passing.
 - Concept tooltip lines live in REASONS (src/lib/stam/focus.ts); empty states use <Seed/>; garden vocabulary only, never "generate"/magic/sparkles.
+- Thought events (what happened to an idea in the discussion) live in thought_events, separate from the events audit log; every garden write records both through the record_action RPC so they share one transaction. Why: the audit log and the discussion history answer different questions and must never drift apart.
+- thought_events is insert-only (no UPDATE/DELETE grants plus a guard trigger); confirmed/rejected_at are set once only via review_thought_event, and corrections are new rows with corrects_event_id. Why: history is evidence and must not be rewritten.
+- Digits everywhere render from a "Ramus Digits" alias of Noto Serif SC (self-hosted in public/fonts, unicode-range 0-9) placed first in every font token. Why: IM Fell old-style zero reads as the letter o.

@@ -29,6 +29,9 @@
  * 2. Register it in @theme inline as --color-<name>: var(--<name>)
  */
 
+@font-face { font-family: "Ramus Digits"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/noto-serif-sc-latin-400-normal.woff2") format("woff2"); unicode-range: U+0030-0039; }
+@font-face { font-family: "Ramus Digits"; font-style: italic; font-weight: 400; font-display: swap; src: url("/fonts/noto-serif-sc-latin-400-normal.woff2") format("woff2"); unicode-range: U+0030-0039; }
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -63,12 +66,12 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
   /* One printing house: Fell types for Latin, Noto Serif SC (upright) for Chinese. */
-  --font-display: "IM Fell Double Pica", "Noto Serif SC", serif;
-  --font-sans: "IM Fell English", "Noto Serif SC", serif;
-  --font-serif: "IM Fell English", "Noto Serif SC", serif;
-  --font-mono: "IM Fell English SC", "Noto Serif SC", serif;
-  --font-sc: "IM Fell English SC", "Noto Serif SC", serif;
-  --font-hand: "IM Fell English", "Noto Serif SC", serif;
+  --font-display: "Ramus Digits", "IM Fell Double Pica", "Noto Serif SC", serif;
+  --font-sans: "Ramus Digits", "IM Fell English", "Noto Serif SC", serif;
+  --font-serif: "Ramus Digits", "IM Fell English", "Noto Serif SC", serif;
+  --font-mono: "Ramus Digits", "IM Fell English SC", "Noto Serif SC", serif;
+  --font-sc: "Ramus Digits", "IM Fell English SC", "Noto Serif SC", serif;
+  --font-hand: "Ramus Digits", "IM Fell English", "Noto Serif SC", serif;
   --color-paper: var(--paper);
   --color-sheet: var(--sheet);
   --color-ink: var(--ink);
@@ -160,7 +163,7 @@
 .stam-tree .lbl { font-family: var(--font-sans); font-size: 15px; fill: var(--ink); stroke: none; cursor: pointer; }
 .stam-tree .lbl.major { font-family: var(--font-sc); letter-spacing: .06em; }
 .stam-tree .lbl.major .cjk { font-size: 16px; letter-spacing: 0; }
-.stam-tree .lbl.dormant { fill: var(--muted-ink); font-style: italic; }
+.stam-tree .lbl.dormant { fill: var(--muted-ink); font-style: normal; }
 .cjk { font-family: "Noto Serif SC", serif; font-style: normal !important; font-weight: 400 !important; }
 .stam-tree .lbl.sel { text-decoration: underline; }
 .stam-tree .node { cursor: pointer; outline: none; }

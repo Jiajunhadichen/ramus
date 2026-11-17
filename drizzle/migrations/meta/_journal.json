@@ -22,6 +22,20 @@
       "when": 1794878575201,
       "tag": "0002_conversation_originals_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794881851357,
+      "tag": "0003_thought_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794882208058,
+      "tag": "0004_thought_events_no_update_grant",
+      "breakpoints": true
     }
   ]
 }

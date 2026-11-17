@@ -10,7 +10,8 @@ function lineageOf<T extends { id: string; parents: string[] }>(idea: T, byKey: 
   return out;
 }
 import { toast } from "sonner";
-import { addEvidence, editIdea, graftMerge, growBranch, reopenKnot, setKnot, setStatus } from "@/lib/garden.functions";
+import { addEvidence, editIdea, graftMerge, growBranch, reopenKnot, reviewThought, setKnot, setStatus } from "@/lib/garden.functions";
+import { lifeOf, SETTLED_KINDS, thoughtPhrase, type Thought } from "@/lib/stam/thoughts";
 import { MAX_LABEL } from "@/lib/stam/validate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,18 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
   const byKey = new Map(ideas.map((i) => [i.id, i]));
   const children = ideas.filter((c) => c.parents.includes(idea.id));
   const evidence = sortEvidence(evidenceFor(data, idea));
+  const review = useServerFn(reviewThought);
+  const byDb = new Map(ideas.map((i) => [i.dbId, i]));
+  const people = new Map((data.contributors as any[]).map((c) => [c.id, c]));
+  const msgs = new Map(((data.convMessages ?? []) as any[]).map((m) => [m.id, m]));
+  const names = { idea: (id: string | null) => (id ? byDb.get(id)?.label ?? null : null), person: (id: string | null) => (id ? people.get(id)?.name ?? null : null) };
+  const life = lifeOf((data.thoughts ?? []) as Thought[], idea.dbId);
+  const quoteOf = (tid: string) => ((data.thoughtEvidence ?? []) as any[]).filter((e) => e.thought_event_id === tid).map((e) => msgs.get(e.message_id)).find(Boolean);
+  const primaryParent = idea.parents[0] ? byKey.get(idea.parents[0]) : undefined;
+  const mergeParents = idea.parents.slice(1).map((p) => byKey.get(p)!).filter(Boolean);
+  const grewInto = children.filter((c) => c.parents[0] === idea.id);
+  const mergedInto = children.filter((c) => c.parents[0] !== idea.id);
+  const descendants = (() => { const seen = new Set<string>(); const q = [idea.id]; while (q.length) { const k = q.pop()!; for (const c of ideas) if (c.parents.includes(k) && !seen.has(c.id)) { seen.add(c.id); q.push(c.id); } } return seen.size; })();
 
   async function run(fn: () => Promise<unknown>, ok: string) {
     try { await fn(); await onChanged(); toast.success(ok); setDialog(null); return true; }
@@ -71,30 +84,78 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
       </div>
       {idea.note && <p className="whitespace-pre-wrap">{idea.note}</p>}
       {idea.knot && idea.settled && <p className="border-l-2 border-ink pl-3 text-sm"><span className="eyebrow block">Settled</span>{idea.settled}</p>}
-      {evidence.length > 0 && (
-        <div className="grid gap-2 rounded border border-rule p-3 text-sm">
-          <span className="eyebrow">Heard in</span>
-          <ol className="grid gap-3">
-            {evidence.map((e) => (
-              <li key={e.id} className="grid gap-0.5" data-role={e.role}>
-                <span className="smallcaps text-[13px] text-muted-foreground">{ROLE_LABEL[e.role as EvidenceRole] ?? e.role}</span>
-                <blockquote className="hand text-[15px]">“{e.content}”</blockquote>
-                <span className="text-xs">
-                  <span style={{ color: e.speaker?.color }}>{e.speaker?.name ?? "Unattributed"}</span>
-                  {" · "}{formatTime(e.sentAt, e.precision)}
-                  {e.conversation && <> · {e.conversation.title} (happened {formatDate(e.conversation.happened_at)})</>}
-                </span>
-                {e.note && <span className="text-xs text-muted-foreground">{e.note}</span>}
-                {e.conversation && <Link to="/g/$id/conversations/$cid" params={{ id: data.garden.id, cid: e.conversation.id }} hash={e.messageId} className="text-xs underline underline-offset-4">Read in conversation</Link>}
-              </li>
-            ))}
+      <section aria-labelledby="fn-from" className="grid gap-2 border-t border-rule pt-3">
+        <h3 id="fn-from" className="eyebrow">Where it came from</h3>
+        <dl className="grid grid-cols-[6.5em_1fr] gap-x-2 gap-y-1.5 text-sm">
+          <dt className="text-muted-foreground">Grew from</dt><dd className="flex flex-wrap gap-x-2">{links(primaryParent ? [primaryParent] : [], (p) => idea.natures[p.id])}{!primaryParent && <span className="text-muted-foreground"> (the root)</span>}</dd>
+          <dt className="text-muted-foreground">Merged lines</dt><dd className="flex flex-wrap gap-x-2">{links(mergeParents, (p) => idea.natures[p.id])}</dd>
+        </dl>
+        {evidence.length > 0 && (
+          <div className="grid gap-2 rounded border border-rule p-3 text-sm">
+            <span className="eyebrow">Heard in</span>
+            <ol className="grid gap-3">
+              {evidence.map((e) => (
+                <li key={e.id} className="grid gap-0.5" data-role={e.role}>
+                  <span className="smallcaps text-[13px] text-muted-foreground">{ROLE_LABEL[e.role as EvidenceRole] ?? e.role}</span>
+                  <blockquote className="hand text-[15px]">“{e.content}”</blockquote>
+                  <span className="text-xs">
+                    <span style={{ color: e.speaker?.color }}>{e.speaker?.name ?? "Unattributed"}</span>
+                    {" · "}{formatTime(e.sentAt, e.precision)}
+                    {e.conversation && <> · {e.conversation.title} (happened {formatDate(e.conversation.happened_at)})</>}
+                  </span>
+                  {e.note && <span className="text-xs text-muted-foreground">{e.note}</span>}
+                  {e.conversation && <Link to="/g/$id/conversations/$cid" params={{ id: data.garden.id, cid: e.conversation.id }} hash={e.messageId} className="text-xs underline underline-offset-4">Read in conversation</Link>}
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+      </section>
+
+      <section aria-labelledby="fn-changed" className="grid gap-2 border-t border-rule pt-3">
+        <h3 id="fn-changed" className="eyebrow">How it changed</h3>
+        {life.length === 0 ? <p className="text-sm text-muted-foreground">Nothing recorded yet.</p> : (
+          <ol className="grid gap-0 text-sm" data-testid="life">
+            {life.map((t, i) => {
+              const pending = !t.confirmed && !t.rejected_at;
+              const q = quoteOf(t.id);
+              const who = names.person(t.person_id);
+              return (
+                <li key={t.id} data-type={t.type} data-pending={pending || undefined}
+                  className={"relative grid gap-0.5 pb-3 pl-5 " + (t.rejected_at ? "opacity-50 line-through" : "")}>
+                  {i < life.length - 1 && <span aria-hidden className="absolute left-[4px] top-[12px] bottom-0 border-l border-ink" />}
+                  <span aria-hidden className={"absolute left-0 top-[6px] h-[9px] w-[9px] rounded-full border border-ink " + (pending ? "border-dashed bg-sheet" : "bg-ink")} />
+                  <span><Upright>{thoughtPhrase(t, names)}</Upright></span>
+                  <span className="text-xs text-muted-foreground">
+                    {who && <span style={{ color: people.get(t.person_id!)?.color }}>{who} · </span>}
+                    {formatTime(t.occurred_at, t.time_precision)}
+                    {pending && " · suggested, not yet confirmed"}
+                    {(t as any).corrects_event_id && " · corrects an earlier entry"}
+                    {t.rejected_at && " · rejected"}
+                  </span>
+                  {t.rationale && <span className="text-xs"><Upright>{t.rationale}</Upright></span>}
+                  {q && <blockquote className="hand text-[13px]">“{q.content}”</blockquote>}
+                  {pending && (
+                    <span className="flex gap-2 pt-1">
+                      <Button size="sm" variant="outline" onClick={() => run(() => review({ data: { id: t.id, confirm: true } }), "Confirmed.")}>Confirm</Button>
+                      <Button size="sm" variant="ghost" onClick={() => run(() => review({ data: { id: t.id, confirm: false } }), "Rejected, still kept in the record.")}>Reject</Button>
+                    </span>
+                  )}
+                </li>
+              );
+            })}
           </ol>
-        </div>
-      )}
-      <dl className="grid grid-cols-[5.5em_1fr] gap-x-2 gap-y-1.5 text-sm">
-        <dt className="text-muted-foreground">Grew from</dt><dd className="flex flex-wrap gap-x-2">{links(idea.parents.map((p) => byKey.get(p)!).filter(Boolean), (p) => idea.natures[p.id])}</dd>
-        <dt className="text-muted-foreground">Grew into</dt><dd className="flex flex-wrap gap-x-2">{links(children, (c) => c.natures[idea.id])}</dd>
-      </dl>
+        )}
+      </section>
+
+      <section aria-labelledby="fn-grew" className="grid gap-2 border-t border-rule pt-3">
+        <h3 id="fn-grew" className="eyebrow">What grew from it</h3>
+        <dl className="grid grid-cols-[6.5em_1fr] gap-x-2 gap-y-1.5 text-sm">
+          <dt className="text-muted-foreground">Grew into</dt><dd className="flex flex-wrap gap-x-2">{links(grewInto, (c) => c.natures[idea.id])}</dd>
+          <dt className="text-muted-foreground">Merged into</dt><dd className="flex flex-wrap gap-x-2">{links(mergedInto, (c) => c.natures[idea.id])}</dd>
+          <dt className="text-muted-foreground">Descendants</dt><dd data-testid="descendants">{descendants}</dd>
+        </dl>
+      </section>
 
       <div className="mt-2 grid grid-cols-2 gap-2 border-t border-rule pt-3">
         <Button size="sm" onClick={() => setDialog("grow")}>Grow a branch</Button>
@@ -111,9 +172,8 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
 
       {dialog === "grow" && <GrowDialog {...{ data, idea, currentStep, onSelect, run }} onClose={() => setDialog(null)} />}
       {dialog === "graft" && <GraftDialog {...{ data, ideas, idea, run }} onClose={() => setDialog(null)} />}
-      {dialog === "knot" && <TextDialog title="Mark as knot" question="What is now settled?" hint="One sentence. Reopening a knot later needs a reason."
-        action="Tie the knot" onClose={() => setDialog(null)}
-        submit={(t) => run(() => knotFn({ data: { gardenId: data.garden.id, key: idea.id, settled: t } }), "Knot tied.")} />}
+      {dialog === "knot" && <KnotDialog onClose={() => setDialog(null)}
+        submit={(t, kind) => run(() => knotFn({ data: { gardenId: data.garden.id, key: idea.id, settled: t, kind } }), "Knot tied.")} />}
       {dialog === "reopen" && <TextDialog title="Reopen knot" question="Why does this need reopening?" hint={idea.settled ? `Settled: “${idea.settled}”` : ""}
         action="Reopen" onClose={() => setDialog(null)}
         submit={(t) => run(() => reopenFn({ data: { gardenId: data.garden.id, key: idea.id, reason: t } }), "Knot reopened.")} />}
@@ -298,6 +358,27 @@ function EvidenceDialog({ data, idea, run, onClose }: { data: GardenData; idea: 
         <Label htmlFor="ev-n">Note (optional)</Label>
         <Input id="ev-n" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} />
         <DialogFooter><Button type="submit" disabled={!f.messageId}>Add</Button></DialogFooter>
+      </form>
+    </Shell>
+  );
+}
+
+type Kind = (typeof SETTLED_KINDS)[number][0];
+function KnotDialog({ submit, onClose }: { submit: (t: string, kind: Kind) => Promise<boolean>; onClose: () => void }) {
+  const [t, setT] = useState("");
+  const [kind, setKind] = useState<Kind | "">("");
+  return (
+    <Shell title="Mark as knot" onClose={onClose}>
+      <form className="grid gap-3" onSubmit={(e) => { e.preventDefault(); if (kind) submit(t, kind); }}>
+        <Label htmlFor="k-kind">What kind of knot is it?</Label>
+        <select id="k-kind" required className={selectCls} value={kind} onChange={(e) => setKind(e.target.value as Kind)}>
+          <option value="">Choose…</option>
+          {SETTLED_KINDS.map(([v, l]) => <option key={v} value={v}>{l.charAt(0).toUpperCase() + l.slice(1)}</option>)}
+        </select>
+        <Label htmlFor="td">What is now settled?</Label>
+        <Textarea id="td" required value={t} onChange={(e) => setT(e.target.value)} />
+        <p className="text-xs text-muted-foreground">One sentence. Reopening a knot later needs a reason.</p>
+        <DialogFooter><Button type="submit" disabled={!t.trim() || !kind}>Tie the knot</Button></DialogFooter>
       </form>
     </Shell>
   );
