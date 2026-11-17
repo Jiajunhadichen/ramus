@@ -9,7 +9,8 @@ import type { PrepareInput } from "./types";
  * Pure and deterministic: bytes in, input out. No network.
  */
 
-export type IncomingFile = { name: string; bytes: Uint8Array; type?: string };
+/** `text`: words already taken out by the caller (PDFs are read with pdf.js in the browser). */
+export type IncomingFile = { name: string; bytes: Uint8Array; type?: string; text?: string };
 export type KeptFile = { name: string; bytes: Uint8Array; type: string };
 export type Opened =
   | { ok: true; input: PrepareInput; from: string; keep: KeptFile | null; rest: IncomingFile[] }
@@ -28,11 +29,6 @@ const MIME: Record<string, string> = {
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 };
 
-export const ACCEPT = [
-  ".txt", ".vtt", ".srt", ".md", ".json", ".zip", ".docx",
-  "text/plain", "text/vtt", "application/json", "application/zip",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-].join(",");
 
 /** Text from bytes: UTF-8 by default; UTF-16 when a byte-order mark or the zero-byte pattern says so. */
 export function decodeText(bytes: Uint8Array): string {
@@ -49,10 +45,21 @@ export function decodeText(bytes: Uint8Array): string {
   return t.charCodeAt(0) === 0xfeff ? t.slice(1) : t;
 }
 
-const ENTITY: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+const ENTITY: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: "\u00a0", ndash: "–", mdash: "—", hellip: "…", rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“" };
 const unescapeXml = (s: string) =>
-  s.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (_, e: string) =>
-    e[0] === "#" ? String.fromCodePoint(e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10)) : ENTITY[e.toLowerCase()]!);
+  s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (all, e: string) =>
+    e[0] === "#" ? String.fromCodePoint(e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10)) : ENTITY[e.toLowerCase()] ?? all);
+
+/** The visible text of a saved web page: one line per block, scripts and styles left out. */
+export function htmlText(html: string): string {
+  const s = html
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<(script|style|noscript|template|svg|head)\b[\s\S]*?<\/\1>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/?(?:p|div|li|ul|ol|tr|table|h[1-6]|section|article|header|footer|main|aside|blockquote|pre|time)\b[^>]*>/gi, "\n")
+    .replace(/<[^>]+>/g, "");
+  return unescapeXml(s).split("\n").map((l) => l.replace(/[ \t\u00a0]+$/, "").replace(/^[ \t\u00a0]+/, "")).join("\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
+}
 
 /**
  * The visible text of a Word document: one line per paragraph, tabs and line breaks kept.
@@ -151,9 +158,15 @@ function openOne(f: IncomingFile, rest: IncomingFile[]): Opened {
   if (e === "zip") return openZip(f, rest);
   if (IMAGE_EXT.has(e)) return { ok: false, reason: `${f.name} is an image. Ramus will read screenshots in a later version; for now, copy the text and paste it here.`, rest };
   if (AUDIO_EXT.has(e)) return { ok: false, reason: `${f.name} is a recording. Ramus will transcribe recordings in a later version; if your meeting tool made a transcript (.vtt or .docx), bring that in.`, rest };
-  if (e === "pdf") return { ok: false, reason: `${f.name} is a PDF, which Ramus cannot read yet. Open it, copy the text and paste it here.`, rest };
+  if (e === "pdf") {
+    if (f.text === undefined || !f.text.trim()) return { ok: false, reason: `${f.name} has no text Ramus can read (it may be a scan). Copy the text and paste it here.`, rest };
+    return { ok: true, input: { kind: "text", text: f.text, fileName: f.name }, from: `The text of ${f.name}.`, keep: { name: f.name, bytes: f.bytes, type: "application/pdf" }, rest };
+  }
   if (["doc", "rtf", "pages", "odt"].includes(e)) return { ok: false, reason: `${f.name} cannot be read directly. Save it as .docx, or copy the text and paste it here.`, rest };
-  if (e === "html" || e === "htm") return { ok: false, reason: `${f.name} is a web page. For a ChatGPT or Claude export, bring in the whole .zip or conversations.json instead.`, rest };
+  if (base(f.name) === "chat.html") return { ok: false, reason: `${f.name} is the page view of a ChatGPT export. Bring in the whole .zip instead.`, rest };
+  if (e === "html" || e === "htm" || e === "mhtml") {
+    return { ok: true, input: { kind: "text", text: htmlText(decodeText(f.bytes)), fileName: f.name }, from: `The text of ${f.name}.`, keep: { name: f.name, bytes: f.bytes, type: "text/html" }, rest };
+  }
   return { ok: false, reason: `Ramus cannot read ${f.name} yet. Copy the text and paste it here.`, rest };
 }
 

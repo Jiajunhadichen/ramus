@@ -17,11 +17,11 @@ export function setAside(content: string): Hidden | null {
   return null;
 }
 
-const tidy = (s: string) => s.replace(/\r/g, "").replace(/^[\s\u200e\u200f\ufeff]+|[\s\u200e\u200f\ufeff]+$/g, "");
-const blank = (l: Line) => !plain(l.text).trim();
+export const tidy = (s: string) => s.replace(/\r/g, "").replace(/^[\s\u200e\u200f\ufeff]+|[\s\u200e\u200f\ufeff]+$/g, "");
+export const blank = (l: Line) => !plain(l.text).trim();
 
 /** Close a text message: the words are exactly raw[bodyStart, rawEnd), trimmed. */
-function close(raw: string, lines: Line[], from: number, to: number, bodyStart: number, base: Omit<Unit, "content" | "rawStart" | "rawEnd" | "bodyStart" | "hidden">, forceHidden?: Hidden | null): Unit {
+export function close(raw: string, lines: Line[], from: number, to: number, bodyStart: number, base: Omit<Unit, "content" | "rawStart" | "rawEnd" | "bodyStart" | "hidden">, forceHidden?: Hidden | null): Unit {
   let last = to;
   while (last > from && blank(lines[last]!)) last--;
   const rawStart = lines[from]!.start;
@@ -30,7 +30,7 @@ function close(raw: string, lines: Line[], from: number, to: number, bodyStart: 
   return { ...base, content, rawStart, rawEnd, bodyStart, hidden: forceHidden ?? setAside(content) };
 }
 
-const noTime = { sentAt: null, precision: "unknown" as const, timeSource: "none" as const, offsetMs: null, parentExternalId: null };
+export const noTime = { sentAt: null, precision: "unknown" as const, timeSource: "none" as const, offsetMs: null, parentExternalId: null };
 
 // ---------- WhatsApp ----------
 const T = String.raw`(?:(上午|下午)\s*)?(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?(?:\s*([AaPp])\.?\s*[Mm]\.?)?`;
@@ -189,7 +189,7 @@ function headOf(text: string, shape: Shape) {
   return h;
 }
 
-const MONTHS: Record<string, number> = {
+export const MONTHS: Record<string, number> = {
   jan: 1, january: 1, januari: 1, feb: 2, february: 2, februari: 2, mar: 3, march: 3, mars: 3, apr: 4, april: 4,
   may: 5, maj: 5, jun: 6, june: 6, juni: 6, jul: 7, july: 7, juli: 7, aug: 8, august: 8, augusti: 8,
   sep: 9, sept: 9, september: 9, oct: 10, october: 10, okt: 10, oktober: 10, nov: 11, november: 11, dec: 12, december: 12,
@@ -304,6 +304,17 @@ function lineLabel(text: string) {
   return { label, clock: m[2] ?? null, len: m[0].length };
 }
 
+/**
+ * A short exchange ("Ana: …" / "Bo: …") where some people speak only once: labels count as speakers when
+ * at least two different name-like labels start most of the lines.
+ */
+export function shortExchange(raw: string): Set<string> {
+  const filled = toLines(raw).filter((l) => plain(l.text).trim()).length;
+  const counts = lineLabels(raw);
+  const names = [...counts.entries()].filter(([l]) => /^[\p{L}]/u.test(l) && l.split(/\s+/).length <= 3 && !OFTEN_NOT_PEOPLE.includes(l.toLowerCase()));
+  const covered = names.reduce((a, [, n]) => a + n, 0);
+  return names.length >= 2 && covered * 2 >= filled ? new Set(names.map(([l]) => l)) : new Set();
+}
 export function lineLabels(raw: string): Map<string, number> {
   const counts = new Map<string, number>();
   for (const l of toLines(raw)) { const x = lineLabel(l.text); if (x) counts.set(x.label, (counts.get(x.label) ?? 0) + 1); }
@@ -314,9 +325,10 @@ export function speakerSet(raw: string, known: Set<string>, arePeople: string[],
   const yes = new Set(arePeople.map((s) => s.toLowerCase())), no = new Set(notAPerson.map((s) => s.toLowerCase()));
   const speakers = new Set<string>();
   const doubtful: string[] = [];
+  const short = shortExchange(raw);
   for (const [label, n] of lineLabels(raw)) {
     const k = label.toLowerCase();
-    if (!(n >= 2 || known.has(k))) continue;
+    if (!(n >= 2 || known.has(k) || short.has(label))) continue;
     if (no.has(k)) continue;
     if (OFTEN_NOT_PEOPLE.includes(k) && !yes.has(k)) { doubtful.push(label); continue; }
     speakers.add(label);

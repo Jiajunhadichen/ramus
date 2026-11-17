@@ -6,8 +6,7 @@ import { toast } from "sonner";
 import { checkOverlap, getAccessionContext, receiveBatch } from "@/lib/garden.functions";
 import { prepare, resolveVoices, FORMAT_LABEL, type Draft, type Format, type PrepareInput, type PrepareOptions, type Voice } from "@/lib/intake";
 import { takeHandOver } from "@/lib/intake/handover";
-import { ACCEPT, openFiles, type IncomingFile } from "@/lib/intake/files";
-import { WordsGuide } from "@/components/garden/WordsGuide";
+import { openFiles, type IncomingFile } from "@/lib/intake/files";
 import { HIDDEN_NOTE, browserDateOrder, formatOffset, formatWhen, lineOwners } from "@/lib/intake/display";
 import { toLines } from "@/lib/intake/util";
 import { PERSON_COLORS } from "@/lib/stam/palette";
@@ -45,9 +44,14 @@ const SELF = new Set<Format>(["chatgpt", "claude", "notes"]);
 /** Open received files (zip, docx, text, json); the original kept is what the opener chose, never a whole export. */
 async function readFiles(files: File[]): Promise<{ received: Received | null; rest: File[]; refusal: string | null }> {
   if (!files.length) return { received: null, rest: [], refusal: null };
-  const incoming: IncomingFile[] = await Promise.all(files.map(async (f) => ({
-    name: (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name, type: f.type, bytes: new Uint8Array(await f.arrayBuffer()),
-  })));
+  const incoming: IncomingFile[] = await Promise.all(files.map(async (f, i) => {
+    const bytes = new Uint8Array(await f.arrayBuffer());
+    const name = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
+    // PDFs are read with pdf.js, loaded only now; only the first file is opened right away
+    let text: string | undefined;
+    if (!import.meta.env.SSR && i === 0 && /\.pdf$/i.test(name)) { try { text = await (await import("@/lib/intake/pdf")).pdfText(bytes); } catch { text = undefined; } }
+    return text === undefined ? { name, type: f.type, bytes } : { name, type: f.type, bytes, text };
+  }));
   const o = openFiles(incoming);
   if (!o) return { received: null, rest: [], refusal: null };
   // several .json files are read together (Slack); otherwise the first file is opened and the others wait
@@ -76,6 +80,7 @@ function AccessionPage() {
   const [overlap, setOverlap] = useState<{ conversationId: string; kept: number }[]>([]);
   const [target, setTarget] = useState<string | "new">(into ?? "new");
   const [refusal, setRefusal] = useState<string | null>(null);
+  const [pasted, setPasted] = useState(false);
   const [kept, setKept] = useState<null | { no: number; line: string; conversationId: string; added: number; already: number }>(null);
   const touched = useRef({ title: false, happened: false });
 
@@ -84,7 +89,7 @@ function AccessionPage() {
     setOptions((o) => ({ timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", dateOrder: browserDateOrder(), ...o }));
     const h = takeHandOver(id);
     if (h?.files?.length) void receiveFiles(h.files);
-    else if (h?.text) receiveText(h.text);
+    else if (h?.text) { receiveText(h.text); setPasted(true); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -93,6 +98,7 @@ function AccessionPage() {
     touched.current = { title: false, happened: false };
     setConsent(false); setKept(null); setOverlap([]); setTarget(into ?? "new"); setRefusal(null);
   }
+  function startOver() { reset(); setReceived(null); setPaste(""); setQueue([]); setPasted(false); }
   function receiveText(t: string) { reset(); setPaste(t); setReceived(t.trim() ? { input: { kind: "text", text: t }, file: null, name: null, from: null } : null); }
   async function receiveFiles(list: FileList | File[]) {
     reset();
@@ -199,24 +205,28 @@ function AccessionPage() {
       </div>
 
       <section aria-label="Receive" className="grid gap-2">
-        <h2 className="eyebrow">Receive</h2>
-        <div className="rounded-md border border-dashed border-ink/40 bg-sheet p-3"
-          onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (e.dataTransfer.files.length) void receiveFiles(e.dataTransfer.files); }}>
-          <textarea aria-label="Paste or drop anything a discussion left behind" className="min-h-[120px] w-full resize-y bg-transparent text-[15px] outline-none"
-            placeholder="Paste or drop anything a discussion left behind: a chat export, a meeting transcript, notes, a conversation with an AI assistant."
-            value={received?.input.files && !received.name?.endsWith(".zip") ? `${received.input.files.length} files received` : received?.name ? `${received.name} received` : paste}
-            readOnly={!!received?.name}
-            onChange={(e) => receiveText(e.target.value)} />
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="cursor-pointer text-sm underline underline-offset-4">Choose files<input type="file" multiple accept={ACCEPT} className="sr-only" onChange={(e) => { if (e.target.files) void receiveFiles(e.target.files); e.target.value = ""; }} /></label>
-            {(received || refusal) && <button type="button" className="text-sm underline underline-offset-4" onClick={() => { reset(); setReceived(null); setPaste(""); setQueue([]); }}>Start over</button>}
-            {queue.length > 0 && <span className="text-sm text-muted-foreground">Next after this: {queue.map((f) => f.name).join(", ")}</span>}
+        {received && (received.name || pasted) ? (
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[15px]">
+            <span className="eyebrow">Received</span>
+            <span>{received.name ?? `pasted text, ${paste.split(/\r?\n/).filter((l) => l.trim()).length} lines`}</span>
+            <button type="button" className="text-sm underline underline-offset-4" onClick={startOver}>Start over</button>
+            {queue.length > 0 && <span className="text-sm text-muted-foreground">Next: {queue.map((f) => f.name).join(", ")}</span>}
           </div>
-        </div>
-        {received?.from && <p className="hand text-[16px]">Opened: {received.from}</p>}
+        ) : (
+          <div className="rounded-md border border-dashed border-ink/40 bg-sheet p-3"
+            onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (e.dataTransfer.files.length) void receiveFiles(e.dataTransfer.files); }}>
+            <textarea aria-label="Paste anything" className="min-h-[160px] w-full resize-y bg-transparent text-[15px] outline-none"
+              placeholder="Paste or drop anything here" value={paste}
+              onPaste={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); void receiveFiles([...e.clipboardData.files]); } else setPasted(true); }}
+              onChange={(e) => receiveText(e.target.value)} />
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="cursor-pointer text-sm underline underline-offset-4">or choose a file<input type="file" multiple className="sr-only" onChange={(e) => { if (e.target.files) void receiveFiles(e.target.files); e.target.value = ""; }} /></label>
+              {(received || refusal) && <button type="button" className="text-sm underline underline-offset-4" onClick={startOver}>Start over</button>}
+            </div>
+          </div>
+        )}
+        {received?.from && received.from !== received.name && <p className="hand text-[16px]">{received.from}</p>}
         {refusal && <p role="alert" className="rounded-md border border-rule bg-sheet px-3 py-2 text-[15px]">{refusal}</p>}
-        <p className="smallcaps text-[13px] text-muted-foreground">Accepted: pasted text · .zip exports (WhatsApp, ChatGPT, Claude, Slack) · .docx · .vtt · .srt · .txt · .md · .json</p>
-        {!draft && <WordsGuide />}
       </section>
 
       {draft && (

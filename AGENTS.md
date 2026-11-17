@@ -64,5 +64,7 @@ use the editor.
 - Large originals are never loaded with a conversation; getBatchOriginal fetches one when someone opens it.
 - Files are opened by openFiles (src/lib/intake/files.ts, fflate, pure): it picks the words out of .zip and .docx exports and returns the original to keep (never media, never a whole AI export). Tests build real zips; jsdom's TextEncoder arrays come from another realm, so tests create bytes with Buffer.
 - Every page that brings words in uses useBringIn (src/hooks/use-bring-in.ts) for paste and drop, and hands them over with handOver (files in memory, text in sessionStorage, never the URL). /g/$id/accession?into=<conversation> adds to a chosen conversation.
-- Export steps per app live in SOURCES (src/components/garden/WordsGuide.tsx); keep them short and check them when an app changes its menus.
+- Never teach users how to export: accept what they already have (a messy copy, any file) and work it out. The entry is one window (src/components/garden/BringInWindow.tsx).
+- Chats copied off a page are read by parseChatCopy (src/lib/intake/chat.ts): it keeps the header shape a page actually uses (name and time on one line, or a name line then a time line), treats bare repeated names as speakers only when nothing better exists, and sets page furniture aside. It reports format "transcript" (the database knows no other name for it) and yields to the transcript reader when headers look like recording offsets. Add a copy-*.txt fixture for every page shape you support.
+- PDFs are read in the browser only (src/lib/intake/pdf.ts, guarded by import.meta.env.SSR so pdf.js stays out of the server bundle); openFiles receives the extracted text and keeps the PDF.
 

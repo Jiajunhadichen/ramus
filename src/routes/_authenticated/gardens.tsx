@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "sonner";
 import { useBringIn } from "@/hooks/use-bring-in";
 import { handOver, type HandOver } from "@/lib/intake/handover";
+import { BringInWindow } from "@/components/garden/BringInWindow";
 
 const gardensQuery = queryOptions({
   queryKey: ["gardens"],
@@ -42,6 +43,7 @@ function GardensPage() {
   // words brought in from this page wait here until the person says which garden they belong to
   const [pending, setPending] = useState<HandOver | null>(null);
   const [newFor, setNewFor] = useState<HandOver | null>(null);
+  const [bringOpen, setBringOpen] = useState(false);
   useBringIn((got) => setPending(got));
   const own = data.filter((g) => !g.is_demo);
   const sendTo = (gardenId: string, h: HandOver | null) => {
@@ -57,7 +59,7 @@ function GardensPage() {
         </div>
         <div className="ml-auto flex gap-2">
           <Button variant="outline" onClick={() => setImportOpen(true)}>Import Stam JSON</Button>
-          <Button variant="outline" onClick={() => setPending({})}>Bring in a conversation</Button>
+          <Button variant="outline" onClick={() => setBringOpen(true)}>Bring in a conversation</Button>
           <Button onClick={() => { setNewFor(null); setNewOpen(true); }}>Start a garden</Button>
         </div>
       </div>
@@ -75,7 +77,7 @@ function GardensPage() {
           </Link>
         ))}
       </div>
-      <p className="mt-6 text-sm text-muted-foreground">Have a chat, a transcript or notes already? Paste it anywhere on this page or drop the file here.</p>
+      <BringInWindow open={bringOpen} onOpenChange={setBringOpen} onReceive={(got) => setPending(got)} />
       <WhereDialog pending={pending} gardens={own} onClose={() => setPending(null)}
         onPick={(gid) => { const h = pending; setPending(null); sendTo(gid, h); }}
         onNew={() => { setNewFor(pending); setPending(null); setNewOpen(true); }} />

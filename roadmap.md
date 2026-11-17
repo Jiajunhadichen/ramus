@@ -5,7 +5,8 @@
 - [x] Conversation page: accession stamps, set-aside toggle, See in original (loaded on demand).
 - [x] Open .zip exports (WhatsApp iPhone, ChatGPT, Claude, Slack workspace) and .docx transcripts; UTF-16; plain reasons for screenshots, recordings and PDFs.
 - [x] Teams .docx start time used automatically; Google Meet markers; Zoom captions and meeting chat.
-- [x] One way in: garden page, empty-garden invitation, gardens page (which garden / new garden), Bring in more; "Where are your words?" export guide.
+- [x] One simple window to paste or drop anything, from the garden, an empty garden, the gardens page (which garden / new garden) and Bring in more. No export guide: users are not taught, their messy copies are understood.
+- [x] Chats copied off a page (Slack, Teams, Discord, Messenger, Google Chat, Telegram, WeChat); short two-person exchanges; PDFs and saved web pages.
 - [ ] Browser check with real exports at desktop and phone width.
 - [ ] Link the importer's new person to their account (needs a receive_batch change).
 - [ ] Part 2: AI cut points for unknown formats and screenshots. Part 3: audio.

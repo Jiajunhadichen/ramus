@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { zipSync } from "fflate";
-import { decodeText, docxText, openFiles } from "./files";
+import { decodeText, docxText, htmlText, openFiles } from "./files";
 import { prepare } from "./prepare";
 import { checkDraft } from "./index";
 
@@ -106,8 +106,8 @@ describe("opening what apps export", () => {
     const say = (name: string) => { const o = openFiles([{ name, bytes: new Uint8Array([1]) }])!; return o.ok ? "" : o.reason; };
     expect(say("IMG_0001.HEIC")).toMatch(/screenshots in a later version/);
     expect(say("meeting.m4a")).toMatch(/transcribe recordings in a later version/);
-    expect(say("minutes.pdf")).toMatch(/copy the text/);
-    expect(say("chat.html")).toMatch(/conversations\.json/);
+    expect(say("scan.pdf")).toMatch(/no text Ramus can read/);
+    expect(say("chat.html")).toMatch(/whole \.zip/);
     const empty = openFiles([{ name: "photos.zip", bytes: zipSync({ "a.jpg": new Uint8Array([1]) }) }])!;
     expect(empty.ok ? "" : empty.reason).toMatch(/no chat, transcript or notes/);
   });
@@ -168,3 +168,20 @@ describe("meeting tools", () => {
     expect(chat.kept.map((m) => [m.speakerLabel, m.content])).toEqual([["Ana Lind", "Hello"], ["Bo Berg", "Hi"], ["Ana Lind", "Link: https://x.y"]]);
   });
 });
+
+describe("PDFs and saved web pages", () => {
+  it("a PDF whose text was taken out in the browser is read like any text, and the PDF is kept", () => {
+    const o = openFiles([{ name: "minutes.pdf", bytes: new Uint8Array([37, 80, 68, 70]), text: "Ana: Shall we keep it?\nBo: Yes.\n" }])!;
+    expect(o.ok && o.keep?.type).toBe("application/pdf");
+    if (!o.ok) return;
+    expect(prepare(o.input, { timeZone: "UTC" }, ctx).kept.map((m) => m.speakerLabel)).toEqual(["Ana", "Bo"]);
+  });
+  it("a saved chat page: blocks become lines, scripts and entities are handled", () => {
+    const html = `<html><head><title>x</title><style>p{}</style></head><body><div class="msg"><span>Ana Lind</span><time>2:02 PM</time><p>Shall we keep the raw&nbsp;text?</p></div><script>var a=1</script><div class="msg"><span>Bo Berg</span><time>2:05 PM</time><p>Yes &amp; always.</p></div><div class="msg"><span>Ana Lind</span><time>2:07 PM</time><p>Ok.</p></div></body></html>`;
+    const t = htmlText(html);
+    expect(t).not.toMatch(/var a|p\{\}/);
+    const d = prepare({ kind: "text", text: t }, { timeZone: "UTC", conversationDate: "2026-11-17" }, ctx);
+    expect(d.kept.filter((m) => !m.hidden).map((m) => [m.speakerLabel, m.content])).toEqual([["Ana Lind", "Shall we keep the raw\u00a0text?"], ["Bo Berg", "Yes & always."], ["Ana Lind", "Ok."]]);
+  });
+});
+

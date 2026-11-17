@@ -8,7 +8,7 @@ import { mergeCues, parseCues } from "./text";
 const fx = (n: string) => readFileSync(join(__dirname, "fixtures", n), "utf8");
 const ctx = { contributors: [{ id: "p-ana", name: "Ana" }], aliases: [], importerContributorId: "p-me" };
 const run = (n: string, o: PrepareOptions = {}) => prepare({ kind: n.endsWith(".json") ? "json" : "text", text: fx(n), fileName: n }, { timeZone: "Europe/Stockholm", ...o }, ctx);
-const TEXT = ["whatsapp-ios.txt", "whatsapp-android.txt", "whatsapp-sv.txt", "whatsapp-us.txt", "whatsapp-ambiguous.txt", "teams.vtt", "zoom.vtt", "sample.srt", "otter.txt", "wechat.txt", "messy.txt", "lines-clock.txt", "notes.txt", "lines-zh.txt"];
+const TEXT = ["whatsapp-ios.txt", "whatsapp-android.txt", "whatsapp-sv.txt", "whatsapp-us.txt", "whatsapp-ambiguous.txt", "teams.vtt", "zoom.vtt", "sample.srt", "otter.txt", "wechat.txt", "messy.txt", "lines-clock.txt", "notes.txt", "lines-zh.txt", "copy-slack.txt", "copy-discord.txt", "copy-teams.txt", "copy-messenger.txt", "copy-gchat.txt", "copy-telegram.txt"];
 const JSONS = ["chatgpt.json", "claude.json", "slack-day.json"];
 const ws = (s: string) => s.replace(/[\u200e\u200f\u202f\u00a0\ufeff]/g, " ").replace(/\s+/g, " ").trim();
 
@@ -269,3 +269,36 @@ describe("Original column line lookup", () => {
     expect(lineOwners(lines, d.messages)).toEqual(naive);
   });
 });
+
+describe("chats copied straight off a page", () => {
+  const said = (n: string) => run(n, { conversationDate: "2026-11-17" }).kept.filter((m) => !m.hidden).map((m) => [m.speakerLabel, m.content]);
+  const ANA = "Shall we keep the raw text?", BO = "Yes, always keep the raw.";
+  it("Slack: avatar names, follow-up times, reactions, threads and the message box", () => {
+    const d = run("copy-slack.txt", { conversationDate: "2026-11-17" });
+    expect(said("copy-slack.txt")).toEqual([["Ana Lind", ANA], ["Ana Lind", "And the summary too?"], ["Bo Berg", BO + " (edited)"], ["Ana Lind", "Ok, decided."]]);
+    expect(d.kept.find((m) => m.content === "And the summary too?")!.sentAt).toBe("2026-11-17T13:03:00.000Z");
+    expect(d.messages.filter((m) => m.hidden === "system").map((m) => m.content)).toEqual(["general", "42 members", "Today", "👍", "2", "1 reply", "Last reply today at 2:10 PM", "View thread", "Message #general"]);
+  });
+  it.each([["copy-discord.txt"], ["copy-gchat.txt"], ["copy-telegram.txt"], ["copy-teams.txt"]])("%s: speakers, words and times", (n) => {
+    const d = run(n, { conversationDate: "2026-11-17" });
+    expect(d.format).toBe("transcript");
+    expect(said(n).map(([s]) => s)).toEqual(n.includes("discord") ? ["Ana", "Bo", "Ana"] : ["Ana Lind", "Bo Berg", "Ana Lind"]);
+    expect(said(n)[1]![1]).toBe(BO);
+    expect(d.kept.find((m) => !m.hidden)!.sentAt).toBe("2026-11-17T13:02:00.000Z");
+  });
+  it("Messenger: no times, and “You sent” is the person copying", () => {
+    const d = run("copy-messenger.txt");
+    expect(said("copy-messenger.txt")).toEqual([["Ana Lind", ANA], ["You", BO], ["Ana Lind", "Ok, decided."]]);
+    expect(d.speakers.find((s) => s.label === "You")!.suggested).toEqual({ type: "person", id: "p-me" });
+  });
+  it("a relative day needs the day it was copied; without it times stay unknown", () => {
+    const d = run("copy-discord.txt");
+    expect(d.kept.every((m) => m.sentAt === null)).toBe(true);
+    expect(d.questions.some((q) => q.kind === "conversation-date")).toBe(true);
+  });
+  it("short repeated replies are not mistaken for people", () => {
+    const d = prepare({ kind: "text", text: "Ana — Today at 2:02 PM\nok\nBo — Today at 2:03 PM\nok\nAna — Today at 2:04 PM\nYes\nYes" }, { timeZone: "UTC" }, ctx);
+    expect(d.speakers.map((s) => s.label)).toEqual(["Ana", "Bo"]);
+  });
+});
+

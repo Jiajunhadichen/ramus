@@ -10,6 +10,7 @@ import { useReplay } from "@/components/stam-tree/useReplay";
 import { FieldNotes } from "@/components/garden/FieldNotes";
 import { handOver } from "@/lib/intake/handover";
 import { useBringIn } from "@/hooks/use-bring-in";
+import { BringInWindow } from "@/components/garden/BringInWindow";
 import { stepDate, toIdeas, toStam } from "@/components/garden/model";
 import { maxStep, selectionAt } from "@/lib/stam/layout";
 import { Button } from "@/components/ui/button";
@@ -61,9 +62,11 @@ function GardenPage() {
   const changeLevel = (next: ReadingLevel) => { setLevel(next); localStorage.setItem(preferenceKey, next); };
   const max = maxStep(ideas);
   const r = useReplay(max);
-  const bringIn = () => navigate({ to: "/g/$id/accession", params: { id }, search: {} });
+  const [bringOpen, setBringOpen] = useState(false);
+  const received = (got: { text?: string; files?: File[] }) => { handOver(id, got); navigate({ to: "/g/$id/accession", params: { id }, search: {} }); };
+  const bringIn = () => setBringOpen(true);
   // Pasting a discussion (no field focused) or dropping files anywhere on the garden opens the Accession page with it.
-  useBringIn((got) => { handOver(id, got); bringIn(); });
+  useBringIn(received);
   const [view, setView] = useState<"tree" | "systema">("tree");
   const [mode, setMode] = useState<"steps" | "events">("steps");
   const events = useMemo(() => replayOrder((data.thoughts ?? []) as Thought[]), [data.thoughts]);
@@ -153,13 +156,11 @@ function GardenPage() {
       </header>
       {data.conversations.length === 0 && (
         <section aria-label="Bring in the first conversation" className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-md border border-dashed border-ink/40 bg-sheet px-4 py-3">
-          <div className="grid gap-0.5">
-            <p className="font-display text-lg">Nothing has been said here yet.</p>
-            <p className="text-[15px] text-muted-foreground">Bring in what your group already said: a chat, a meeting transcript, notes. Paste it anywhere on this page, drop a file, or</p>
-          </div>
-          <Button size="sm" onClick={bringIn}>Bring in the first conversation</Button>
+          <p className="font-display text-lg">Nothing has been said here yet.</p>
+          <Button size="sm" onClick={bringIn}>Bring in a conversation</Button>
         </section>
       )}
+      <BringInWindow open={bringOpen} onOpenChange={setBringOpen} onReceive={received} />
       <div className="grid gap-6 border-y border-rule py-5 sm:grid-cols-2">
         <section className="min-w-0" aria-label="The question">
           <p className="eyebrow">The question</p>

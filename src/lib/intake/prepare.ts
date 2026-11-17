@@ -1,5 +1,6 @@
+import { parseChatCopy } from "./chat";
 import { deepMap, readJson, type JsonSource } from "./json";
-import { GENERIC, OFTEN_NOT_PEOPLE, lineLabels, parseLines, parseNotes, parseTranscript, parseVtt, parseWhatsApp, speakerSet, statedRecordingStart, transcriptShape, waDateOrder, waHeader, waWhen, type Unit } from "./text";
+import { GENERIC, OFTEN_NOT_PEOPLE, lineLabels, parseLines, shortExchange, parseNotes, parseTranscript, parseVtt, parseWhatsApp, speakerSet, statedRecordingStart, transcriptShape, waDateOrder, waHeader, waWhen, type Unit } from "./text";
 import { PARSER_VERSION, type Draft, type DraftMessage, type Format, type Hidden, type PrepareContext, type PrepareInput, type PrepareOptions, type Question, type Segment, type SpeakerInfo, type Voice } from "./types";
 import { findPrivate, hash, localStringToUtc, maskText, toLines, validTimeZone } from "./util";
 
@@ -25,16 +26,22 @@ export function detect(raw: string): { format: Format; confidence: number }[] {
   const wa = lines.filter((l) => waHeader(l.text)).length;
   const timings = lines.filter((l) => /-->/.test(l.text)).length;
   const tr = transcriptShape(raw);
-  const labels = [...lineLabels(raw).entries()].filter(([, c]) => c >= 2).reduce((a, [, c]) => a + c, 0);
+  const short = shortExchange(raw);
+  const labels = [...lineLabels(raw).entries()].filter(([l, c]) => c >= 2 || short.has(l)).reduce((a, [, c]) => a + c, 0);
   const out: { format: Format; confidence: number }[] = [
     { format: "whatsapp", confidence: wa >= 2 ? Math.min(0.98, 0.4 + wa / n) : wa ? 0.2 : 0 },
     { format: "vtt", confidence: /^\ufeff?WEBVTT/.test(raw.trimStart()) ? 0.99 : 0 },
     { format: "srt", confidence: !/^\ufeff?WEBVTT/.test(raw.trimStart()) && timings && /\d,\d{3}\s*-->/.test(raw) ? 0.95 : 0 },
-    { format: "transcript", confidence: tr ? Math.min(0.9, 0.5 + tr.count / n) : 0 },
+    { format: "transcript", confidence: Math.max(tr ? Math.min(0.9, 0.5 + tr.count / n) : 0, chatCopyWins(raw, tr?.count ?? 0) ? 0.93 : 0) },
     { format: "lines", confidence: labels ? Math.min(0.85, 0.3 + labels / n / 2) : 0 },
     { format: "notes", confidence: 0.1 },
   ];
   return out.filter((x) => x.confidence > 0).sort((a, b) => b.confidence - a.confidence);
+}
+
+/** A chat copied off a page (name lines, separate times, page furniture) reads better than plain transcript blocks. */
+function chatCopyWins(raw: string, transcriptHeaders: number, read = parseChatCopy(raw, "UTC", null, "DMY")): boolean {
+  return read.headers >= 2 && !read.offsetLike && read.headers >= transcriptHeaders;
 }
 
 function localDate(isoStr: string, tz: string) {
@@ -51,6 +58,8 @@ function suggestVoice(label: string, format: Format, ctx: PrepareContext): { voi
     const hit = ctx.contributors.find((c) => c.name === name);
     return { voice: hit ? { type: "person", id: hit.id } : { type: "new", name, kind: "historical_ai" }, remembered: false };
   }
+  // "You" in a copied chat is the person copying it
+  if (/^(?:you|du|我)$/i.test(label)) return { voice: me, remembered: false };
   const alias = ctx.aliases.find((a) => a.alias.toLowerCase() === k);
   if (alias && ctx.contributors.some((c) => c.id === alias.contributor_id)) return { voice: { type: "person", id: alias.contributor_id }, remembered: true };
   const hit = ctx.contributors.find((c) => c.name.toLowerCase() === k);
@@ -117,6 +126,11 @@ export function prepare(input: PrepareInput, options: PrepareOptions, ctx: Prepa
     } else if (format === "vtt" || format === "srt") {
       units = parseVtt(raw, recordingIso);
       if (!recordingIso) questions.push({ kind: "recording-start", unsure: 0.5, text: "When did the recording start? Without it, times stay as offsets into the recording." });
+    } else if (format === "transcript" && chatCopyWins(raw, transcriptShape(raw)?.count ?? 0)) {
+      const known = new Set([...ctx.contributors.map((c) => c.name.toLowerCase()), ...ctx.aliases.map((a) => a.alias.toLowerCase())]);
+      const c = parseChatCopy(raw, tz, date, options.dateOrder ?? "DMY", known);
+      units = c.units;
+      if (c.clockOnly && !date) questions.push({ kind: "conversation-date", unsure: 0.5, text: "The lines carry clock times but no full date. On which day was this? Without it, times stay unknown." });
     } else if (format === "transcript") {
       // a start the transcript states itself (Teams .docx) is used unless the person gives another
       const stated = options.recordingStart ? null : localStringToUtc(statedRecordingStart(raw), tz);
