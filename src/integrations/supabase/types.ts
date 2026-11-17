@@ -187,6 +187,7 @@ export type Database = {
           collected: string
           created_at: string
           created_by: string
+          deleted_at: string | null
           focus_idea_id: string | null
           id: string
           is_demo: boolean
@@ -198,6 +199,7 @@ export type Database = {
           collected?: string
           created_at?: string
           created_by?: string
+          deleted_at?: string | null
           focus_idea_id?: string | null
           id?: string
           is_demo?: boolean
@@ -209,6 +211,7 @@ export type Database = {
           collected?: string
           created_at?: string
           created_by?: string
+          deleted_at?: string | null
           focus_idea_id?: string | null
           id?: string
           is_demo?: boolean
@@ -819,7 +822,9 @@ export type Database = {
     }
     Functions: {
       can_write_garden: { Args: { _garden: string }; Returns: boolean }
+      delete_garden_forever: { Args: { _garden: string }; Returns: undefined }
       is_garden_member: { Args: { _garden: string }; Returns: boolean }
+      is_garden_owner: { Args: { _garden: string }; Returns: boolean }
       receive_batch: {
         Args: {
           _aliases: Json
@@ -852,6 +857,10 @@ export type Database = {
       }
       set_idea_outcome: {
         Args: { _garden: string; _idea: string; _outcome: boolean }
+        Returns: undefined
+      }
+      trash_garden: {
+        Args: { _garden: string; _trash: boolean }
         Returns: undefined
       }
     }

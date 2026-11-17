@@ -50,6 +50,13 @@
       "when": 1794925480549,
       "tag": "0006_accession_intake",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794953330466,
+      "tag": "0007_garden_trash",
+      "breakpoints": true
     }
   ]
 }
