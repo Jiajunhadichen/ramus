@@ -81,6 +81,7 @@ function AccessionPage() {
   const [target, setTarget] = useState<string | "new">(into ?? "new");
   const [refusal, setRefusal] = useState<string | null>(null);
   const [pasted, setPasted] = useState(false);
+  const [allVoices, setAllVoices] = useState(false);
   const [kept, setKept] = useState<null | { no: number; line: string; conversationId: string; added: number; already: number }>(null);
   const touched = useRef({ title: false, happened: false });
 
@@ -259,8 +260,8 @@ function AccessionPage() {
 
           {draft.speakers.length > 0 && (
             <div className="grid gap-2">
-              <h2 className="eyebrow">Voices</h2>
-              {draft.speakers.map((s) => {
+              <h2 className="eyebrow">Voices · {draft.speakers.length}</h2>
+              {(allVoices ? draft.speakers : draft.speakers.slice(0, 6)).map((s) => {
                 const v = options.voices?.[s.label] ?? s.suggested;
                 const sel = v.type === "person" ? v.id : v.type;
                 return (
@@ -269,7 +270,7 @@ function AccessionPage() {
                     <div className="grid gap-0.5 text-sm text-muted-foreground">{s.samples.map((x, i) => <span key={i} className="truncate">“{x}”</span>)}</div>
                     <div className="flex gap-2">
                       <select aria-label={`Who is ${s.label || "the author"}`} className={selectCls + " min-w-0 flex-1"} value={sel}
-                        onChange={(e) => { const x = e.target.value; setVoice(s.label, x === "new" ? { type: "new", name: s.label || ctx.importerName } : x === "anon" ? { type: "anon" } : x === "none" ? { type: "none" } : { type: "person", id: x }); }}>
+                        onChange={(e) => { const x = e.target.value; setVoice(s.label, x === "new" ? { type: "new", name: s.label.replace(/^~\s*/, "").trim() || ctx.importerName } : x === "anon" ? { type: "anon" } : x === "none" ? { type: "none" } : { type: "person", id: x }); }}>
                         {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                         <option value="new">A new person…</option>
                         <option value="anon">Anonymous</option>
@@ -280,6 +281,7 @@ function AccessionPage() {
                   </div>
                 );
               })}
+              {draft.speakers.length > 6 && !allVoices && <button type="button" className="justify-self-start text-sm underline underline-offset-4" onClick={() => setAllVoices(true)}>Show all {draft.speakers.length} voices</button>}
             </div>
           )}
 

@@ -8,7 +8,7 @@ import { mergeCues, parseCues } from "./text";
 const fx = (n: string) => readFileSync(join(__dirname, "fixtures", n), "utf8");
 const ctx = { contributors: [{ id: "p-ana", name: "Ana" }], aliases: [], importerContributorId: "p-me" };
 const run = (n: string, o: PrepareOptions = {}) => prepare({ kind: n.endsWith(".json") ? "json" : "text", text: fx(n), fileName: n }, { timeZone: "Europe/Stockholm", ...o }, ctx);
-const TEXT = ["whatsapp-ios.txt", "whatsapp-android.txt", "whatsapp-sv.txt", "whatsapp-us.txt", "whatsapp-ambiguous.txt", "teams.vtt", "zoom.vtt", "sample.srt", "otter.txt", "wechat.txt", "messy.txt", "lines-clock.txt", "notes.txt", "lines-zh.txt", "copy-slack.txt", "copy-discord.txt", "copy-teams.txt", "copy-messenger.txt", "copy-gchat.txt", "copy-telegram.txt"];
+const TEXT = ["whatsapp-ios.txt", "whatsapp-android.txt", "whatsapp-sv.txt", "whatsapp-us.txt", "whatsapp-ambiguous.txt", "teams.vtt", "zoom.vtt", "sample.srt", "otter.txt", "wechat.txt", "messy.txt", "lines-clock.txt", "notes.txt", "lines-zh.txt", "copy-slack.txt", "copy-discord.txt", "copy-teams.txt", "copy-messenger.txt", "copy-gchat.txt", "copy-telegram.txt", "whatsapp-copy-iso.txt"];
 const JSONS = ["chatgpt.json", "claude.json", "slack-day.json"];
 const ws = (s: string) => s.replace(/[\u200e\u200f\u202f\u00a0\ufeff]/g, " ").replace(/\s+/g, " ").trim();
 
@@ -299,6 +299,20 @@ describe("chats copied straight off a page", () => {
   it("short repeated replies are not mistaken for people", () => {
     const d = prepare({ kind: "text", text: "Ana — Today at 2:02 PM\nok\nBo — Today at 2:03 PM\nok\nAna — Today at 2:04 PM\nYes\nYes" }, { timeZone: "UTC" }, ctx);
     expect(d.speakers.map((s) => s.label)).toEqual(["Ana", "Bo"]);
+  });
+});
+
+describe("a real dorm group chat, copied from WhatsApp", () => {
+  it("non-contacts (~ Name) keep their label but join as Name; Read more is set aside; many newcomers ask one quiet line", () => {
+    const d = run("whatsapp-copy-iso.txt");
+    expect(d.format).toBe("whatsapp");
+    expect(d.speakers.map((s) => [s.label, s.suggested])).toEqual([
+      ["~ Saloni", { type: "new", name: "Saloni" }], ["~ Ben", { type: "new", name: "Ben" }], ["~ Lea", { type: "new", name: "Lea" }], ["Peter Kel", { type: "new", name: "Peter Kel" }],
+    ]);
+    expect(d.messages.at(-1)).toMatchObject({ content: "阅读更多", hidden: "system", speakerLabel: "~ Ben" });
+    expect(d.questions.filter((q) => q.kind === "unknown-voice")).toEqual([]);
+    expect(d.questions.some((q) => q.kind === "newcomers")).toBe(true);
+    expect(d.messages[0]!.sentAt).toBe("2026-11-17T13:53:54.000Z");
   });
 });
 

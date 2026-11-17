@@ -72,7 +72,8 @@ export type Question =
   | { kind: "recording-start"; unsure: number; text: string }
   | { kind: "conversation-date"; unsure: number; text: string }
   | { kind: "privacy"; unsure: number; text: string; matches: { kind: "phone" | "email"; value: string }[] }
-  | { kind: "timezone"; unsure: number; text: string };
+  | { kind: "timezone"; unsure: number; text: string }
+  | { kind: "newcomers"; unsure: number; text: string };
 
 export type Segment = { index: number; from: string | null; to: string | null; count: number };
 export type ConversationChoice = { id: string; title: string; date: string | null; count: number };

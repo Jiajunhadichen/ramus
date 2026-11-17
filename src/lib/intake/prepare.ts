@@ -65,7 +65,7 @@ function suggestVoice(label: string, format: Format, ctx: PrepareContext): { voi
   const hit = ctx.contributors.find((c) => c.name.toLowerCase() === k);
   if (hit) return { voice: { type: "person", id: hit.id }, remembered: false };
   if (GENERIC.test(label)) return { voice: { type: "anon" }, remembered: false };
-  return { voice: { type: "new", name: label }, remembered: false };
+  return { voice: { type: "new", name: label.replace(/^~\s*/, "").trim() || label }, remembered: false };
 }
 
 /** Prepare a received original. Same input + options → same draft, in the browser and on the server. */
@@ -179,7 +179,8 @@ export function prepare(input: PrepareInput, options: PrepareOptions, ctx: Prepa
   });
   const chosenSegs = options.segments ? new Set(options.segments) : null;
   const kept = chosenSegs && segments.length > 1 ? messages.filter((m) => chosenSegs.has(m.segment)) : messages;
-  if (segments.length > 1) questions.push({ kind: "segments", unsure: 0.6, text: `This chat falls into ${segments.length} sittings, separated by long pauses. Choose which to bring in.` });
+  // a few sittings are worth choosing between; a long-running group chat is simply kept whole
+  if (segments.length > 1 && segments.length <= 8) questions.push({ kind: "segments", unsure: 0.6, text: `This chat falls into ${segments.length} sittings, separated by long pauses. Choose which to bring in.` });
 
   // voices
   // labels that only ever appear on system lines (ChatGPT "system", "tool") are not voices; their lines stay unattributed
@@ -195,10 +196,14 @@ export function prepare(input: PrepareInput, options: PrepareOptions, ctx: Prepa
     return { label, count: ms.length, samples: ms.filter((m) => !m.hidden).slice(0, 2).map((m) => m.content.slice(0, 120)), suggested: s.voice, remembered: s.remembered };
   });
   const aiExport = format === "chatgpt" || format === "claude";
+  const isNew = (s: SpeakerInfo) => !options.voices?.[s.label] && !s.remembered && s.suggested.type === "new" && !GENERIC.test(s.label) && !(aiExport && ["user", "human", "assistant"].includes(s.label.toLowerCase()));
+  const newcomers = speakers.filter(isNew).length;
+  if (newcomers > 3) questions.push({ kind: "newcomers", unsure: 0.2, text: `${newcomers} people are new to this garden and will be added under the names they use here.` });
   for (const s of speakers) {
     if (options.voices?.[s.label] || s.remembered || s.suggested.type === "person") continue;
     if (aiExport && ["user", "human", "assistant"].includes(s.label.toLowerCase())) continue;
     const generic = GENERIC.test(s.label) || /^U[A-Z0-9]{6,}$/.test(s.label);
+    if (!generic && newcomers > 3) continue;
     questions.push({ kind: "unknown-voice", unsure: generic ? 0.8 : 0.3, text: generic ? `Who is “${s.label}”?` : `“${s.label}” is not yet in this garden. Add as a new person?`, label: s.label });
   }
 

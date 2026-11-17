@@ -67,6 +67,9 @@ export function waWhen(h: WaHead, order: "DMY" | "MDY", tz: string) {
   return { iso: zonedToUtc(y, mo, d, hour, h.mi, h.s ?? 0, tz), precision: (h.s == null ? "minute" : "second") as "minute" | "second", y, mo, d, hour };
 }
 
+/** "Read more" under a message cut short in a copy: furniture of the page, not words */
+export const READ_MORE = /^[\u200e\u200f]*(?:read more|läs mer|阅读更多|閱讀更多|weiterlesen|lire la suite|leer más|…\s*more)$/i;
+
 /** A WhatsApp sender name, not the start of a system line such as: Ana changed the subject to "Plan: v2". */
 export const looksLikeName = (n: string) => {
   const t = n.trim();
@@ -81,6 +84,12 @@ export function parseWhatsApp(raw: string, order: "DMY" | "MDY", tz: string): Un
   lines.forEach((l, i) => {
     const h = waHeader(l.text);
     if (!h) {
+      if (READ_MORE.test(plain(l.text).trim())) {
+        const who = open ? open.base.speakerLabel : null;
+        flush(i - 1);
+        out.push({ speakerLabel: who, ...noTime, content: tidy(l.text), rawStart: l.start, rawEnd: l.end, bodyStart: l.start, hidden: "system" });
+        return;
+      }
       if (!open && !blank(l)) open = { from: i, bodyStart: l.start, base: { speakerLabel: null, ...noTime }, system: false };
       return;
     }
