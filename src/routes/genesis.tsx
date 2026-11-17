@@ -38,7 +38,7 @@ function Genesis() {
     <h1 className="font-display text-[40px]">The origin of Ramus</h1>
     <div className="grid gap-6 border-y border-rule py-5 sm:grid-cols-2">{ideaBlock("root", "The question")}{ideaBlock("humans", "Where it has reached")}</div>
     <div className="flex flex-wrap items-center gap-4"><div role="tablist" aria-label="View">{[false, true].map((v) => <Button key={String(v)} variant="ghost" role="tab" aria-selected={table === v} onClick={() => setTable(v)} className={table === v ? "smallcaps underline" : "smallcaps text-muted-foreground"}>{v ? "Systema" : "Tree"}</Button>)}</div><ReadingSwitch value={level} onChange={setLevel} /><Button variant="ghost" className="smallcaps ml-auto" onClick={() => setEn(!en)}>{en ? "中文" : "EN"}</Button></div>
-    {table ? <Systema nodes={nodes} main={main} title="The origin of Ramus" selected={selected} onSelect={setSelected} /> : <StamTree nodes={nodes} level={level} main={main} step={10} selected={selected} onSelect={setSelected} interactive specimen={{ no: "001", title: "The origin of Ramus", collectors: ["你", "ChatGPT", "Claude"] }} />}
+    {table ? <Systema nodes={nodes.map((n) => ({ ...n, note: sample.nodes.find((o) => o.id === n.id)?.note ?? "" }))} steps={Object.fromEntries(Object.entries(sample.steps).map(([k, v]) => [Number(k), v]))} level={level} main={main} title="The origin of Ramus" selected={selected} onSelect={setSelected} /> : <StamTree nodes={nodes} level={level} main={main} step={10} selected={selected} onSelect={setSelected} interactive specimen={{ no: "001", title: "The origin of Ramus", collectors: ["你", "ChatGPT", "Claude"] }} />}
     <Legend people={[...new Map(nodes.map((n) => [n.by, { name: n.by, color: n.color }])).values()]} />
   </main>;
 }

@@ -1,47 +1,104 @@
-import { Button } from "@/components/ui/button";
-import { mainLineage } from "@/lib/stam/reading";
 import { useMemo } from "react";
-import { systema, type SysEntry, type SysNode } from "@/lib/stam/systema";
+import { Button } from "@/components/ui/button";
+import { mainLineage, readingDetail, type ReadingLevel } from "@/lib/stam/reading";
+import { grewFrom, systema, type SysEntry, type SysNode } from "@/lib/stam/systema";
 import { Epigraph, Upright } from "@/components/epigraph/Epigraph";
 
-/** Systema: the garden as a Linnaean table, in the manner of Systema Naturae (1735). */
-export function Systema({ title, nodes, selected, onSelect, main: suppliedMain }: { main?: Set<string>; title: string; nodes: (SysNode & { color: string })[]; selected: string | null; onSelect: (id: string) => void }) {
-  const main = suppliedMain ?? mainLineage(nodes.map((n) => ({ ...n, step: 0 })));
-  const s = useMemo(() => systema(nodes), [nodes]);
+const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV", "XVI", "XVII", "XVIII", "XIX", "XX"];
+
+/**
+ * Systema: the garden read step by step, like a naturalist's journal. Each entry: who raised it, what it grew
+ * from, and its note. The reading level decides which entries are written out; the rest of a step is named
+ * at the end of it, so nothing disappears.
+ */
+export function Systema({ title, nodes, steps = {}, level = "record", selected, onSelect, main: suppliedMain }: {
+  title: string;
+  nodes: (SysNode & { color: string })[];
+  steps?: Record<number, string | null | undefined>;
+  level?: ReadingLevel;
+  main?: Set<string>;
+  selected: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const s = useMemo(() => systema(nodes, steps), [nodes, steps]);
+  // a root marked as the outcome leaves no main line to read; then the newest growth is the main line
+  const main = useMemo(() => {
+    const m = suppliedMain ?? mainLineage(nodes);
+    return m.size > 1 ? m : mainLineage(nodes.map((n) => ({ ...n, outcome: false })));
+  }, [suppliedMain, nodes]);
+  const shown = useMemo(() => readingDetail(nodes, level, main, selected), [nodes, level, main, selected]);
   const color = new Map(nodes.map((n) => [n.id, n.color]));
-  const Entry = ({ e, head = false }: { e: SysEntry; head?: boolean }) => (
-    <li style={{ paddingLeft: Math.min(e.depth, 8) * 10 }} className={head ? "" : "border-l border-rule"}>
-      <Button variant="ghost" onClick={() => onSelect(e.id)} aria-current={selected === e.id || undefined}
-        className={"h-auto w-full justify-start whitespace-normal rounded-none py-0.5 pl-2 text-left leading-snug hover:underline " + (selected === e.id ? "underline underline-offset-4" : "") + (e.knot ? " smallcaps" : "") + (main.has(e.id) ? " text-foreground" : " text-muted-foreground") + (head ? " font-display text-[18px]" : " text-[15px]")}>
-        <span aria-hidden className="mr-1.5 inline-block size-2 rounded-full align-middle" style={{ background: e.resting ? "transparent" : color.get(e.id), border: `1px solid ${color.get(e.id)}` }} />
-        <Upright>{e.label}</Upright>
-        {nodes.find((n) => n.id === e.id)?.outcome && <span className="smallcaps ml-2 text-[13px]">Outcome</span>}
-        {e.merges.map((m) => <span key={m} className="ml-1.5 text-[13px] italic text-muted-foreground">× <Upright>{m}</Upright></span>)}
-      </Button>
-    </li>
+  const people = [...new Map(nodes.map((n) => [n.by, n.color])).entries()];
+  const rootId = s.root?.id ?? null;
+
+  const Mark = ({ e }: { e: SysEntry }) => (
+    <span aria-hidden className="mr-2 inline-block size-2 shrink-0 rounded-full align-middle"
+      style={{ background: e.resting ? "transparent" : color.get(e.id), border: `1px solid ${color.get(e.id)}` }} />
   );
+
   return (
     <div className="grid gap-6 px-5 py-6" aria-label="Systema">
       <Epigraph n={7} className="max-w-[60ch]" />
       {s.root && (
-        <div className="grid gap-1 border-b border-rule pb-3 text-center">
-          <p className="eyebrow">Systema · {nodes.length} ideas</p>
-          <Button variant="ghost" onClick={() => s.root && onSelect(s.root.id)} className={"h-auto whitespace-normal font-display text-[24px] leading-tight hover:underline " + (selected === s.root.id ? "underline" : "")}>
+        <header className="grid gap-1 border-b border-rule pb-4 text-center">
+          <p className="eyebrow">Systema · {nodes.length} ideas · {s.chapters.length} steps</p>
+          <Button variant="ghost" onClick={() => onSelect(s.root!.id)}
+            className={"mx-auto h-auto whitespace-normal font-display text-[26px] leading-tight hover:underline " + (selected === s.root.id ? "underline" : "")}>
             <Upright>{s.root.label}</Upright>
           </Button>
+          {s.root.note && <p className="mx-auto max-w-[56ch] text-[15px] text-muted-foreground"><Upright>{s.root.note}</Upright></p>}
           <p className="text-[13px] italic text-muted-foreground"><Upright>{title}</Upright></p>
-        </div>
+          <p className="smallcaps mt-1 text-[13px]" aria-label="People">
+            {people.map(([name, c], i) => <span key={name}>{i > 0 && <span className="text-muted-foreground"> · </span>}<span style={{ color: c }}><Upright>{name}</Upright></span></span>)}
+          </p>
+        </header>
       )}
-      <div className="flex flex-wrap gap-x-6 gap-y-6">
-        {s.columns.map((c, i) => (
-          <section key={c.head.id} className="grid min-w-[180px] content-start gap-1 border-t border-ink pt-2" style={{ flex: `${c.entries.length + 1} 1 180px` }}>
-            <p className="eyebrow">Ordo {["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"][i] ?? i + 1}</p>
-            <ul className="grid">
-              <Entry e={c.head} head />
-              {c.entries.map((e) => <Entry key={e.id} e={e} />)}
-            </ul>
-          </section>
-        ))}
+
+      <div className="mx-auto grid w-full max-w-[72ch] gap-7">
+        {s.chapters.map((ch, i) => {
+          const entries = ch.entries.filter((e) => e.id !== rootId);
+          const written = entries.filter((e) => shown.has(e.id));
+          const named = entries.filter((e) => !shown.has(e.id));
+          if (!entries.length) return null;
+          return (
+            <section key={ch.step} aria-label={`Step ${ch.step}`} className="grid gap-3 border-t border-ink pt-2">
+              <h3 className="eyebrow">{ROMAN[i] ?? ch.step} {ch.title ? <>· <Upright>{ch.title}</Upright></> : null}</h3>
+              {written.length > 0 && (
+                <ol className="grid gap-3">
+                  {written.map((e) => (
+                    <li key={e.id} className="grid gap-x-4 gap-y-0.5 sm:grid-cols-[6.5rem_1fr]">
+                      <span className="smallcaps flex items-baseline pt-0.5 text-[14px]" style={{ color: color.get(e.id) }}><Mark e={e} /><Upright>{e.by}</Upright></span>
+                      <div className="grid gap-0.5">
+                        <p className="leading-snug">
+                          <button type="button" onClick={() => onSelect(e.id)} aria-current={selected === e.id || undefined}
+                            className={"text-left font-display text-[19px] hover:underline " + (selected === e.id ? "underline underline-offset-4 " : "") + (e.resting ? "text-muted-foreground" : "")}>
+                            <Upright>{e.label}</Upright>
+                          </button>
+                          {e.knot && <span className="smallcaps ml-2 text-[13px]">· knot</span>}
+                          {e.outcome && <span className="smallcaps ml-2 text-[13px]">· outcome</span>}
+                          {e.resting && <span className="ml-2 text-[13px] italic text-muted-foreground">resting</span>}
+                        </p>
+                        {grewFrom(e, rootId) && <p className="hand text-[15px]"><Upright>{grewFrom(e, rootId)}</Upright></p>}
+                        {e.note && <p className="text-[15px] text-muted-foreground"><Upright>{e.note}</Upright></p>}
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
+              {named.length > 0 && (
+                <p className="text-[14px] text-muted-foreground">
+                  {written.length ? "Also in this step: " : "In this step: "}
+                  {named.map((e, j) => (
+                    <span key={e.id}>{j > 0 && " · "}
+                      <button type="button" className="underline-offset-4 hover:underline" onClick={() => onSelect(e.id)}><Upright>{e.label}</Upright></button>
+                      {e.resting && <span className="italic"> (resting)</span>}
+                    </span>
+                  ))}
+                </p>
+              )}
+            </section>
+          );
+        })}
       </div>
     </div>
   );

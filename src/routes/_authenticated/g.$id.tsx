@@ -211,7 +211,7 @@ function GardenPage() {
             </p>
           )}
           {ideas.length === 0 ? <Seed /> : view === "systema" ? (
-            <Systema main={main} title={data.garden.title} nodes={ideas} selected={selected} onSelect={(k) => { select(k); }} />
+            <Systema main={main} level={level} title={data.garden.title} nodes={ideas} steps={Object.fromEntries(data.steps.map((st: { step: number; title: string | null }) => [st.step, st.title]))} selected={selected} onSelect={(k) => { select(k); }} />
           ) : (
             <StamTree level={level} main={main} nodes={ideas} step={r.step} selected={selected} onSelect={select} freshStep={r.fresh.step} freshKey={r.fresh.key}
               ariaLabel={data.garden.title} interactive

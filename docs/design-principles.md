@@ -98,7 +98,7 @@ Text ink #1C2520. Sepia #6B4A2E only for marginalia. No browns in the people pal
 6. Linnaeus: order and names
 - Specimen card as a herbarium label: "Specimen Nº 004" in small caps; the title in Double Pica; "Collected — Stockholm, 17 Nov 2026"; "Collectors — 你, ChatGPT, Claude"; counts in small caps; keep the oval accession stamp.
 - Field notes shows the idea's lineage as a classification line in small caps, like Regnum › Classis › Ordo: the garden › … › parent › the idea, each part a link.
-- A second view of every garden, "Systema", as a tab beside the tree: a Linnaean table in the manner of Systema Naturae (1735). One column per first-level branch, its ideas listed beneath and indented by depth, joined by fine rules; knots in small caps, resting ideas in muted italic, merges noted as "× other idea". Selecting an entry selects it on the tree. This is the readable index of the garden.
+- A second view of every garden, "Systema", as a tab beside the tree: the garden read step by step, like a naturalist's journal (v2.3; the earlier Linnaean column table was unreadable: it ordered ideas by ancestry, dropped time, notes and reasons, and put almost everything in one deep column). One chapter per step (Roman numeral and the step's title), each entry written as: who raised it (name in their color), the label, how it grew ("combines A, B and C", "refines A", "grew from A", "one answer to the question"), and the idea's note. The reading level decides which entries are written out (Form: the main line and knots; Lineage: what grew on; Record: everything); the rest of a step is named at its end, so nothing disappears. Selecting an entry selects it on the tree.
 
 7. Epigraphs in the original language
 Ramus speaks to people everywhere, so every quote appears in the language its author wrote it in. Under each quote that is not in English, a small English gloss in muted IM Fell English Italic. Quote only public-domain classics; modern thinkers are cited by work on /principles, never quoted. Save the list as docs/epigraphs.md and use these exact texts:
@@ -148,6 +148,6 @@ Acceptance criteria
 - No label has a halo or outline; branch lines stop just before labels.
 - The landing page shows the tree on the left and the text on the right at 1440px, the whole tree visible, and stacks cleanly at 390px.
 - Every quote matches docs/epigraphs.md exactly, in its original language, with its gloss where needed.
-- The Systema view lists every idea of the demo garden in one readable table, and selecting an entry selects it on the tree.
+- The Systema view reads the demo garden step by step with every idea present, and selecting an entry selects it on the tree.
 
 Still in force from v1.5.1: pen wobble, left-handed hatching, uneven merge dashes, offset knot rings, faint grain and dotted rules, construction circle, landing growth from a seed with three sepia margin notes, accession stamp, the Day · Night toggle.
