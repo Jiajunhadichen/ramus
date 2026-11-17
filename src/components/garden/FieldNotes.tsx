@@ -2,14 +2,15 @@ import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { editIdea, graftMerge, growBranch, reopenKnot, setKnot, setStatus } from "@/lib/garden.functions";
+import { addEvidence, editIdea, graftMerge, growBranch, reopenKnot, setKnot, setStatus } from "@/lib/garden.functions";
 import { MAX_LABEL } from "@/lib/stam/validate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import type { GardenData, Idea } from "./model";
+import { evidenceFor, type GardenData, type Idea } from "./model";
+import { formatDate, formatTime, NATURES, ROLE_LABEL, ROLE_ORDER, sortEvidence, type EvidenceRole } from "@/lib/stam/evidence";
 
 type Props = {
   data: GardenData; ideas: Idea[]; idea: Idea; currentStep: number;
@@ -19,22 +20,25 @@ type Props = {
 const selectCls = "h-9 w-full rounded-md border border-input bg-sheet px-2 text-sm";
 
 export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged }: Props) {
-  const [dialog, setDialog] = useState<null | "grow" | "graft" | "knot" | "reopen" | "edit">(null);
+  const [dialog, setDialog] = useState<null | "grow" | "graft" | "knot" | "reopen" | "edit" | "evidence">(null);
   const status = useServerFn(setStatus);
   const knotFn = useServerFn(setKnot);
   const reopenFn = useServerFn(reopenKnot);
   const stepTitle = data.steps.find((s: any) => s.step === idea.step);
   const byKey = new Map(ideas.map((i) => [i.id, i]));
   const children = ideas.filter((c) => c.parents.includes(idea.id));
-  const conv = idea.conversationId ? data.conversations.find((c: any) => c.id === idea.conversationId) : null;
+  const evidence = sortEvidence(evidenceFor(data, idea));
 
   async function run(fn: () => Promise<unknown>, ok: string) {
     try { await fn(); await onChanged(); toast.success(ok); setDialog(null); return true; }
     catch (e) { toast.error((e as Error).message); return false; }
   }
-  const links = (list: Idea[]) =>
+  const links = (list: Idea[], nature?: (c: Idea) => string | null | undefined) =>
     list.length ? list.map((c) => (
-      <button key={c.id} type="button" className="underline underline-offset-4 hover:text-[color:var(--person-1)]" onClick={() => onSelect(c.id)}>{c.label}</button>
+      <span key={c.id}>
+        <button type="button" className="underline underline-offset-4 hover:text-[color:var(--person-1)]" onClick={() => onSelect(c.id)}>{c.label}</button>
+        {nature?.(c) && <span className="text-muted-foreground"> · {nature(c)}</span>}
+      </span>
     )) : <span className="text-muted-foreground">none</span>;
 
   return (
@@ -49,17 +53,29 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
       </div>
       {idea.note && <p className="whitespace-pre-wrap">{idea.note}</p>}
       {idea.knot && idea.settled && <p className="border-l-2 border-ink pl-3 text-sm"><span className="eyebrow block">Settled</span>{idea.settled}</p>}
-      {idea.sourceExcerpt && (
-        <div className="grid gap-1 rounded border border-rule p-3 text-sm">
+      {evidence.length > 0 && (
+        <div className="grid gap-2 rounded border border-rule p-3 text-sm">
           <span className="eyebrow">Heard in</span>
-          {conv && <span className="font-medium">{conv.title}{conv.happened_at ? ` · ${conv.happened_at}` : ""}</span>}
-          <blockquote className="font-display italic">“{idea.sourceExcerpt}”</blockquote>
-          {conv && <Link to="/g/$id/conversations/$cid" params={{ id: data.garden.id, cid: conv.id }} {...(idea.messageId ? { hash: idea.messageId } : {})} className="text-xs underline underline-offset-4">Read the conversation</Link>}
+          <ol className="grid gap-3">
+            {evidence.map((e) => (
+              <li key={e.id} className="grid gap-0.5" data-role={e.role}>
+                <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">{ROLE_LABEL[e.role as EvidenceRole] ?? e.role}</span>
+                <blockquote className="font-display">“{e.content}”</blockquote>
+                <span className="text-xs">
+                  <span style={{ color: e.speaker?.color }}>{e.speaker?.name ?? "Unattributed"}</span>
+                  {" · "}{formatTime(e.sentAt, e.precision)}
+                  {e.conversation && <> · {e.conversation.title} (happened {formatDate(e.conversation.happened_at)})</>}
+                </span>
+                {e.note && <span className="text-xs text-muted-foreground">{e.note}</span>}
+                {e.conversation && <Link to="/g/$id/conversations/$cid" params={{ id: data.garden.id, cid: e.conversation.id }} hash={e.messageId} className="text-xs underline underline-offset-4">Read in conversation</Link>}
+              </li>
+            ))}
+          </ol>
         </div>
       )}
       <dl className="grid grid-cols-[5.5em_1fr] gap-x-2 gap-y-1.5 text-sm">
-        <dt className="text-muted-foreground">Grew from</dt><dd className="flex flex-wrap gap-x-2">{links(idea.parents.map((p) => byKey.get(p)!).filter(Boolean))}</dd>
-        <dt className="text-muted-foreground">Grew into</dt><dd className="flex flex-wrap gap-x-2">{links(children)}</dd>
+        <dt className="text-muted-foreground">Grew from</dt><dd className="flex flex-wrap gap-x-2">{links(idea.parents.map((p) => byKey.get(p)!).filter(Boolean), (p) => idea.natures[p.id])}</dd>
+        <dt className="text-muted-foreground">Grew into</dt><dd className="flex flex-wrap gap-x-2">{links(children, (c) => c.natures[idea.id])}</dd>
       </dl>
 
       <div className="mt-2 grid grid-cols-2 gap-2 border-t border-rule pt-3">
@@ -71,7 +87,8 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
         {idea.knot
           ? <Button size="sm" variant="outline" onClick={() => setDialog("reopen")}>Reopen knot</Button>
           : <Button size="sm" variant="outline" onClick={() => setDialog("knot")}>Mark as knot</Button>}
-        <Button size="sm" variant="ghost" className="col-span-2" onClick={() => setDialog("edit")}>Edit label and note</Button>
+        <Button size="sm" variant="ghost" onClick={() => setDialog("edit")}>Edit label and note</Button>
+        <Button size="sm" variant="ghost" onClick={() => setDialog("evidence")} disabled={!(data.convMessages ?? []).length}>Add evidence</Button>
       </div>
 
       {dialog === "grow" && <GrowDialog {...{ data, idea, currentStep, onSelect, run }} onClose={() => setDialog(null)} />}
@@ -82,6 +99,7 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
       {dialog === "reopen" && <TextDialog title="Reopen knot" question="Why does this need reopening?" hint={idea.settled ? `Settled: “${idea.settled}”` : ""}
         action="Reopen" onClose={() => setDialog(null)}
         submit={(t) => run(() => reopenFn({ data: { gardenId: data.garden.id, key: idea.id, reason: t } }), "Knot reopened.")} />}
+      {dialog === "evidence" && <EvidenceDialog {...{ data, idea, run }} onClose={() => setDialog(null)} />}
       {dialog === "edit" && <EditDialog {...{ data, idea, run }} onClose={() => setDialog(null)} />}
     </aside>
   );
@@ -121,7 +139,7 @@ function TextDialog({ title, question, hint, action, submit, onClose }: { title:
 function GrowDialog({ data, idea, currentStep, onSelect, run, onClose }: { data: GardenData; idea: Idea; currentStep: number; onSelect: (k: string) => void; run: Run; onClose: () => void }) {
   const grow = useServerFn(growBranch);
   const people = data.contributors as any[];
-  const [f, setF] = useState({ label: "", note: "", person: people.find((p) => p.kind === "person")?.id ?? people[0]?.id ?? "new", newPerson: "", stepMode: "current", stepTitle: "", stepDate: "", messageId: "" });
+  const [f, setF] = useState({ label: "", note: "", person: people.find((p) => p.kind === "person")?.id ?? people[0]?.id ?? "new", newPerson: "", stepMode: "current", stepTitle: "", stepDate: "", messageId: "", nature: "refines" });
   const len = [...f.label].length;
   return (
     <Shell title="Grow a branch" desc={`A new idea that grew from “${idea.label}”.`} onClose={onClose}>
@@ -133,7 +151,7 @@ function GrowDialog({ data, idea, currentStep, onSelect, run, onClose }: { data:
             gardenId: data.garden.id, parentKey: idea.id, label: f.label, note: f.note,
             contributorId: f.person === "new" ? undefined : f.person, newPerson: f.person === "new" ? f.newPerson : undefined,
             step: currentStep, newStep: f.stepMode === "new" ? { title: f.stepTitle, date: f.stepDate || null } : undefined,
-            messageId: f.messageId || null,
+            messageId: f.messageId || null, nature: f.nature,
           } });
           newKey = r.key;
         }, "Branch grown.").then((ok) => ok && newKey && onSelect(newKey));
@@ -143,6 +161,7 @@ function GrowDialog({ data, idea, currentStep, onSelect, run, onClose }: { data:
           <Input id="g-label" required value={f.label} onChange={(e) => setF({ ...f, label: e.target.value })} />
           <span className={"text-xs " + (len > MAX_LABEL ? "text-destructive" : "text-muted-foreground")}>{len}/{MAX_LABEL}{len > MAX_LABEL ? " — too long; put the rest in the note" : ""}</span>
         </div>
+        <NatureSelect id="g-nature" value={f.nature} onChange={(v) => setF({ ...f, nature: v })} />
         <div className="grid gap-1.5"><Label htmlFor="g-note">Note</Label><Textarea id="g-note" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} /></div>
         <div className="grid gap-1.5">
           <Label htmlFor="g-person">Who said it?</Label>
@@ -167,7 +186,7 @@ function GrowDialog({ data, idea, currentStep, onSelect, run, onClose }: { data:
         </div>
         {(data.convMessages ?? []).length > 0 && (
           <div className="grid gap-1.5">
-            <Label htmlFor="g-msg">Heard in (optional)</Label>
+            <Label htmlFor="g-msg">Origin message (optional)</Label>
             <select id="g-msg" className={selectCls} value={f.messageId} onChange={(e) => setF({ ...f, messageId: e.target.value })}>
               <option value="">— not from a recorded conversation —</option>
               {(data.conversations as any[]).map((c) => (
@@ -191,13 +210,15 @@ function GraftDialog({ data, ideas, idea, run, onClose }: { data: GardenData; id
   const graft = useServerFn(graftMerge);
   const options = ideas.filter((i) => i.id !== idea.id && !idea.parents.includes(i.id));
   const [p, setP] = useState(options[0]?.id ?? "");
+  const [nature, setNature] = useState("combines");
   return (
     <Shell title="Graft a merge" desc={`Pick another idea that “${idea.label}” also grew from.`} onClose={onClose}>
-      <form className="grid gap-3" onSubmit={(e) => { e.preventDefault(); run(() => graft({ data: { gardenId: data.garden.id, childKey: idea.id, parentKey: p } }), "Merge grafted."); }}>
+      <form className="grid gap-3" onSubmit={(e) => { e.preventDefault(); run(() => graft({ data: { gardenId: data.garden.id, childKey: idea.id, parentKey: p, nature } }), "Merge grafted."); }}>
         <Label htmlFor="gr">Also grew from</Label>
         <select id="gr" className={selectCls} value={p} onChange={(e) => setP(e.target.value)}>
           {options.map((o) => <option key={o.id} value={o.id}>{o.label} — {o.by}, step {o.step}</option>)}
         </select>
+        <NatureSelect id="gr-nature" value={nature} onChange={setNature} />
         <DialogFooter><Button type="submit" disabled={!p}>Graft</Button></DialogFooter>
       </form>
     </Shell>
@@ -218,6 +239,47 @@ function EditDialog({ data, idea, run, onClose }: { data: GardenData; idea: Idea
         <Label htmlFor="e-n">Note</Label>
         <Textarea id="e-n" value={note} onChange={(e) => setNote(e.target.value)} />
         <DialogFooter><Button type="submit" disabled={!label.trim() || len > MAX_LABEL}>Save</Button></DialogFooter>
+      </form>
+    </Shell>
+  );
+}
+
+function NatureSelect({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={id}>How did it grow?</Label>
+      <select id={id} className={selectCls} value={value} onChange={(e) => onChange(e.target.value)}>
+        {NATURES.map((n) => <option key={n} value={n}>{n}</option>)}
+      </select>
+    </div>
+  );
+}
+
+function EvidenceDialog({ data, idea, run, onClose }: { data: GardenData; idea: Idea; run: Run; onClose: () => void }) {
+  const add = useServerFn(addEvidence);
+  const people = data.contributors as any[];
+  const msgs = (data.convMessages ?? []) as any[];
+  const [f, setF] = useState({ messageId: msgs[0]?.id ?? "", role: "supports" as EvidenceRole, note: "" });
+  return (
+    <Shell title="Add evidence" desc={`Link a message that “${idea.label}” rests on. The message itself is never changed.`} onClose={onClose}>
+      <form className="grid gap-3" onSubmit={(e) => { e.preventDefault(); run(() => add({ data: { gardenId: data.garden.id, key: idea.id, ...f } }), "Evidence added."); }}>
+        <Label htmlFor="ev-m">Message</Label>
+        <select id="ev-m" className={selectCls} value={f.messageId} onChange={(e) => setF({ ...f, messageId: e.target.value })}>
+          {(data.conversations as any[]).map((c) => (
+            <optgroup key={c.id} label={c.title}>
+              {msgs.filter((m) => m.conversation_id === c.id).map((m) => (
+                <option key={m.id} value={m.id}>{people.find((p) => p.id === m.contributor_id)?.name ?? "—"}: {m.content.slice(0, 80)}</option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        <Label htmlFor="ev-r">Role</Label>
+        <select id="ev-r" className={selectCls} value={f.role} onChange={(e) => setF({ ...f, role: e.target.value as EvidenceRole })}>
+          {ROLE_ORDER.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+        </select>
+        <Label htmlFor="ev-n">Note (optional)</Label>
+        <Input id="ev-n" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} />
+        <DialogFooter><Button type="submit" disabled={!f.messageId}>Add</Button></DialogFooter>
       </form>
     </Shell>
   );

@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { GardenData } from "./model";
+import { supabase } from "@/integrations/supabase/client";
 
 const selectCls = "h-9 rounded-md border border-input bg-sheet px-2 text-sm";
 
@@ -20,6 +21,7 @@ export function AddConversationDialog({ data, open, onOpenChange, onSaved }: { d
   const [consent, setConsent] = useState(false);
   const [map, setMap] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
   const parts = useMemo(() => splitConversation(f.text), [f.text]);
   const speakers = useMemo(() => [...new Set(parts.map((p) => p.speaker).filter(Boolean) as string[])], [parts]);
   const target = (s: string) => map[s] ?? people.find((p) => p.name === s)?.id ?? `new:${s}`;
@@ -29,11 +31,18 @@ export function AddConversationDialog({ data, open, onOpenChange, onSaved }: { d
     if (!consent) { toast.error("Confirm that everyone agreed to have it recorded."); return; }
     setBusy(true);
     try {
-      const r = await add({ data: { gardenId: data.garden.id, ...f, date: f.date || null, consent, speakers: Object.fromEntries(speakers.map((s) => [s, target(s)])) } });
+      let originalFile: string | null = null;
+      if (file) {
+        const path = `${data.garden.id}/${crypto.randomUUID()}-${file.name.replace(/[^\w.\-]+/g, "_")}`;
+        const up = await supabase.storage.from("conversation-originals").upload(path, file);
+        if (up.error) throw new Error("Could not store the original file: " + up.error.message);
+        originalFile = path;
+      }
+      const r = await add({ data: { gardenId: data.garden.id, ...f, date: f.date || null, consent, originalFile, speakers: Object.fromEntries(speakers.map((s) => [s, target(s)])) } });
       await onSaved(r.id);
       toast.success("Conversation added.");
       onOpenChange(false);
-      setF({ title: "", date: "", source: "meeting", text: "" }); setConsent(false); setMap({});
+      setF({ title: "", date: "", source: "meeting", text: "" }); setConsent(false); setMap({}); setFile(null);
     } catch (err) { toast.error((err as Error).message); } finally { setBusy(false); }
   }
 
@@ -55,6 +64,12 @@ export function AddConversationDialog({ data, open, onOpenChange, onSaved }: { d
             <Label htmlFor="c-x">Text</Label>
             <Textarea id="c-x" required className="min-h-[180px] font-mono text-xs" placeholder={"Ana: What if…\nBo: Then we could…"} value={f.text} onChange={(e) => setF({ ...f, text: e.target.value })} />
             <span className="text-xs text-muted-foreground">{parts.length} message{parts.length === 1 ? "" : "s"} · lines starting with “Name:” start a new message</span>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="c-f">Original file (optional, kept privately as-is)</Label>
+            <input id="c-f" type="file" className="text-sm" onChange={(e) => {
+              setFile(e.target.files?.[0] ?? null);
+            }} />
           </div>
           {speakers.length > 0 && (
             <div className="grid gap-2 rounded border border-rule p-3">

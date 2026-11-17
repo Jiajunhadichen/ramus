@@ -133,14 +133,13 @@ export const getGarden = createServerFn({ method: "GET" })
     const [contributors, steps, ideas, links, conversations] = await Promise.all([
       supabase.from("contributors").select("id,name,color,kind").eq("garden_id", data.id).order("created_at"),
       supabase.from("steps").select("step,title,date").eq("garden_id", data.id).order("step"),
-      supabase.from("ideas").select("id,key,label,note,contributor_id,step,status,is_knot,settled,conversation_id,message_id,source_excerpt,position").eq("garden_id", data.id).order("position"),
-      supabase.from("idea_links").select("parent_id,child_id,kind,position").eq("garden_id", data.id).order("position"),
-      supabase.from("conversations").select("id,title,happened_at,source").eq("garden_id", data.id).order("created_at"),
+      supabase.from("ideas").select("id,key,label,note,contributor_id,step,status,is_knot,settled,position").eq("garden_id", data.id).order("position"),
+      supabase.from("idea_links").select("parent_id,child_id,kind,position,nature").eq("garden_id", data.id).order("position"),
+      supabase.from("conversations").select("id,title,happened_at,source,imported_at").eq("garden_id", data.id).order("created_at"),
     ]).then((rs) => rs.map((r: any) => check(r)) as never as [any[], any[], any[], any[], any[]]);
-    const msgIds = ideas.map((i: any) => i.message_id).filter(Boolean);
-    const messages = msgIds.length ? check(await supabase.from("messages").select("id,conversation_id,content,contributor_id,position").in("id", msgIds)) : [];
-    const convMessages = conversations.length ? check(await supabase.from("messages").select("id,conversation_id,content,contributor_id,position").eq("garden_id", data.id).order("position")) : [];
-    return { garden, contributors, steps, ideas, links, conversations, messages, convMessages };
+    const convMessages = conversations.length ? check(await supabase.from("messages").select("id,conversation_id,content,contributor_id,sequence,sent_at,time_precision,imported_at").eq("garden_id", data.id).order("sequence")) : [];
+    const evidence = check(await supabase.from("idea_evidence").select("id,idea_id,message_id,role,note").eq("garden_id", data.id));
+    return { garden, contributors, steps, ideas, links, conversations, convMessages, evidence };
   });
 
 export const getConversation = createServerFn({ method: "GET" })
@@ -150,9 +149,13 @@ export const getConversation = createServerFn({ method: "GET" })
     const { supabase } = context;
     const conversation = check(await supabase.from("conversations").select("*").eq("id", data.id).eq("garden_id", data.gardenId).maybeSingle());
     if (!conversation) fail("This conversation does not exist or you cannot see it.");
-    const messages = check(await supabase.from("messages").select("id,position,content,contributor_id,sent_at").eq("conversation_id", data.id).order("position"));
+    const messages = check(await supabase.from("messages").select("id,sequence,content,contributor_id,sent_at,time_precision,imported_at,parent_message_id").eq("conversation_id", data.id).order("sequence"));
     const contributors = check(await supabase.from("contributors").select("id,name,color").eq("garden_id", data.gardenId));
-    const ideas = check(await supabase.from("ideas").select("key,label,message_id").eq("conversation_id", data.id));
+    const ids = messages.map((m) => m.id);
+    const ev = ids.length ? check(await supabase.from("idea_evidence").select("message_id,role,idea_id").in("message_id", ids)) : [];
+    const ideaRows = ev.length ? check(await supabase.from("ideas").select("id,key,label").in("id", [...new Set(ev.map((e) => e.idea_id))])) : [];
+    const ib = new Map(ideaRows.map((i) => [i.id, i]));
+    const ideas = ev.filter((e) => ib.has(e.idea_id)).map((e) => ({ message_id: e.message_id, role: e.role, key: ib.get(e.idea_id)!.key, label: ib.get(e.idea_id)!.label }));
     const garden = check(await supabase.from("gardens").select("id,title").eq("id", data.gardenId).single());
     return { conversation, messages, contributors, ideas, garden };
   });
@@ -176,7 +179,7 @@ async function ensurePerson(ctx: Ctx, gardenId: string, name: string) {
 
 export const growBranch = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { gardenId: string; parentKey: string; label: string; note: string; contributorId?: string | undefined; newPerson?: string | undefined; step: number; newStep?: { title: string; date?: string | null } | undefined; messageId?: string | null | undefined }) => d)
+  .inputValidator((d: { gardenId: string; parentKey: string; label: string; note: string; contributorId?: string | undefined; newPerson?: string | undefined; step: number; newStep?: { title: string; date?: string | null } | undefined; messageId?: string | null | undefined; nature?: string | null | undefined }) => d)
   .handler(async ({ data, context }) => {
     const label = data.label.trim();
     if (!label) fail("Give the idea a label.");
@@ -187,30 +190,27 @@ export const growBranch = createServerFn({ method: "POST" })
     assertValid([...g.nodes, { id: key, label, parents: [parent.id] }]);
     const contributorId = data.newPerson?.trim() ? await ensurePerson(context, data.gardenId, data.newPerson) : data.contributorId ?? fail("Choose who said it.");
     const step = await ensureStep(context, data.gardenId, data.step, data.newStep);
-    let conversation_id: string | null = null, source_excerpt: string | null = null;
-    if (data.messageId) {
-      const m = check(await context.supabase.from("messages").select("conversation_id,content").eq("id", data.messageId).eq("garden_id", data.gardenId).single());
-      conversation_id = m.conversation_id; source_excerpt = m.content;
-    }
+    if (data.messageId) check(await context.supabase.from("messages").select("id").eq("id", data.messageId).eq("garden_id", data.gardenId).single());
     const idea = check(await context.supabase.from("ideas").insert({
       garden_id: data.gardenId, key, label, note: data.note, contributor_id: contributorId, step,
-      position: g.nodes.length, owner_user_id: context.userId, message_id: data.messageId || null, conversation_id, source_excerpt,
+      position: g.nodes.length, owner_user_id: context.userId,
     }).select("id").single());
-    check(await context.supabase.from("idea_links").insert({ garden_id: data.gardenId, parent_id: parent.dbId, child_id: idea.id, kind: "primary" }));
+    check(await context.supabase.from("idea_links").insert({ garden_id: data.gardenId, parent_id: parent.dbId, child_id: idea.id, kind: "primary", nature: data.nature || null }));
+    if (data.messageId) check(await context.supabase.from("idea_evidence").insert({ garden_id: data.gardenId, idea_id: idea.id, message_id: data.messageId, role: "origin", created_by: context.userId }));
     await logEvent(context, data.gardenId, "idea_created", idea.id, { key, label, parent: parent.id, step, message_id: data.messageId ?? null });
     return { key };
   });
 
 export const graftMerge = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { gardenId: string; childKey: string; parentKey: string }) => d)
+  .inputValidator((d: { gardenId: string; childKey: string; parentKey: string; nature?: string | null | undefined }) => d)
   .handler(async ({ data, context }) => {
     const g = await loadGraph(context.supabase, data.gardenId);
     const child = g.byKey.get(data.childKey) ?? fail("That idea is not in this garden.");
     const parent = g.byKey.get(data.parentKey) ?? fail("The idea to graft is not in this garden.");
     if (child.parents.includes(parent.id)) fail("These two ideas are already linked.");
     assertValid(g.nodes.map((n) => (n.id === child.id ? { ...n, parents: [...n.parents, parent.id] } : n)));
-    check(await context.supabase.from("idea_links").insert({ garden_id: data.gardenId, parent_id: parent.dbId, child_id: child.dbId, kind: "merge", position: child.parents.length }));
+    check(await context.supabase.from("idea_links").insert({ garden_id: data.gardenId, parent_id: parent.dbId, child_id: child.dbId, kind: "merge", position: child.parents.length, nature: data.nature || "combines" }));
     await logEvent(context, data.gardenId, "link_added", child.dbId, { kind: "merge", parent: parent.id, child: child.id });
     return { ok: true };
   });
@@ -269,7 +269,7 @@ export const editIdea = createServerFn({ method: "POST" })
 
 export const addConversation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { gardenId: string; title: string; date: string | null; source: "meeting" | "chat" | "notes" | "other"; text: string; consent: boolean; speakers: Record<string, string> }) => d)
+  .inputValidator((d: { gardenId: string; title: string; date: string | null; source: "meeting" | "chat" | "notes" | "other"; text: string; consent: boolean; speakers: Record<string, string>; originalFile?: string | null | undefined }) => d)
   .handler(async ({ data, context }) => {
     if (data.consent !== true) fail("Confirm that everyone in this conversation agreed to have it recorded here.");
     if (!data.title.trim()) fail("Give the conversation a title.");
@@ -280,11 +280,23 @@ export const addConversation = createServerFn({ method: "POST" })
       map.set(speaker, target.startsWith("new:") ? await ensurePerson(context, data.gardenId, target.slice(4) || speaker) : target);
     }
     const conv = check(await context.supabase.from("conversations").insert({
-      garden_id: data.gardenId, title: data.title.trim(), happened_at: data.date || null, source: data.source, raw_text: data.text, consent_confirmed: true, created_by: context.userId,
+      garden_id: data.gardenId, title: data.title.trim(), happened_at: data.date || null, source: data.source, raw_text: data.text, consent_confirmed: true, created_by: context.userId, source_format: "paste", original_file: data.originalFile || null,
     }).select("id").single());
     if (parts.length) check(await context.supabase.from("messages").insert(parts.map((p, i) => ({
-      garden_id: data.gardenId, conversation_id: conv.id, position: i, content: p.content, contributor_id: p.speaker ? map.get(p.speaker) ?? null : null,
+      garden_id: data.gardenId, conversation_id: conv.id, position: i, sequence: i, sent_at: null, time_precision: "unknown", time_source: "none", content: p.content, contributor_id: p.speaker ? map.get(p.speaker) ?? null : null,
     }))));
     await logEvent(context, data.gardenId, "conversation_added", null, { conversation_id: conv.id, messages: parts.length });
     return { id: conv.id };
+  });
+
+export const addEvidence = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { gardenId: string; key: string; messageId: string; role: "origin" | "restated" | "supports" | "challenges"; note?: string | undefined }) => d)
+  .handler(async ({ data, context }) => {
+    const i = await getIdea(context, data.gardenId, data.key);
+    check(await context.supabase.from("messages").select("id").eq("id", data.messageId).eq("garden_id", data.gardenId).single());
+    const r = await context.supabase.from("idea_evidence").insert({ garden_id: data.gardenId, idea_id: i.id, message_id: data.messageId, role: data.role, note: data.note?.trim() || null, created_by: context.userId });
+    if (r.error) fail(r.error.code === "23505" ? (data.role === "origin" ? "This idea already has an origin message." : "This message is already linked with that role.") : r.error.message);
+    await logEvent(context, data.gardenId, "link_added", i.id, { kind: "evidence", role: data.role, message_id: data.messageId });
+    return { ok: true };
   });

@@ -6,7 +6,7 @@ import { StamTree, SpecimenCard, Legend } from "@/components/stam-tree/StamTree"
 import { useReplay } from "@/components/stam-tree/useReplay";
 import { FieldNotes } from "@/components/garden/FieldNotes";
 import { AddConversationDialog } from "@/components/garden/AddConversationDialog";
-import { toIdeas, toStam } from "@/components/garden/model";
+import { stepDate, toIdeas, toStam } from "@/components/garden/model";
 import { maxStep, selectionAt } from "@/lib/stam/layout";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -90,7 +90,7 @@ function GardenPage() {
             <span className="min-w-[16em] text-sm tabular-nums" aria-live="polite">
               <b className="font-mono font-medium">Step {r.step} / {max}</b>
               {stepInfo?.title ? `  ${stepInfo.title}` : ""}
-              {stepInfo?.date ? <span className="font-mono text-xs text-muted-foreground"> · {stepInfo.date}</span> : null}
+              <span className="font-mono text-xs text-muted-foreground"> · {stepDate(data, ideas, r.step) ?? "time unknown"}</span>
             </span>
           </div>
           <div className="relative overflow-x-auto">

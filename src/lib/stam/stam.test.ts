@@ -54,3 +54,17 @@ describe("replay", () => {
     }
   });
 });
+
+import { formatTime, formatDate, sortEvidence } from "./evidence";
+describe("evidence", () => {
+  it("puts origin first, then restated, supports, challenges", () => {
+    const s = sortEvidence([{ role: "challenges" }, { role: "supports" }, { role: "origin" }, { role: "restated" }]);
+    expect(s.map((e) => e.role)).toEqual(["origin", "restated", "supports", "challenges"]);
+  });
+  it("shows time unknown for missing times, never today", () => {
+    expect(formatTime(null)).toBe("time unknown");
+    expect(formatTime("2026-01-02T10:11:12Z", "unknown")).toBe("time unknown");
+    expect(formatDate(null)).toBe("time unknown");
+    expect(formatTime("2026-01-02T10:11:12Z", "minute")).toBe("2026-01-02 10:11");
+  });
+});

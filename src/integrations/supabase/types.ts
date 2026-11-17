@@ -60,8 +60,11 @@ export type Database = {
           garden_id: string
           happened_at: string | null
           id: string
+          imported_at: string
+          original_file: string | null
           raw_text: string
           source: string
+          source_format: string
           title: string
         }
         Insert: {
@@ -71,8 +74,11 @@ export type Database = {
           garden_id: string
           happened_at?: string | null
           id?: string
+          imported_at?: string
+          original_file?: string | null
           raw_text?: string
           source?: string
+          source_format?: string
           title: string
         }
         Update: {
@@ -82,8 +88,11 @@ export type Database = {
           garden_id?: string
           happened_at?: string | null
           id?: string
+          imported_at?: string
+          original_file?: string | null
           raw_text?: string
           source?: string
+          source_format?: string
           title?: string
         }
         Relationships: [
@@ -209,6 +218,61 @@ export type Database = {
         }
         Relationships: []
       }
+      idea_evidence: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          garden_id: string
+          id: string
+          idea_id: string
+          message_id: string
+          note: string | null
+          role: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          garden_id: string
+          id?: string
+          idea_id: string
+          message_id: string
+          note?: string | null
+          role: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          garden_id?: string
+          id?: string
+          idea_id?: string
+          message_id?: string
+          note?: string | null
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "idea_evidence_garden_id_fkey"
+            columns: ["garden_id"]
+            isOneToOne: false
+            referencedRelation: "gardens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "idea_evidence_idea_id_fkey"
+            columns: ["idea_id"]
+            isOneToOne: false
+            referencedRelation: "ideas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "idea_evidence_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       idea_links: {
         Row: {
           child_id: string
@@ -217,6 +281,7 @@ export type Database = {
           garden_id: string
           id: string
           kind: string
+          nature: string | null
           origin: string
           parent_id: string
           position: number
@@ -229,6 +294,7 @@ export type Database = {
           garden_id: string
           id?: string
           kind: string
+          nature?: string | null
           origin?: string
           parent_id: string
           position?: number
@@ -241,6 +307,7 @@ export type Database = {
           garden_id?: string
           id?: string
           kind?: string
+          nature?: string | null
           origin?: string
           parent_id?: string
           position?: number
@@ -376,28 +443,46 @@ export type Database = {
           content: string
           contributor_id: string | null
           conversation_id: string
+          external_id: string | null
           garden_id: string
           id: string
+          imported_at: string
+          parent_message_id: string | null
           position: number
           sent_at: string | null
+          sequence: number
+          time_precision: string
+          time_source: string
         }
         Insert: {
           content: string
           contributor_id?: string | null
           conversation_id: string
+          external_id?: string | null
           garden_id: string
           id?: string
+          imported_at?: string
+          parent_message_id?: string | null
           position: number
           sent_at?: string | null
+          sequence?: number
+          time_precision?: string
+          time_source?: string
         }
         Update: {
           content?: string
           contributor_id?: string | null
           conversation_id?: string
+          external_id?: string | null
           garden_id?: string
           id?: string
+          imported_at?: string
+          parent_message_id?: string | null
           position?: number
           sent_at?: string | null
+          sequence?: number
+          time_precision?: string
+          time_source?: string
         }
         Relationships: [
           {
@@ -419,6 +504,13 @@ export type Database = {
             columns: ["garden_id"]
             isOneToOne: false
             referencedRelation: "gardens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_parent_message_id_fkey"
+            columns: ["parent_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
             referencedColumns: ["id"]
           },
         ]

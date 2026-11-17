@@ -28,16 +28,24 @@ Tagline: "Ideas grow between people."
 13. Every voice counts. Quiet people often hold what the group is missing. Ramus helps people think on their own first, then share, and shows ideas only one person raised.
 Exception: the demo garden "The origin of Ramus" is the historical record of how Ramus was born in conversations with two AIs. It keeps them as contributors and ends with the knot "相信人与人" (trust in people).
 
+## Archive and garden (two layers)
+What people said and our reading of it are two separate layers.
+- Archive (raw): conversations and messages are the words people actually said. Nobody edits or overwrites them, the gardener included. Corrections are new rows. The database rejects any update or delete.
+- Garden (derived): ideas, idea_links and idea_evidence are our reading of the archive. They can be edited, accepted and rejected.
+- Never invent a time. A message without a known time shows "time unknown". "Happened" and "imported" are shown separately.
+
 ## Glossary
-Garden = a group's space for one long discussion or project. Idea = node. Primary link = "grew from". Merge link = "recombined with". Conversation = a recorded discussion (meeting notes, chat export, transcript). Step = one stage of the discussion, the time axis. Knot = a click, a confirmed milestone. Dormant = stopped growing, kept, can be revived. Suggestion = gardener proposal awaiting review. Harvest = turning a conversation into ideas. Nursery = a member's private space. Gardener = the AI agent.
+Garden = a group's space for one long discussion or project. Idea = node. Primary link = "grew from". Merge link = "recombined with". Conversation = a recorded discussion (meeting notes, chat export, transcript). Step = one stage of the discussion, the time axis. Knot = a click, a confirmed milestone. Dormant = stopped growing, kept, can be revived. Suggestion = gardener proposal awaiting review. Harvest = turning a conversation into ideas. Nursery = a member's private space. Gardener = the AI agent. Evidence = a message an idea rests on, with a role (origin, restated, supports, challenges). Nature = how a link grew (refines, answers, challenges, splits, combines).
 
 ## Data rules
 - Tables: gardens, garden_members, contributors, conversations, messages, steps, ideas, idea_links, events.
 - contributors: name, color, kind ('person' | 'historical_ai'), user_id (nullable). Only the demo garden uses 'historical_ai'.
-- conversations: title, source ('meeting' | 'chat' | 'notes' | 'other'), happened_at, raw_text, consent_confirmed. messages: conversation_id, position, contributor_id, sent_at, content.
+- conversations (insert-only): title, source ('meeting' | 'chat' | 'notes' | 'other'), source_format ('paste' | 'whatsapp' | 'vtt' | 'srt' | 'slack' | 'chatgpt' | 'claude' | 'other'), happened_at (nullable), raw_text, original_file (path in the private conversation-originals bucket), imported_at, consent_confirmed.
+- messages (insert-only): conversation_id, sequence (always set), contributor_id, sent_at (nullable; never invented), time_precision ('second' | 'minute' | 'day' | 'unknown'), time_source ('source_export' | 'user_entered' | 'none'), parent_message_id, external_id (source id; re-imports do not duplicate), imported_at, content.
+- idea_evidence: idea_id, message_id, role ('origin' | 'restated' | 'supports' | 'challenges'), note. At most one origin per idea. Replaces ideas.message_id / conversation_id / source_excerpt (deprecated, kept, not written).
 - steps: step, title, date (optional).
 - ideas: label (max 24 chars), note, contributor_id, step, status ('growing' | 'dormant'), is_knot, settled, origin ('human' | 'ai'), confirmed, rejected_at, visibility ('shared' | 'private'), owner_user_id, conversation_id, message_id, source_excerpt.
-- idea_links: parent_id, child_id, kind ('primary' | 'merge'), origin, confirmed, rationale. At most one primary link per child.
+- idea_links: parent_id, child_id, kind ('primary' | 'merge'), nature ('refines' | 'answers' | 'challenges' | 'splits' | 'combines'), origin, confirmed, rationale. At most one primary link per child.
 - events: insert-only; actor, actor_kind ('human' | 'ai'), type, idea_id, payload jsonb.
 - Import/export always uses the Stam JSON format of docs/sample-garden.json: { title, collected, focus, steps, nodes: [{ id, label, by, step, status, knot, parents, note }] }. parents[0] is the primary parent.
 - Validate every write: one root per garden, parents exist in the same garden, no cycle in the primary chain. Show errors in plain words.
