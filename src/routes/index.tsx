@@ -13,9 +13,9 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Ramus — Ideas grow between people" },
-      { name: "description", content: "Ramus keeps the whole tree. The answer is only its last leaf. Bring in your group's conversations and see who said what, what grew from it, and what got settled." },
+      { name: "description", content: "Ideas grow between people. Ramus remembers who planted every branch, and what grew from it." },
       { property: "og:title", content: "Ramus — Ideas grow between people" },
-      { property: "og:description", content: "Ramus keeps the whole tree. The answer is only its last leaf." },
+      { property: "og:description", content: "Ramus remembers who planted every branch, and what grew from it." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -65,10 +65,7 @@ function Landing() {
       </figure>
       <section className="grid gap-5">
         <h1 className="font-display text-[40px] font-normal leading-[1.1] xl:text-[64px]">Ideas grow <em>between</em> people.</h1>
-        <div className="grid gap-2">
-          <p className="font-display text-[22px] leading-snug xl:text-[26px]">Ramus keeps the whole tree. The answer is only its last leaf.</p>
-          <p className="text-[17px] leading-normal text-muted-foreground">Bring in your group's conversations and see who said what, what grew from it, and what got settled.</p>
-        </div>
+        <p className="font-display text-[22px] leading-snug xl:text-[26px]">Ramus remembers who planted every branch, and what grew from it.</p>
         <Epigraph n={2} />
         <div><Link to="/gardens" className="ink-btn inline-block px-5 py-3">Start a garden</Link></div>
       </section>

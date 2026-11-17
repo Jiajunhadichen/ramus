@@ -27,11 +27,11 @@ export const Route = createFileRoute("/_authenticated/g/$id")({
   head: () => ({
     meta: [
       { title: "Garden — Ramus" },
-      { name: "description", content: "A living tree of a group's ideas: who said what, what grew from it." },
+      { name: "description", content: "A living tree of ideas: who planted every branch, and what grew from it." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { property: "og:title", content: "Garden — Ramus" },
-      { property: "og:description", content: "A living tree of a group's ideas: who said what, what grew from it." },
+      { property: "og:description", content: "A living tree of ideas: who planted every branch, and what grew from it." },
     ],
   }),
   loader: ({ context, params }) => context.queryClient.ensureQueryData(gardenQuery(params.id)),

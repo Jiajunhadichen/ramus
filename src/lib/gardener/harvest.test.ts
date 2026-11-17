@@ -23,15 +23,21 @@ describe("checking what the gardener proposes", () => {
     const c = checkHarvest({ ideas: [idea({ id: "complain", label: "How to complain", origin: "m1", by: "Benjamin" })] }, input);
     expect(c.proposals[0]).toMatchObject({ label: "How to complain", personId: "p-Saloni", originMessageId: "id-1", parent: "root" });
   });
-  it("drops ideas without a real origin, from an AI, or already in the garden", () => {
+  it("drops ideas without a real origin or already in the garden", () => {
     const c = checkHarvest({ ideas: [
       idea({ id: "a", label: "Ghost", origin: "m99" }),
-      idea({ id: "b", label: "Petition", origin: "m5" }),
       idea({ id: "c", label: "living here", origin: "m2" }),
       idea({ id: "d", label: "Fault report", origin: "m2" }),
     ] }, input);
     expect(c.proposals.map((p) => p.label)).toEqual(["Fault report"]);
-    expect(c.dropped.map((d) => d.reason)).toEqual(["its origin is not a message in this conversation", "its first words have no human speaker", "it is already in the garden"]);
+    expect(c.dropped.map((d) => d.reason)).toEqual(["its origin is not a message in this conversation", "it is already in the garden"]);
+  });
+  it("an AI taking part in the conversation owns what it said; a message with no speaker owns nothing", () => {
+    const c = checkHarvest({ ideas: [idea({ id: "b", label: "Petition", origin: "m5", by: "Benjamin" })] }, input);
+    expect(c.proposals[0]).toMatchObject({ label: "Petition", personId: "ai-ChatGPT", originMessageId: "id-5" });
+    expect(harvestPrompt(input).user).toContain("m5 [2026-11-17 13:05] ChatGPT (AI): You could start a petition.");
+    const nobody = { ...input, messages: input.messages.map((m) => (m.ref === "m3" ? { ...m, personId: null } : m)) };
+    expect(checkHarvest({ ideas: [idea({ id: "x", label: "Act", origin: "m3" })] }, nobody).dropped[0]!.reason).toBe("its first words have no known speaker");
   });
   it("keeps a quote only if it is word for word in the origin message", () => {
     const c = checkHarvest({ ideas: [idea({ id: "a", label: "Report", origin: "m4", quote: "report report report" }), idea({ id: "b", label: "Act", origin: "m3", quote: "we must act now" })] }, input);
@@ -109,12 +115,12 @@ describe("checking what the gardener proposes", () => {
     ] }, input);
     expect(c.proposals.map((p) => p.knot?.messageId)).toEqual(["id-4", null]);
   });
-  it("a new garden's root is named by the gardener, its words owned by a person", () => {
+  it("a new garden's root is named by the gardener, its words owned by whoever said them", () => {
     const fresh = { ...input, nameRoot: true };
     expect(harvestPrompt(fresh).user).toMatch(/only a placeholder/);
     expect(checkHarvest({ root: { label: "How to complain about the dryers", note: "n", origin: "m1" }, ideas: [] }, fresh).root)
       .toMatchObject({ label: "How to complain about", personId: "p-Saloni", originMessageId: "id-1" });
-    expect(checkHarvest({ root: { label: "Dorm life", origin: "m5" }, ideas: [] }, fresh).root).toMatchObject({ label: "Dorm life", personId: null });
+    expect(checkHarvest({ root: { label: "Dorm life", origin: null }, ideas: [] }, fresh).root).toMatchObject({ label: "Dorm life", personId: null, originMessageId: null });
     expect(checkHarvest({ root: { label: "Dorm life" }, ideas: [] }, input).root).toBe(null);
   });
   it("several sources read as one stream name their source; parts say which part", () => {

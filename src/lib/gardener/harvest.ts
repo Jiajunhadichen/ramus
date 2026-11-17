@@ -57,7 +57,7 @@ Messages are listed in the order they were said, across every source. Order is e
 
 1. Ideas belong to people.
 - An idea is something a person said that others could build on: a proposal, claim, question, option, decision, correction or explanation. Small talk, greetings, thanks and plain agreement are not ideas.
-- Every idea has an "origin": the ref of the message where a person first says it. The author is whoever wrote that message; never choose a message by an AI assistant as an origin. If a person takes up an AI's suggestion, the origin is that person's message.
+- Every idea has an "origin": the ref of the message where it is first said. The author is whoever wrote that message: a person, or an AI that took part in the conversation (marked "(AI)"). You, the gardener, never add ideas of your own.
 - "quote": the shortest exact words (at most 20) from the origin message that carry the idea, copied character for character.
 - "label": the idea as a short name, not a sentence, in the language of the discussion: at most 12 Chinese characters or 5 English words (hard limit 24 characters).
 - "note": one sentence, at most 30 words, saying what the idea is in the speaker's own terms. Do not improve, extend or judge it.
@@ -167,7 +167,8 @@ export function checkHarvest(answer: unknown, input: HarvestInput): Checked {
     if (!label) { dropped.push({ label: "(no label)", reason: "it had no label" }); continue; }
     const origin = byRef.get(str(r["origin"]));
     if (!origin) { dropped.push({ label, reason: "its origin is not a message in this conversation" }); continue; }
-    if (!origin.personId || !origin.personIsHuman) { dropped.push({ label, reason: "its first words have no human speaker" }); continue; }
+    // ideas belong to whoever said them in the conversation, a person or an AI taking part; never to the gardener
+    if (!origin.personId) { dropped.push({ label, reason: "its first words have no known speaker" }); continue; }
     if (known.has(norm(label))) { dropped.push({ label, reason: "it is already in the garden" }); continue; }
     let temp = str(r["id"]) || `new-${out.length + 1}`;
     while (temps.has(temp) || existing.has(temp)) temp += "'";
@@ -317,17 +318,17 @@ function readReturns(v: unknown, input: HarvestInput, byRef: Map<string, Harvest
     const up = ancestors(to);
     const setAside = [...new Set((Array.isArray(r["set_aside"]) ? r["set_aside"] : []).map(str))]
       .filter((k) => existing.has(k) && k !== to && k !== input.rootKey && !up.has(k));
-    out.push({ to, messageId: m?.id ?? null, personId: m?.personId && m.personIsHuman ? m.personId : null, why: str(r["why"]) ? clip(str(r["why"]), 140) : null, setAside });
+    out.push({ to, messageId: m?.id ?? null, personId: m?.personId ?? null, why: str(r["why"]) ? clip(str(r["why"]), 140) : null, setAside });
   }
   const hint = input.resumeFrom;
   if (hint && existing.has(hint) && !out.some((x) => x.to === hint)) {
     const first = input.messages.find((m) => m.personIsHuman && m.personId) ?? input.messages[0];
-    out.unshift({ to: hint, messageId: first?.id ?? null, personId: first?.personIsHuman ? first.personId : null, why: input.told?.trim() ? clip(input.told.trim(), 140) : null, setAside: [] });
+    out.unshift({ to: hint, messageId: first?.id ?? null, personId: first?.personId ?? null, why: input.told?.trim() ? clip(input.told.trim(), 140) : null, setAside: [] });
   }
   return out;
 }
 
-/** The name the gardener gives a new garden's root; its words, if any, must belong to a person. */
+/** The name the gardener gives a new garden's root; its words, if any, belong to whoever said them. */
 function readRoot(v: unknown, input: HarvestInput, byRef: Map<string, HarvestMessage>): RootName | null {
   if (!input.nameRoot || !v || typeof v !== "object") return null;
   const r = v as Any;
@@ -335,8 +336,8 @@ function readRoot(v: unknown, input: HarvestInput, byRef: Map<string, HarvestMes
   if ([...label].length > MAX_LABEL) label = shorten(label);
   if (!label) return null;
   const origin = byRef.get(str(r["origin"]));
-  const human = origin && origin.personId && origin.personIsHuman ? origin : null;
-  return { label, note: clip(str(r["note"]), 280), personId: human?.personId ?? null, originMessageId: human?.id ?? null };
+  const said = origin && origin.personId ? origin : null;
+  return { label, note: clip(str(r["note"]), 280), personId: said?.personId ?? null, originMessageId: said?.id ?? null };
 }
 
 /** The latest messages that fit the reading budget. */
