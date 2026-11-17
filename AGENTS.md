@@ -28,3 +28,9 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Ramus architecture
+- Product knowledge lives in docs/project-knowledge.md; its principles are product rules.
+- Every garden write goes through a createServerFn in src/lib/garden.functions.ts that runs validateGarden (src/lib/stam/validate.ts) before writing and logs an event; there is no delete path.
+- Tree layout and validation are pure functions in src/lib/stam with vitest tests; StamTree (src/components/stam-tree) is plain SVG ported from docs/tree-prototype.html.
+- Ideas carry a per-garden `key` that is the Stam JSON id, so import/export round-trips.

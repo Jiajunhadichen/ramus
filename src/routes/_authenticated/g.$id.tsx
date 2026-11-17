@@ -97,11 +97,11 @@ function GardenPage() {
             <div className="min-w-[760px]">
               <StamTree nodes={ideas} step={r.step} selected={selected} onSelect={select} freshStep={r.fresh.step} freshKey={r.fresh.key} ariaLabel={data.garden.title} />
             </div>
-            <div className="absolute left-4 top-4 grid gap-3">
-              <SpecimenCard no={data.garden.specimen_no} title={data.garden.title} collected={data.garden.collected} collectors={people.map((p) => p.name)} nodes={ideas} />
-            </div>
           </div>
-          <div className="border-t border-rule px-4 py-3"><Legend people={people.map((p) => ({ name: p.name, color: p.color }))} /></div>
+          <div className="flex flex-wrap items-start gap-5 border-t border-rule px-4 py-3">
+            <SpecimenCard no={data.garden.specimen_no} title={data.garden.title} collected={data.garden.collected} collectors={people.map((p) => p.name)} nodes={ideas} />
+            <div className="flex-1 pt-1"><Legend people={people.map((p) => ({ name: p.name, color: p.color }))} /></div>
+          </div>
         </section>
         {idea && <FieldNotes data={data} ideas={ideas} idea={idea} currentStep={r.step} onSelect={select} onChanged={refresh} />}
       </div>
