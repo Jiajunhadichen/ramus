@@ -36,13 +36,17 @@ const noTime = { sentAt: null, precision: "unknown" as const, timeSource: "none"
 const T = String.raw`(?:(上午|下午)\s*)?(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?(?:\s*([AaPp])\.?\s*[Mm]\.?)?`;
 const WA_IOS = new RegExp(String.raw`^\s*\[(\d{1,4})[./-](\d{1,2})[./-](\d{1,4}),?\s+${T}\]\s?(.*)$`);
 const WA_AND = new RegExp(String.raw`^\s*(\d{1,4})[./-](\d{1,2})[./-](\d{1,4}),?\s+${T}\s+[-–]\s(.*)$`);
+/** WhatsApp desktop and web copies put the time first: "[14:02, 17/11/2026] Ana: text". */
+const WA_COPY = new RegExp(String.raw`^\s*\[${T},\s*(\d{1,4})[./-](\d{1,2})[./-](\d{1,4})\]\s?(.*)$`);
 type WaHead = { a: number; b: number; c: number; aLen: number; cLen: number; half: string | undefined; h: number; mi: number; s: number | null; ap: string | undefined; rest: string; headerText: string };
 
 export function waHeader(line: string): WaHead | null {
   const t = plain(line);
   const m = t.match(WA_IOS) ?? t.match(WA_AND);
-  if (!m) return null;
-  return { a: +m[1]!, b: +m[2]!, c: +m[3]!, aLen: m[1]!.length, cLen: m[3]!.length, half: m[4], h: +m[5]!, mi: +m[6]!, s: m[7] ? +m[7] : null, ap: m[8], rest: m[9] ?? "", headerText: t.slice(0, t.length - (m[9] ?? "").length).trim() };
+  if (m) return { a: +m[1]!, b: +m[2]!, c: +m[3]!, aLen: m[1]!.length, cLen: m[3]!.length, half: m[4], h: +m[5]!, mi: +m[6]!, s: m[7] ? +m[7] : null, ap: m[8], rest: m[9] ?? "", headerText: t.slice(0, t.length - (m[9] ?? "").length).trim() };
+  const k = t.match(WA_COPY);
+  if (!k) return null;
+  return { a: +k[6]!, b: +k[7]!, c: +k[8]!, aLen: k[6]!.length, cLen: k[8]!.length, half: k[1], h: +k[2]!, mi: +k[3]!, s: k[4] ? +k[4] : null, ap: k[5], rest: k[9] ?? "", headerText: t.slice(0, t.length - (k[9] ?? "").length).trim() };
 }
 
 export function waDateOrder(heads: WaHead[]): "DMY" | "MDY" | null {
@@ -63,6 +67,12 @@ export function waWhen(h: WaHead, order: "DMY" | "MDY", tz: string) {
   return { iso: zonedToUtc(y, mo, d, hour, h.mi, h.s ?? 0, tz), precision: (h.s == null ? "minute" : "second") as "minute" | "second", y, mo, d, hour };
 }
 
+/** A WhatsApp sender name, not the start of a system line such as: Ana changed the subject to "Plan: v2". */
+export const looksLikeName = (n: string) => {
+  const t = n.trim();
+  return !!t && t.length <= 40 && !/["“”«»„]/.test(t) && t.split(/\s+/).length <= 5;
+};
+
 export function parseWhatsApp(raw: string, order: "DMY" | "MDY", tz: string): Unit[] {
   const lines = toLines(raw);
   const out: Unit[] = [];
@@ -78,7 +88,7 @@ export function parseWhatsApp(raw: string, order: "DMY" | "MDY", tz: string): Un
     const w = waWhen(h, order, tz);
     const time = { sentAt: w.iso, precision: w.iso ? w.precision : ("unknown" as const), timeSource: w.iso ? ("source_export" as const) : ("none" as const), offsetMs: null, parentExternalId: null };
     const nm = h.rest.match(/^([^:]{1,60}?):\s?/);
-    if (nm) {
+    if (nm && looksLikeName(nm[1]!)) {
       const body = h.rest.slice(nm[0].length);
       open = { from: i, bodyStart: l.start + l.text.length - body.length, base: { speakerLabel: nm[1]!.trim(), ...time }, system: false };
     } else {
@@ -155,18 +165,18 @@ export function parseVtt(raw: string, recordingStartIso: string | null): Unit[] 
 
 // ---------- Transcript blocks ----------
 const NM = String.raw`([^\s\d\[\]:：<>][^\[\]:：\n<>]{0,38}?)`;
-const CLK = String.raw`(\d{1,2}:\d{2}(?::\d{2})?)`;
+const CLK = String.raw`(\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp]\.?\s*[Mm]\.?)?)`;
 const SHAPES = {
   "name-date-time": new RegExp(String.raw`^\s*${NM}\s+(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})\s+${CLK}\s*$`),
   "name-time": new RegExp(String.raw`^\s*${NM}\s+${CLK}\s*$`),
-  "time-name": new RegExp(String.raw`^\s*\[${CLK}\]\s+${NM}\s*$`),
+  "time-name": new RegExp(String.raw`^\s*\[(?:(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})\s+)?${CLK}\]\s+${NM}\s*$`),
 } as const;
 type Shape = keyof typeof SHAPES;
 
 function headOf(text: string, shape: Shape) {
   const m = plain(text).match(SHAPES[shape]);
   if (!m) return null;
-  if (shape === "time-name") return { name: m[2]!.trim(), clock: m[1]!, date: null };
+  if (shape === "time-name") return { name: m[5]!.trim(), clock: m[4]!, date: m[1] ? ([+m[1], +m[2]!, +m[3]!] as const) : null };
   if (shape === "name-time") return { name: m[1]!.trim(), clock: m[2]!, date: null };
   return { name: m[1]!.trim(), clock: m[5]!, date: [+m[2]!, +m[3]!, +m[4]!] as const };
 }
@@ -181,7 +191,14 @@ export function transcriptShape(raw: string): { shape: Shape; count: number } | 
   return best;
 }
 
-const clockParts = (c: string) => c.split(":").map(Number);
+/** "14:02", "2:02 PM", "1:02:03" → [hours, minutes, seconds?]. 12-hour times become 24-hour. */
+export const clockParts = (c: string) => {
+  const ap = c.match(/([AaPp])\.?\s*[Mm]\.?$/)?.[1]?.toLowerCase();
+  const p = c.replace(/\s*[AaPp]\.?\s*[Mm]\.?$/, "").split(":").map(Number);
+  if (ap === "p" && (p[0] ?? 0) < 12) p[0] = (p[0] ?? 0) + 12;
+  if (ap === "a" && p[0] === 12) p[0] = 0;
+  return p;
+};
 
 export function parseTranscript(raw: string, tz: string, conversationDate: string | null, recordingStartIso: string | null): { units: Unit[]; offsetMode: boolean; clockOnly: boolean } {
   const lines = toLines(raw);
@@ -189,7 +206,7 @@ export function parseTranscript(raw: string, tz: string, conversationDate: strin
   if (!sh) return { units: [], offsetMode: false, clockOnly: false };
   const heads = lines.map((l) => headOf(l.text, sh.shape));
   const firstClock = heads.find(Boolean)?.clock ?? "";
-  const offsetMode = sh.shape !== "name-date-time" && /^0{1,2}:/.test(firstClock);
+  const offsetMode = sh.shape !== "name-date-time" && !heads.find(Boolean)?.date && /^0{1,2}:/.test(firstClock) && !/[AaPp]\.?\s*[Mm]/.test(firstClock);
   const out: Unit[] = [];
   let cur: { from: number; label: string | null; base: Omit<Unit, "content" | "rawStart" | "rawEnd" | "bodyStart" | "hidden">; bodyFrom: number } | null = null;
   const flush = (to: number) => {
@@ -227,7 +244,7 @@ export function parseTranscript(raw: string, tz: string, conversationDate: strin
     if (!cur && !blank(l)) cur = { from: i, label: null, base: { speakerLabel: null, ...noTime }, bodyFrom: i };
   });
   flush(lines.length - 1);
-  return { units: out, offsetMode, clockOnly: !offsetMode && sh.shape !== "name-date-time" };
+  return { units: out, offsetMode, clockOnly: !offsetMode && heads.some((h) => h && !h.date) };
 }
 
 // ---------- Name lines ----------

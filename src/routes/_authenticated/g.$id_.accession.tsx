@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { checkOverlap, getAccessionContext, receiveBatch } from "@/lib/garden.functions";
 import { prepare, resolveVoices, FORMAT_LABEL, type Draft, type Format, type PrepareInput, type PrepareOptions, type Voice } from "@/lib/intake";
 import { takeHandOver } from "@/lib/intake/handover";
-import { HIDDEN_NOTE, browserDateOrder, formatOffset, formatWhen } from "@/lib/intake/display";
+import { HIDDEN_NOTE, browserDateOrder, formatOffset, formatWhen, lineOwners } from "@/lib/intake/display";
 import { toLines } from "@/lib/intake/util";
 import { PERSON_COLORS } from "@/lib/stam/palette";
 import { supabase } from "@/integrations/supabase/client";
@@ -359,58 +359,69 @@ function LookFirst({ draft, options, setOptions }: { draft: Draft; options: Prep
   );
 }
 
+/** Highlight the rows of one message without re-rendering thousands of rows on every hover. */
+function useLit(box: React.RefObject<HTMLElement | null>, lit: number | null, cls: string) {
+  useEffect(() => {
+    const el = box.current;
+    if (!el || lit == null) return;
+    const rows = [...el.querySelectorAll<HTMLElement>(`[data-o="${lit}"]`)];
+    rows.forEach((r) => r.classList.add(...cls.split(" ")));
+    rows[0]?.scrollIntoView({ block: "nearest" });
+    return () => rows.forEach((r) => r.classList.remove(...cls.split(" ")));
+  }, [box, lit, cls]);
+}
+
 function Original({ draft, lit, setLit }: { draft: Draft; lit: number | null; setLit: (i: number | null) => void }) {
   const box = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (lit != null) box.current?.querySelector(`[data-m="${lit}"]`)?.scrollIntoView({ block: "nearest" }); }, [lit]);
-  if (draft.received) {
+  useLit(box, lit, "lit");
+  const body = useMemo(() => {
+    if (draft.received) {
+      return draft.received.map((r, i) => {
+        const m = draft.messages[i];
+        return (
+          <div key={i} data-o={i} className={m?.hidden ? "aside" : undefined} onMouseEnter={() => setLit(i)} onMouseLeave={() => setLit(null)}>
+            <span className="ln mr-2">{r.role}</span><span className="whitespace-pre-wrap">{r.text}</span>
+            {m?.hidden && <span className="hand ml-2 text-sm">{HIDDEN_NOTE[m.hidden]}</span>}
+          </div>
+        );
+      });
+    }
+    const all = toLines(draft.raw);
+    const lines = all.slice(0, 4000);
+    const owners = lineOwners(lines, draft.messages);
     return (
-      <div ref={box} className="original-sample max-h-[60vh] overflow-y-auto rounded-md border border-rule bg-sheet p-3 text-[15px]">
-        {draft.received.map((r, i) => {
-          const m = draft.messages[i];
+      <>
+        {lines.map((l, n) => {
+          const i = owners[n]!;
+          const m = i >= 0 ? draft.messages[i] : undefined;
+          const first = i >= 0 && owners[n - 1] !== i;
           return (
-            <div key={i} data-m={i} className={(m?.hidden ? "aside " : "") + (lit === i ? "lit" : "")} onMouseEnter={() => setLit(i)} onMouseLeave={() => setLit(null)}>
-              <span className="ln mr-2">{r.role}</span><span className="whitespace-pre-wrap">{r.text}</span>
-              {m?.hidden && <span className="hand ml-2 text-sm">{HIDDEN_NOTE[m.hidden]}</span>}
+            <div key={n} data-o={i >= 0 ? i : undefined} tabIndex={first ? 0 : -1}
+              className={"grid grid-cols-[2.5em_1fr]" + (m?.hidden || (i < 0 && l.text.trim()) ? " aside" : "")}
+              onMouseEnter={() => i >= 0 && setLit(i)} onMouseLeave={() => setLit(null)} onFocus={() => i >= 0 && setLit(i)}>
+              <span className="ln pt-1 text-right pr-2">{n + 1}</span>
+              <span className="whitespace-pre-wrap break-words">{l.text || " "}{first && m?.hidden && <span className="hand ml-2 text-sm">{HIDDEN_NOTE[m.hidden]}</span>}</span>
             </div>
           );
         })}
-      </div>
+        {all.length > 4000 && <p className="hand">… the rest of the original is kept in full.</p>}
+      </>
     );
-  }
-  const lines = toLines(draft.raw).slice(0, 4000);
-  const owner = (start: number) => draft.messages.findIndex((m) => m.rawStart! <= start && start <= m.rawEnd!);
-  let last = -2;
-  return (
-    <div ref={box} className="original-sample max-h-[60vh] overflow-y-auto rounded-md border border-rule bg-sheet p-3 text-[15px]">
-      {lines.map((l, n) => {
-        const i = owner(l.start);
-        const m = i >= 0 ? draft.messages[i] : undefined;
-        const first = i !== last; last = i;
-        return (
-          <div key={n} data-m={first && i >= 0 ? i : undefined} tabIndex={i >= 0 && first ? 0 : -1}
-            className={"grid grid-cols-[2.5em_1fr] " + (m?.hidden || (i < 0 && l.text.trim()) ? "aside " : "") + (lit === i && i >= 0 ? "lit" : "")}
-            onMouseEnter={() => i >= 0 && setLit(i)} onMouseLeave={() => setLit(null)} onFocus={() => i >= 0 && setLit(i)}>
-            <span className="ln pt-1 text-right pr-2">{n + 1}</span>
-            <span className="whitespace-pre-wrap break-words">{l.text || " "}{first && m?.hidden && <span className="hand ml-2 text-sm">{HIDDEN_NOTE[m.hidden]}</span>}</span>
-          </div>
-        );
-      })}
-      {toLines(draft.raw).length > 4000 && <p className="hand">… the rest of the original is kept in full.</p>}
-    </div>
-  );
+  }, [draft, setLit]);
+  return <div ref={box} className="original-sample max-h-[60vh] overflow-y-auto rounded-md border border-rule bg-sheet p-3 text-[15px]">{body}</div>;
 }
 
 function Prepared({ draft, lit, setLit, colorOf, nameOf, tz }: { draft: Draft; lit: number | null; setLit: (i: number | null) => void; colorOf: (l: string | null) => string; nameOf: (l: string | null) => string; tz: string | undefined }) {
   const box = useRef<HTMLOListElement>(null);
-  useEffect(() => { if (lit != null) box.current?.querySelector(`[data-m="${lit}"]`)?.scrollIntoView({ block: "nearest" }); }, [lit]);
+  useLit(box, lit, "lit-card");
   const keptSet = new Set(draft.kept);
   return (
     <ol ref={box} className="grid max-h-[60vh] gap-2 overflow-y-auto pr-1">
       {draft.messages.slice(0, 2000).map((m, i) => {
         if (!keptSet.has(m)) return null;
         return (
-          <li key={m.externalId} data-m={i} tabIndex={0} onMouseEnter={() => setLit(i)} onMouseLeave={() => setLit(null)} onFocus={() => setLit(i)} onBlur={() => setLit(null)}
-            className={"rounded-md border bg-sheet p-3 " + (lit === i ? "border-ink" : "border-rule") + (m.hidden ? " opacity-50" : "")}
+          <li key={m.externalId} data-o={i} tabIndex={0} onMouseEnter={() => setLit(i)} onMouseLeave={() => setLit(null)} onFocus={() => setLit(i)} onBlur={() => setLit(null)}
+            className={"rounded-md border border-rule bg-sheet p-3" + (m.hidden ? " opacity-50" : "")}
             style={{ borderLeftWidth: 4, borderLeftColor: colorOf(m.speakerLabel) }}>
             <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
               <span className="font-medium" style={{ color: colorOf(m.speakerLabel) }}>{nameOf(m.speakerLabel)}</span>

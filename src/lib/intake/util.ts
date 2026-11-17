@@ -35,7 +35,13 @@ function tzOffsetMs(ts: number, tz: string): number {
   const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const p: Record<string, string> = {};
   for (const x of f.formatToParts(new Date(ts))) p[x.type] = x.value;
-  return Date.UTC(+p.year!, +p.month! - 1, +p.day!, +p.hour! % 24, +p.minute!, +p.second!) - ts;
+  return Date.UTC(+p["year"]!, +p["month"]! - 1, +p["day"]!, +p["hour"]! % 24, +p["minute"]!, +p["second"]!) - ts;
+}
+
+/** True when the browser and server both know this IANA timezone name. */
+export function validTimeZone(tz: string | null | undefined): tz is string {
+  if (!tz) return false;
+  try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return true; } catch { return false; }
 }
 
 /** A wall-clock time read in a named timezone, as an ISO UTC instant. */

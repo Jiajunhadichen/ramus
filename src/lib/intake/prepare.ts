@@ -1,17 +1,22 @@
 import { deepMap, readJson, type JsonSource } from "./json";
 import { GENERIC, OFTEN_NOT_PEOPLE, lineLabels, parseLines, parseNotes, parseTranscript, parseVtt, parseWhatsApp, speakerSet, transcriptShape, waDateOrder, waHeader, waWhen, type Unit } from "./text";
 import { PARSER_VERSION, type Draft, type DraftMessage, type Format, type Hidden, type PrepareContext, type PrepareInput, type PrepareOptions, type Question, type Segment, type SpeakerInfo, type Voice } from "./types";
-import { findPrivate, hash, localStringToUtc, maskText, toLines } from "./util";
+import { findPrivate, hash, localStringToUtc, maskText, toLines, validTimeZone } from "./util";
 
 export * from "./types";
 const TEXT_FORMATS: Format[] = ["whatsapp", "vtt", "srt", "transcript", "lines", "notes"];
 const SIX_HOURS = 6 * 3600 * 1000;
 
+/** Parsed JSON per received input, so changing a choice does not parse a large export again. */
+const parsedJson = new WeakMap<PrepareInput, unknown>();
 function tryJson(input: PrepareInput): unknown | undefined {
   if (input.files?.some((f) => /\.json$/i.test(f.name))) return null;
+  if (parsedJson.has(input)) return parsedJson.get(input);
   const t = input.text.trim();
-  if (input.kind !== "json" && !/^[[{]/.test(t)) return undefined;
-  try { return JSON.parse(t); } catch { return undefined; }
+  let v: unknown = undefined;
+  if (input.kind === "json" || /^[[{]/.test(t)) { try { v = JSON.parse(t); } catch { v = undefined; } }
+  parsedJson.set(input, v);
+  return v;
 }
 
 export function detect(raw: string): { format: Format; confidence: number }[] {
@@ -56,11 +61,12 @@ function suggestVoice(label: string, format: Format, ctx: PrepareContext): { voi
 
 /** Prepare a received original. Same input + options → same draft, in the browser and on the server. */
 export function prepare(input: PrepareInput, options: PrepareOptions, ctx: PrepareContext): Draft {
-  const tz = options.timeZone || "UTC";
+  const tz = validTimeZone(options.timeZone) ? options.timeZone : "UTC";
   const masked = { phone: 0, email: 0 };
   const recordingIso = localStringToUtc(options.recordingStart, tz);
   const date = options.conversationDate && /^\d{4}-\d{2}-\d{2}$/.test(options.conversationDate) ? options.conversationDate : null;
   const questions: Question[] = [];
+  if (options.timeZone && tz !== options.timeZone) questions.push({ kind: "timezone", unsure: 0.95, text: `“${options.timeZone}” is not a timezone Ramus knows, so times are read as UTC. Choose a timezone such as Europe/Stockholm.` });
   let units: Unit[] = [];
   let raw = input.text;
   let sendable = input.text;
@@ -157,18 +163,22 @@ export function prepare(input: PrepareInput, options: PrepareOptions, ctx: Prepa
   if (segments.length > 1) questions.push({ kind: "segments", unsure: 0.6, text: `This chat falls into ${segments.length} sittings, separated by long pauses. Choose which to bring in.` });
 
   // voices
+  // labels that only ever appear on system lines (ChatGPT "system", "tool") are not voices; their lines stay unattributed
   const byLabel = new Map<string, DraftMessage[]>();
   for (const m of messages) {
     const key = m.speakerLabel ?? (format === "notes" ? "" : null);
     if (key === null) continue;
     byLabel.set(key, [...(byLabel.get(key) ?? []), m]);
   }
+  for (const [label, ms] of byLabel) if (ms.every((m) => m.hidden === "system")) byLabel.delete(label);
   const speakers: SpeakerInfo[] = [...byLabel.entries()].map(([label, ms]) => {
     const s = suggestVoice(label, format, ctx);
     return { label, count: ms.length, samples: ms.filter((m) => !m.hidden).slice(0, 2).map((m) => m.content.slice(0, 120)), suggested: s.voice, remembered: s.remembered };
   });
+  const aiExport = format === "chatgpt" || format === "claude";
   for (const s of speakers) {
     if (options.voices?.[s.label] || s.remembered || s.suggested.type === "person") continue;
+    if (aiExport && ["user", "human", "assistant"].includes(s.label.toLowerCase())) continue;
     const generic = GENERIC.test(s.label) || /^U[A-Z0-9]{6,}$/.test(s.label);
     questions.push({ kind: "unknown-voice", unsure: generic ? 0.8 : 0.3, text: generic ? `Who is “${s.label}”?` : `“${s.label}” is not yet in this garden. Add as a new person?`, label: s.label });
   }

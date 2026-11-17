@@ -26,3 +26,16 @@ export function groupMessages<T extends { contributor_id: string | null; sent_at
   }
   return out;
 }
+
+/** For each line of the original, the message it belongs to (or -1), found in one pass. */
+export function lineOwners(lines: { start: number }[], messages: { rawStart: number | null; rawEnd: number | null }[]): number[] {
+  const order = messages.map((_, i) => i).filter((i) => messages[i]!.rawStart != null).sort((a, b) => messages[a]!.rawStart! - messages[b]!.rawStart!);
+  const out: number[] = [];
+  let k = 0;
+  for (const l of lines) {
+    while (k < order.length && messages[order[k]!]!.rawEnd! < l.start) k++;
+    const i = order[k];
+    out.push(i != null && messages[i]!.rawStart! <= l.start && l.start <= messages[i]!.rawEnd! ? i : -1);
+  }
+  return out;
+}

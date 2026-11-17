@@ -232,5 +232,6 @@
 .original-sample .ln { font-family: var(--font-sc); font-size: 10px; color: var(--muted-foreground); user-select: none; }
 .original-sample .aside { opacity: .45; }
 .original-sample .lit { background: color-mix(in oklab, var(--sepia) 12%, transparent); }
+.lit-card { border-color: var(--ink) !important; }
 .rule-dotted { border-top: 1px dotted var(--rule); }
 @media (prefers-reduced-motion: reduce) { .accession-stamp.pressed { animation: none; } }

@@ -203,3 +203,69 @@ describe("the server prepares again from what the browser sends", () => {
     expect(server.sendable).not.toContain("private stuff");
   });
 });
+
+describe("review fixes (intake 1.0.1)", () => {
+  const text = (t: string, o: PrepareOptions = {}) => prepare({ kind: "text", text: t }, { timeZone: "Europe/Stockholm", ...o }, ctx);
+
+  it("a WhatsApp system line with a colon is not a speaker", () => {
+    const d = text(`[17/11/2026, 14:02:31] Ana: Plan?\n[17/11/2026, 14:07:00] Ana changed the subject to "Plan: v2"`);
+    expect(d.speakers.map((s) => s.label)).toEqual(["Ana"]);
+    expect(d.messages[1]!.hidden).toBe("system");
+    expect(coverage(d)).toBeNull();
+  });
+
+  it("reads WhatsApp desktop copies, which put the time first", () => {
+    const d = text(`[14:02, 17/11/2026] Ana Lind: Ska vi ses?\n[14:03, 17/11/2026] Bo: Ja!\nKl 10.`);
+    expect(d.format).toBe("whatsapp");
+    expect(d.messages.map((m) => [m.speakerLabel, m.content])).toEqual([["Ana Lind", "Ska vi ses?"], ["Bo", "Ja!\nKl 10."]]);
+    expect(d.messages[0]!.sentAt).toBe("2026-11-17T13:02:00.000Z");
+    const us = text(`[2:02 PM, 11/17/2026] Ana: hi\n[2:03 PM, 11/17/2026] Bo: hello`);
+    expect(us.messages[0]!.sentAt).toBe("2026-11-17T13:02:00.000Z");
+    expect(checkDraft(d)).toEqual([]);
+  });
+
+  it("reads 12-hour transcript clocks once the day is known", () => {
+    const t = "Ana Lind  2:02 PM\nShall we keep it?\nBo Berg  2:03 PM\nYes.\nAna Lind  2:05 PM\nGood.";
+    const before = text(t);
+    expect(before.format).toBe("transcript");
+    expect(before.messages.every((m) => m.sentAt === null)).toBe(true);
+    const after = text(t, { conversationDate: "2026-11-17" });
+    expect(after.messages[0]!.sentAt).toBe("2026-11-17T13:02:00.000Z");
+    expect(after.messages[0]!.timeSource).toBe("user_entered");
+  });
+
+  it("a bracketed full date is a stated time and asks for no day", () => {
+    const d = text("[2026-11-17 14:02] Ana\nHello\n[2026-11-17 14:03] Bo\nHi\n[2026-11-17 14:04] Ana\nBye");
+    expect(d.messages[0]!.timeSource).toBe("source_export");
+    expect(d.questions.some((q) => q.kind === "conversation-date")).toBe(false);
+  });
+
+  it("labels on set-aside lines only are not voices, and AI roles ask nothing", () => {
+    const conv = [{ id: "x", title: "t", create_time: 1, current_node: "c", mapping: {
+      r: { id: "r", parent: null, message: { id: "r", author: { role: "system" }, content: { parts: [""] } } },
+      a: { id: "a", parent: "r", message: { id: "a", author: { role: "user" }, create_time: 2, content: { parts: ["Hi"] } } },
+      b: { id: "b", parent: "a", message: { id: "b", author: { role: "tool" }, create_time: 3, content: { parts: ["search"] } } },
+      c: { id: "c", parent: "b", message: { id: "c", author: { role: "assistant" }, create_time: 4, content: { parts: ["Hello"] } } },
+    } }];
+    const d = prepare({ kind: "json", text: JSON.stringify(conv) }, { timeZone: "UTC" }, ctx);
+    expect(d.speakers.map((s) => s.label).sort()).toEqual(["assistant", "user"]);
+    expect(d.questions.filter((q) => q.kind === "unknown-voice")).toEqual([]);
+  });
+
+  it("an unknown timezone reads times as UTC and says so", () => {
+    const d = text(`[17/11/2026, 14:02:31] Ana: hi\n[17/11/2026, 14:03:31] Bo: ok`, { timeZone: "Mars/Olympus" });
+    expect(d.questions[0]!.kind).toBe("timezone");
+    expect(d.messages[0]!.sentAt).toBe("2026-11-17T14:02:31.000Z");
+    expect(d.report.timeZone).toBe("UTC");
+  });
+});
+
+describe("Original column line lookup", () => {
+  it.each(TEXT)("%s: one-pass owners match the per-line search", async (f) => {
+    const { lineOwners } = await import("./display");
+    const d = run(f);
+    const lines = toLines(d.raw);
+    const naive = lines.map((l) => d.messages.findIndex((m) => m.rawStart != null && m.rawStart <= l.start && l.start <= m.rawEnd!));
+    expect(lineOwners(lines, d.messages)).toEqual(naive);
+  });
+});

@@ -4,8 +4,8 @@ import { Switch } from "@/components/ui/switch";
 import { AccessionStamp, stampLine } from "@/components/garden/AccessionStamp";
 import { HIDDEN_NOTE, formatOffset, groupMessages } from "@/lib/intake/display";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
-import { getConversation } from "@/lib/garden.functions";
+import { queryOptions, useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { getBatchOriginal, getConversation } from "@/lib/garden.functions";
 import { formatDate, formatTime, ROLE_LABEL, type EvidenceRole } from "@/lib/stam/evidence";
 
 const convQuery = (gardenId: string, id: string) =>
@@ -88,16 +88,19 @@ function ConversationPage() {
       <Sheet open={!!open} onOpenChange={(o) => !o && setOpen(null)}>
         <SheetContent side="right" className="w-full overflow-y-auto bg-sheet sm:max-w-xl">
           <SheetTitle className="font-display">Original{batch ? ` · Nº ${String(batch.accession_no).padStart(3, "0")}` : ""}</SheetTitle>
-          {batch && <OriginalText raw={batch.raw_text} start={open?.start ?? null} end={open?.end ?? null} />}
+          {batch && <OriginalText gardenId={id} batchId={batch.id} start={open?.start ?? null} end={open?.end ?? null} />}
         </SheetContent>
       </Sheet>
     </main>
   );
 }
 
-function OriginalText({ raw, start, end }: { raw: string; start: number | null; end: number | null }) {
+function OriginalText({ gardenId, batchId, start, end }: { gardenId: string; batchId: string; start: number | null; end: number | null }) {
   const ref = useRef<HTMLElement>(null);
-  useEffect(() => { ref.current?.scrollIntoView({ block: "center" }); }, [start]);
+  const q = useQuery({ queryKey: ["original", batchId], queryFn: () => getBatchOriginal({ data: { gardenId, batchId } }), staleTime: Infinity });
+  const raw = q.data?.raw ?? null;
+  useEffect(() => { ref.current?.scrollIntoView({ block: "center" }); }, [start, raw]);
+  if (raw === null) return <p className="hand mt-4">{q.isError ? "The original could not be opened." : "Opening the original…"}</p>;
   if (start == null || end == null) return <pre className="original-sample mt-4 whitespace-pre-wrap text-[14px]">{raw}{"\n"}<span className="hand">This message has no exact span in the original (it came from an export or an earlier import).</span></pre>;
   return (
     <pre className="original-sample mt-4 whitespace-pre-wrap text-[14px]">

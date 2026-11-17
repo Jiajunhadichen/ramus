@@ -56,3 +56,10 @@ use the editor.
 - Outcome writes use the authenticated setOutcome server function and atomic set_idea_outcome RPC, with validation and an audit entry, never a fabricated thought event. Why: only people decide outcomes, and changing emphasis is not rewriting discussion history.
 - Remember reading depth under a user-and-garden-scoped local preference. Why: another person's choice must not change this person's reading level.
 - The public /genesis page reads bundled historical demo content, never authenticated archive records; English demo labels are presentation-only and export retains original labels. Why: public readings must not expose private gardens or rewrite their source.
+
+## Intake (Accession, v2.0)
+- Rule: keep the original, prepare the structure, never change the words. Full text in docs/project-knowledge.md ("Bringing words in").
+- src/lib/intake is pure and deterministic (no network, no AI, no clock): prepare(input, options, context) returns a Draft. Every format has fixtures and the invariant tests in intake.test.ts (coverage, words unchanged, no invented times, determinism, stable ids, real-name aliases). Add a fixture and a test with every parser change.
+- receiveBatch re-runs prepare() on the server from the original and the options, checks the invariants with checkDraft, then writes through the receive_batch RPC in one transaction. Why: the browser preview is a convenience, never the source of truth.
+- Large originals are never loaded with a conversation; getBatchOriginal fetches one when someone opens it.
+

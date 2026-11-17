@@ -159,7 +159,8 @@ export const getConversation = createServerFn({ method: "GET" })
     const conversation = check(await supabase.from("conversations").select("*").eq("id", data.id).eq("garden_id", data.gardenId).maybeSingle());
     if (!conversation) fail("This conversation does not exist or you cannot see it.");
     const messages = check(await supabase.from("messages").select("id,sequence,content,contributor_id,sent_at,time_precision,time_source,imported_at,parent_message_id,batch_id,raw_start,raw_end,speaker_label,offset_ms,hidden_reason").eq("conversation_id", data.id).order("sequence"));
-    const batches = check(await supabase.from("intake_batches").select("id,accession_no,created_at,source_format,raw_text,parser_version,report").eq("conversation_id", data.id).order("accession_no"));
+    // originals can be megabytes: they are fetched one at a time by getBatchOriginal when someone opens them
+    const batches = check(await supabase.from("intake_batches").select("id,accession_no,created_at,source_format,parser_version,report").eq("conversation_id", data.id).order("accession_no"));
     const contributors = check(await supabase.from("contributors").select("id,name,color").eq("garden_id", data.gardenId));
     const ids = messages.map((m) => m.id);
     const ev = ids.length ? check(await supabase.from("idea_evidence").select("message_id,role,idea_id").in("message_id", ids)) : [];
@@ -168,6 +169,16 @@ export const getConversation = createServerFn({ method: "GET" })
     const ideas = ev.filter((e) => ib.has(e.idea_id)).map((e) => ({ message_id: e.message_id, role: e.role, key: ib.get(e.idea_id)!.key, label: ib.get(e.idea_id)!.label }));
     const garden = check(await supabase.from("gardens").select("id,title").eq("id", data.gardenId).single());
     return { conversation, messages, contributors, ideas, garden, batches };
+  });
+
+/** One batch original, as received (after any masking the person asked for). */
+export const getBatchOriginal = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { gardenId: string; batchId: string }) => d)
+  .handler(async ({ data, context }) => {
+    const b = check(await context.supabase.from("intake_batches").select("id,raw_text").eq("id", data.batchId).eq("garden_id", data.gardenId).maybeSingle());
+    if (!b) fail("This original does not exist or you cannot see it.");
+    return { id: b.id, raw: b.raw_text };
   });
 
 // ---------- writes (each validates, then writes and logs an event) ----------
@@ -333,7 +344,7 @@ const SOURCE_OF: Record<Format, "meeting" | "chat" | "notes" | "other"> = {
 };
 
 async function intakeContext(supabase: DB, gardenId: string, userId: string) {
-  const contributors = check(await supabase.from("contributors").select("id,name,kind,user_id").eq("garden_id", gardenId));
+  const contributors = check(await supabase.from("contributors").select("id,name,color,kind,user_id").eq("garden_id", gardenId));
   const aliases = check(await supabase.from("speaker_aliases").select("alias,contributor_id").eq("garden_id", gardenId));
   const me = contributors.find((c) => c.user_id === userId);
   return { contributors, aliases, importerContributorId: me?.id ?? null };
@@ -347,8 +358,10 @@ export const getAccessionContext = createServerFn({ method: "GET" })
     if (!garden) fail("This garden does not exist or you cannot see it.");
     const ctx = await intakeContext(context.supabase, data.gardenId, context.userId);
     const conversations = check(await context.supabase.from("conversations").select("id,title").eq("garden_id", data.gardenId).order("created_at"));
-    const email = (context.claims as { email?: string } | undefined)?.email;
-    return { garden, ...ctx, importerName: email ? email.split("@")[0] : "Me", conversations };
+    // the importer's own name if they gave one; never derived from their email address, which other members would see
+    const meta = (context.claims as { user_metadata?: { full_name?: string; name?: string } } | undefined)?.user_metadata;
+    const importerName = (meta?.full_name || meta?.name || "").trim() || "Me";
+    return { garden, ...ctx, importerName, conversations };
   });
 
 /** Which existing conversations already keep some of these messages. */

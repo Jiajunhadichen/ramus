@@ -35,14 +35,25 @@ What people said and our reading of it are two separate layers.
 - Garden (derived): ideas, idea_links and idea_evidence are our reading of the archive. They can be edited, accepted and rejected.
 - Never invent a time. A message without a known time shows "time unknown". "Happened" and "imported" are shown separately.
 
+## Bringing words in (Accession, v2.0)
+Keep the original. Prepare the structure. Never change the words.
+- The original is kept exactly as received, as a batch (intake_batches). Every prepared message points back to its exact span of that original (raw_start, raw_end).
+- Preparing decides only who spoke, when, where one message ends, and which lines are set aside (system lines, media placeholders, deleted messages, empty lines). Words are never rewritten, corrected or summarised.
+- Set-aside lines stay in the original and as hidden messages; they can always be shown. Nothing is dropped silently.
+- Masking phone numbers and email addresses is the only change to words. It happens only when the person asks, applies to the original and the messages alike, is recorded in the report, and then the original file is not uploaded.
+- Preparation is deterministic code (src/lib/intake, no AI). The server never trusts prepared messages from the browser: it prepares again from the original and the person's choices.
+- Generic labels (Speaker 1, user, assistant, …) are never remembered as names.
+
 ## Glossary
 Garden = a group's space for one long discussion or project. Idea = node. Primary link = "grew from". Merge link = "recombined with". Conversation = a recorded discussion (meeting notes, chat export, transcript). Step = one stage of the discussion, the time axis. Knot = a click, a confirmed milestone. Dormant = stopped growing, kept, can be revived. Suggestion = gardener proposal awaiting review. Harvest = turning a conversation into ideas. Nursery = a member's private space. Gardener = the AI agent. Evidence = a message an idea rests on, with a role (origin, restated, supports, challenges). Nature = how a link grew (refines, answers, challenges, splits, combines).
 
 ## Data rules
 - Tables: gardens, garden_members, contributors, conversations, messages, steps, ideas, idea_links, events.
 - contributors: name, color, kind ('person' | 'historical_ai'), user_id (nullable). Only the demo garden uses 'historical_ai'.
-- conversations (insert-only): title, source ('meeting' | 'chat' | 'notes' | 'other'), source_format ('paste' | 'whatsapp' | 'vtt' | 'srt' | 'slack' | 'chatgpt' | 'claude' | 'other'), happened_at (nullable), raw_text, original_file (path in the private conversation-originals bucket), imported_at, consent_confirmed.
-- messages (insert-only): conversation_id, sequence (always set), contributor_id, sent_at (nullable; never invented), time_precision ('second' | 'minute' | 'day' | 'unknown'), time_source ('source_export' | 'user_entered' | 'none'), parent_message_id, external_id (source id; re-imports do not duplicate), imported_at, content.
+- conversations (insert-only): title, source ('meeting' | 'chat' | 'notes' | 'other'), source_format ('paste' | 'lines' | 'whatsapp' | 'vtt' | 'srt' | 'transcript' | 'notes' | 'slack' | 'chatgpt' | 'claude' | 'other'), happened_at (nullable), raw_text (legacy; new conversations keep it empty), original_file (path in the private conversation-originals bucket), imported_at, consent_confirmed.
+- intake_batches (insert-only): conversation_id, accession_no (per garden, in order received), raw_text (the original as received, after any masking asked for), source_format, original_file, parser_version, options (the person's choices), report (counts and warnings). Legacy conversations have one backfilled batch; their messages have batch_id null.
+- messages (insert-only): conversation_id, sequence (always set), contributor_id, sent_at (nullable; never invented), time_precision ('second' | 'minute' | 'day' | 'unknown'), time_source ('source_export' | 'user_entered' | 'recording_offset' | 'none'), parent_message_id, external_id (source id or a stable hash; re-imports do not duplicate), imported_at, content, batch_id, raw_start, raw_end, speaker_label (the name as the source wrote it), offset_ms (time into a recording), hidden_reason ('system' | 'media' | 'deleted' | 'empty' | null).
+- speaker_aliases: alias → contributor per garden, remembered when a person maps a real name; editable, audited.
 - idea_evidence: idea_id, message_id, role ('origin' | 'restated' | 'supports' | 'challenges'), note. At most one origin per idea. Replaces ideas.message_id / conversation_id / source_excerpt (deprecated, kept, not written).
 - steps: step, title, date (optional).
 - ideas: is_outcome (human-set; several allowed), label (max 24 chars), note, contributor_id, step, status ('growing' | 'dormant'), is_knot, settled, origin ('human' | 'ai'), confirmed, rejected_at, visibility ('shared' | 'private'), owner_user_id, conversation_id, message_id, source_excerpt.
