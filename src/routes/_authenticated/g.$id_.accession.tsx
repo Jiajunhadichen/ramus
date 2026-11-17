@@ -204,8 +204,8 @@ function AccessionPage() {
           onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (e.dataTransfer.files.length) void receiveFiles(e.dataTransfer.files); }}>
           <textarea aria-label="Paste or drop anything a discussion left behind" className="min-h-[120px] w-full resize-y bg-transparent text-[15px] outline-none"
             placeholder="Paste or drop anything a discussion left behind: a chat export, a meeting transcript, notes, a conversation with an AI assistant."
-            value={received?.file ? `${received.name} received` : received?.input.files ? `${received.input.files.length} files received` : paste}
-            readOnly={!!received?.file || !!received?.input.files}
+            value={received?.input.files && !received.name?.endsWith(".zip") ? `${received.input.files.length} files received` : received?.name ? `${received.name} received` : paste}
+            readOnly={!!received?.name}
             onChange={(e) => receiveText(e.target.value)} />
           <div className="flex flex-wrap items-center gap-3">
             <label className="cursor-pointer text-sm underline underline-offset-4">Choose files<input type="file" multiple accept={ACCEPT} className="sr-only" onChange={(e) => { if (e.target.files) void receiveFiles(e.target.files); e.target.value = ""; }} /></label>
