@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as GenesisRouteImport } from './routes/genesis'
 import { Route as PrinciplesRouteImport } from './routes/principles'
 import { Route as AuthenticatedGardensRouteImport } from './routes/_authenticated/gardens'
 import { Route as AuthenticatedGIdRouteImport } from './routes/_authenticated/g.$id'
@@ -29,6 +30,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GenesisRoute = GenesisRouteImport.update({
+  id: '/genesis',
+  path: '/genesis',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrinciplesRoute = PrinciplesRouteImport.update({
@@ -56,6 +62,7 @@ const AuthenticatedGIdConversationsCidRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/genesis': typeof GenesisRoute
   '/principles': typeof PrinciplesRoute
   '/gardens': typeof AuthenticatedGardensRoute
   '/g/$id': typeof AuthenticatedGIdRoute
@@ -64,6 +71,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/genesis': typeof GenesisRoute
   '/principles': typeof PrinciplesRoute
   '/gardens': typeof AuthenticatedGardensRoute
   '/g/$id': typeof AuthenticatedGIdRoute
@@ -74,6 +82,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/genesis': typeof GenesisRoute
   '/principles': typeof PrinciplesRoute
   '/_authenticated/gardens': typeof AuthenticatedGardensRoute
   '/_authenticated/g/$id': typeof AuthenticatedGIdRoute
@@ -84,6 +93,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/genesis'
     | '/principles'
     | '/gardens'
     | '/g/$id'
@@ -92,6 +102,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/genesis'
     | '/principles'
     | '/gardens'
     | '/g/$id'
@@ -101,6 +112,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/genesis'
     | '/principles'
     | '/_authenticated/gardens'
     | '/_authenticated/g/$id'
@@ -111,6 +123,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  GenesisRoute: typeof GenesisRoute
   PrinciplesRoute: typeof PrinciplesRoute
 }
 
@@ -135,6 +148,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/genesis': {
+      id: '/genesis'
+      path: '/genesis'
+      fullPath: '/genesis'
+      preLoaderRoute: typeof GenesisRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/principles': {
@@ -187,6 +207,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  GenesisRoute: GenesisRoute,
   PrinciplesRoute: PrinciplesRoute,
 }
 export const routeTree = rootRouteImport
