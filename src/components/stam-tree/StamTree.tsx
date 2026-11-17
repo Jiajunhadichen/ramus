@@ -191,16 +191,10 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
             </pattern>
           ))}
         </defs>
-        <mask id="lbl-space" maskUnits="userSpaceOnUse" x={-W} y={-H} width={W * 3} height={H * 3}>
-          <rect x={-W} y={-H} width={W * 3} height={H * 3} fill="white" />
-          {L.nodes.filter((n) => n.box && vis(n.id) && labeled(n.id)).map((n) => (
-            <rect key={n.id} x={n.box!.x0 - 3} y={n.box!.top - 3} width={n.box!.x1 - n.box!.x0 + 6} height={n.box!.h + 6} fill="black" />
-          ))}
-        </mask>
         <rect x={0} y={0} width={W} height={H} fill="url(#gen-rules)" pointerEvents="none" />
         <rect x={-W} y={-H} width={W * 3} height={H * 3} fill="transparent" onClick={() => click(null)} />
         <g transform={`translate(${view.x.toFixed(1)} ${view.y.toFixed(1)}) scale(${view.k.toFixed(3)})`}>
-          <g mask="url(#lbl-space)">
+          <g>
           <g>{merges.map(({ n, m }) => (hot.has(n.id) || hot.has(m!.id) ? null : mergeEl(n, m!, false)))}</g>
           <g filter="url(#pen)">
             <line x1={CX - 120} y1={CY + 1} x2={CX + 120} y2={CY + 1} className="ground" />

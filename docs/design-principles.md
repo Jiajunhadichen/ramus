@@ -70,6 +70,7 @@ Update AGENTS.md and docs/design-principles.md: replace the older type, label, c
 - One type scale: 13 / 15 / 18 / 24 / 40 / 64 px. Line height 1.5 for text, 1.1 for display.
 
 2. Labels on the tree: no halos
+- Superseded (Nov 2026): masking cut visible gaps in the trunk. Labels must never obscure the trunk; use only a faint low-opacity paper halo and placement beside branches.
 - Remove every text halo, outline, paint-order stroke or white border around labels. Nothing may look like a sticker.
 - Readability comes from space instead: mask the branch and merge layers under each label's box (plus 3px padding), so lines stop just before the text, the way engravers left white space around lettering. Paper, grain and rules stay visible behind labels.
 - Labels: IM Fell English + Noto Serif SC at 15px in ink #1C2520. Knots in IM Fell English SC (Chinese at 16px). Resting ideas in IM Fell English Italic in muted ink (Chinese stays upright).

@@ -160,7 +160,7 @@
 
 /* StamTree — ported from docs/tree-prototype.html */
 /* Labels: no halos; branches are masked around them instead, as engravers left space around lettering. */
-.stam-tree .lbl { font-family: var(--font-sans); font-size: 15px; fill: var(--ink); stroke: none; cursor: pointer; }
+.stam-tree .lbl { font-family: var(--font-sans); font-size: 15px; fill: var(--ink); stroke: color-mix(in oklab, var(--sheet) 55%, transparent); stroke-width: 2.4px; stroke-linejoin: round; paint-order: stroke fill; cursor: pointer; }
 .stam-tree .lbl.major { font-family: var(--font-sc); letter-spacing: .06em; }
 .stam-tree .lbl.major .cjk { font-size: 16px; letter-spacing: 0; }
 .stam-tree .lbl.dormant { fill: var(--muted-ink); font-style: normal; }
