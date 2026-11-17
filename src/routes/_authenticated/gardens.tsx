@@ -1,8 +1,8 @@
-import { Seed } from "@/components/stam-tree/StamTree";
+import { Seed, StamTree, type TreeNode } from "@/components/stam-tree/StamTree";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { queryOptions, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createGarden, deleteGardenForever, ensureDemoGarden, importGarden, listGardens, renameGarden, trashGarden } from "@/lib/garden.functions";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -28,9 +28,9 @@ export const Route = createFileRoute("/_authenticated/gardens")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { title: "My gardens — Ramus" },
-      { name: "description", content: "Your Ramus gardens, pressed as specimen cards." },
+      { name: "description", content: "Your Ramus gardens, pressed as specimen plates." },
       { property: "og:title", content: "My gardens — Ramus" },
-      { property: "og:description", content: "Your Ramus gardens, pressed as specimen cards." },
+      { property: "og:description", content: "Your Ramus gardens, pressed as specimen plates." },
     ],
   }),
   loader: ({ context }) => context.queryClient.ensureQueryData(gardensQuery),
@@ -61,8 +61,12 @@ function GardensPage() {
           <Button onClick={() => setBringOpen(true)}>Grow a tree from conversations</Button>
         </div>
       </div>
-      {active.length === 0 && <Seed><Button onClick={() => setBringOpen(true)}>Grow a tree from conversations</Button></Seed>}
-      <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {active.length === 0 && (
+          <div className="border border-ink/70 bg-sheet p-6 sm:col-span-2 lg:col-span-3">
+            <Seed><Button onClick={() => setBringOpen(true)}>Grow a tree from conversations</Button></Seed>
+          </div>
+        )}
         {active.map((g) => <GardenCard key={g.id} g={g} />)}
       </div>
       {trash.length > 0 && <Trash gardens={trash} />}
@@ -164,16 +168,17 @@ function GardenCard({ g }: { g: GardenRow }) {
       toast(`“${g.title}” moved to the trash.`, { action: { label: "Undo", onClick: async () => { await trashFn({ data: { gardenId: g.id, trash: false } }); await qc.invalidateQueries({ queryKey: ["gardens"] }); } } });
     } catch (e) { toast.error((e as Error).message); }
   }
+  const tree = useMemo(() => g.tree.map((n) => ({ ...n, by: "" })) as TreeNode[], [g.tree]);
   return (
     <div className="relative">
       <Link to="/g/$id" params={{ id: g.id }} search={{ idea: undefined }}
-        className="block h-full  border border-rule bg-sheet p-4 pr-10 transition-colors hover:border-ink">
-        <p className="border-b border-rule pb-1 smallcaps text-note">Specimen Nº {String(g.specimen_no).padStart(3, "0")}</p>
-        <h2 className="mt-2 font-display text-read leading-snug">{g.title}</h2>
-        <p className="mt-2 smallcaps text-note text-muted-foreground">
-          <Stats parts={[[g.ideas, "ideas"], [g.knots, "knots"], [g.dormant, "resting"], [g.merges, "merges"], [g.people, "people"]]} />
-        </p>
-        <p className="mt-1 smallcaps text-note text-muted-foreground">Last change {new Date(g.updated_at).toLocaleString()}</p>
+        className="plate grid h-full content-start gap-1 border border-ink/70 bg-sheet p-6 transition-colors hover:border-ink">
+        <div className="mb-4">{tree.length ? <StamTree thumbnail nodes={tree} step={Infinity} selected={null} ariaLabel={`The tree of ${g.title}`} /> : <div className="h-40" />}</div>
+        <p className="smallcaps text-note text-muted-foreground">N° {String(g.specimen_no).padStart(3, "0")}</p>
+        <h2 className="font-display text-head leading-tight">{g.title}</h2>
+        {g.line && <p className="hand truncate text-read" title={g.line}>{g.line}</p>}
+        <p className="text-note text-muted-foreground"><Stats parts={[[g.ideas, "ideas"], [g.people, "people"]]} /></p>
+        <p className="text-note text-muted-foreground">Updated {new Date(g.updated_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p>
       </Link>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -241,12 +246,13 @@ function Trash({ gardens }: { gardens: GardenRow[] }) {
         Trash ({gardens.length}) {open ? "▴" : "▾"}
       </button>
       {open && (
-        <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {gardens.map((g) => (
-            <li key={g.id} className="grid gap-2  border border-rule bg-sheet p-4 opacity-70">
-              <p className="font-display text-read leading-snug text-muted-foreground">{g.title}</p>
-              <p className="smallcaps text-note text-muted-foreground">In the trash since {new Date(g.deleted_at!).toLocaleDateString()}</p>
-              <div className="flex items-center gap-2">
+            <li key={g.id} className="grid gap-1 border border-ink/70 bg-sheet p-6 opacity-70">
+              <p className="smallcaps text-note text-muted-foreground">N° {String(g.specimen_no).padStart(3, "0")}</p>
+              <p className="font-display text-head leading-tight">{g.title}</p>
+              <p className="text-note text-muted-foreground">In the trash since {new Date(g.deleted_at!).toLocaleDateString()}</p>
+              <div className="mt-3 flex items-center gap-2">
                 <Button size="sm" variant="outline" onClick={() => void restore(g)}>Restore</Button>
                 <button type="button" className="ml-auto text-ui text-destructive underline-offset-4 hover:underline" onClick={() => setDoomed(g)}>Delete forever</button>
               </div>

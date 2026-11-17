@@ -14,8 +14,7 @@ import { GardenerPanel } from "@/components/garden/Gardener";
 import { stepDate, toIdeas, toStam } from "@/components/garden/model";
 import { maxStep, selectionAt } from "@/lib/stam/layout";
 import { Button } from "@/components/ui/button";
-import { ReadingSwitch } from "@/components/garden/ReadingSwitch";
-import { mainLineage, type ReadingLevel } from "@/lib/stam/reading";
+import { mainLineage } from "@/lib/stam/reading";
 import { DEMO_LABELS } from "@/lib/stam/demo-labels";
 import { Upright } from "@/components/epigraph/Epigraph";
 import { Systema } from "@/components/garden/Systema";
@@ -56,13 +55,10 @@ function GardenPage() {
   const { data } = useSuspenseQuery(gardenQuery(id));
   const [language, setLanguage] = useState<"zh" | "en">("zh");
   const ideas = useMemo(() => toIdeas(data).map((n) => ({ ...n, label: data.garden.is_demo && language === "en" ? DEMO_LABELS[n.id] ?? n.label : n.label })), [data, language]);
-  const [level, setLevel] = useState<ReadingLevel>("form");
-  const preferenceKey = `ramus-reading:${data.viewerId}:${id}`;
-  useEffect(() => {
-    const saved = localStorage.getItem(preferenceKey);
-    setLevel(saved === "lineage" || saved === "record" ? saved : "form");
-  }, [preferenceKey]);
-  const changeLevel = (next: ReadingLevel) => { setLevel(next); localStorage.setItem(preferenceKey, next); };
+  // Field notes can be put away; the choice stays on this device
+  const [notesHidden, setNotesHidden] = useState(false);
+  useEffect(() => { try { setNotesHidden(localStorage.getItem("ramus-notes-hidden") === "1"); } catch { /* storage unavailable */ } }, []);
+  const hideNotes = (hidden: boolean) => { setNotesHidden(hidden); try { localStorage.setItem("ramus-notes-hidden", hidden ? "1" : "0"); } catch { /* storage unavailable */ } };
   const max = maxStep(ideas);
   const r = useReplay(max);
   const [bringOpen, setBringOpen] = useState(false);
@@ -120,12 +116,14 @@ function GardenPage() {
   const collectedOn = data.garden.collected ?? stepDate(data, ideas, 1);
   const stepInfo = data.steps.find((s: any) => s.step === r.step);
   const people = (data.contributors as any[]).filter((c) => ideas.some((i) => i.contributorId === c.id));
+  const specimen = { no: data.garden.specimen_no, title: data.garden.title, collected: collectedOn ?? undefined, collectors: people.map((p) => p.name) };
 
   const isMobile = useIsMobile();
   const [notesOpen, setNotesOpen] = useState(false);
   function select(key: string | null) {
     if (!key) { setSelected(null); setNotesOpen(false); return; }
-    setNotesOpen(true);
+    // a collapsed panel stays collapsed
+    if (!notesHidden) setNotesOpen(true);
     const target = ideas.find((i) => i.id === key);
     if (target && target.step > r.step) r.setStep(max);
     setSelected(key);
@@ -146,7 +144,7 @@ function GardenPage() {
   const returnNotes = ((data.returns ?? []) as { key: string; why: string | null }[])
     .filter((x, i, all) => ideas.some((n) => n.id === x.key) && all.findIndex((y) => y.key === x.key) === i)
     .map((x) => ({ id: x.key, text: `went back here${x.why ? ` · ${x.why.length > 44 ? x.why.slice(0, 43) + "…" : x.why}` : ""}` }));
-  const notes = idea ? <FieldNotes data={data} ideas={ideas} idea={idea} currentStep={r.step} onSelect={select} onChanged={refresh} onGrowAgain={growAgain} /> : null;
+  const notes = idea && !notesHidden ? <FieldNotes data={data} ideas={ideas} idea={idea} currentStep={r.step} onSelect={select} onChanged={refresh} onGrowAgain={growAgain} /> : null;
   return (
     <main className="page grid gap-6 py-8">
       <header className="flex flex-wrap items-end gap-4">
@@ -192,7 +190,7 @@ function GardenPage() {
           {outcomes.length ? outcomes.map((n) => <div key={n.id}><Button variant="ghost" onClick={() => select(n.id)} className="h-auto whitespace-normal p-0 text-left font-serif text-head font-normal"><Upright>{n.label}</Upright></Button><p className="mt-1 text-muted-foreground"><Upright>{n.note}</Upright></p><p className="smallcaps mt-1 text-note text-muted-foreground">Step {n.step}{data.steps.find((s: any) => s.step === n.step)?.title ? <> · <Upright>{data.steps.find((s: any) => s.step === n.step)?.title}</Upright></> : null}</p></div>) : <p className="text-muted-foreground">No outcome marked yet.</p>}
         </section>
       </div>
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className={"grid items-start gap-5" + (notesHidden ? "" : " lg:grid-cols-[minmax(0,1fr)_340px]")}>
         <section ref={sheet} className=" border border-rule bg-sheet" aria-label="Specimen sheet">
           <div className="flex flex-wrap items-center gap-4 border-b border-rule px-4 py-3">
             <Button variant="outline" onClick={mode === "steps" ? r.play : playEvents}>{(mode === "steps" ? r.playing : evPlaying) ? "Pause" : "Play growth"}</Button>
@@ -211,8 +209,8 @@ function GardenPage() {
                   className={view === v ? "text-foreground underline underline-offset-4" : "text-muted-foreground hover:text-foreground"}>{v === "tree" ? "Tree" : "Story"}</button>
               ))}
             </div>
-            <ReadingSwitch value={level} onChange={changeLevel} />
-            {view === "tree" && <DownloadTree size="default" title={data.garden.title} getSvg={() => sheet.current?.querySelector<SVGSVGElement>("svg.stam-tree") ?? null} />}
+            {view === "tree" && <DownloadTree size="default" poster={() => ({ nodes: ideas, title: data.garden.title, line: (outcomes[0] ?? root)?.label ?? null, selected, main, notes: returnNotes, specimen })} />}
+            {notesHidden && <button type="button" className="text-ui text-muted-foreground hover:text-foreground" onClick={() => hideNotes(false)}>Notes</button>}
             {data.garden.is_demo && <div role="radiogroup" aria-label="Idea language" className="flex text-ui">{(["zh", "en"] as const).map((lang) => <Button key={lang} size="sm" variant="ghost" role="radio" aria-checked={language === lang} className={language === lang ? "text-foreground underline underline-offset-4" : "text-muted-foreground"} onClick={() => setLanguage(lang)}>{lang === "zh" ? "中文" : "EN"}</Button>)}</div>}
             <span className="text-ui" aria-live="polite">
               <span className="smallcaps">Step {r.step} of {max}</span>
@@ -228,11 +226,11 @@ function GardenPage() {
             </p>
           )}
           {ideas.length === 0 ? <Seed /> : view === "systema" ? (
-            <Systema returns={(data.returns ?? []) as { key: string; why: string | null; step: number | null }[]} main={main} level={level} title={data.garden.title} nodes={ideas} steps={Object.fromEntries(data.steps.map((st: { step: number; title: string | null }) => [st.step, st.title]))} selected={selected} onSelect={(k) => { select(k); }} />
+            <Systema returns={(data.returns ?? []) as { key: string; why: string | null; step: number | null }[]} main={main} level="record" title={data.garden.title} nodes={ideas} steps={Object.fromEntries(data.steps.map((st: { step: number; title: string | null }) => [st.step, st.title]))} selected={selected} onSelect={(k) => { select(k); }} />
           ) : (
-            <StamTree notes={returnNotes} level={level} main={main} nodes={ideas} step={r.step} selected={selected} onSelect={select} freshStep={r.fresh.step} freshKey={r.fresh.key}
+            <StamTree notes={returnNotes} labels="zoom" main={main} nodes={ideas} step={r.step} selected={selected} onSelect={select} freshStep={r.fresh.step} freshKey={r.fresh.key}
               ariaLabel={data.garden.title} interactive
-              specimen={{ no: data.garden.specimen_no, title: data.garden.title, collected: collectedOn ?? undefined, collectors: people.map((p) => p.name) }} />
+              specimen={specimen} />
           )}
           <div className="border-t border-rule px-4 py-3"><Legend people={people.map((p) => ({ name: p.name, color: p.color }))} /></div>
         </section>
@@ -243,10 +241,15 @@ function GardenPage() {
               {notes}
             </SheetContent>
           </Sheet>
-        ) : notes}
+        ) : notes && (
+          <div className="grid gap-0">
+            <button type="button" className="justify-self-end pb-1 text-ui text-muted-foreground hover:text-foreground" onClick={() => hideNotes(true)}>Hide notes</button>
+            {notes}
+          </div>
+        )}
       </div>
       {presenting && (
-        <Present title={data.garden.title} nodes={ideas} level={level} main={main} notes={returnNotes}
+        <Present title={data.garden.title} nodes={ideas} main={main} notes={returnNotes}
           steps={Object.fromEntries(data.steps.map((st: { step: number; title: string | null }) => [st.step, st.title]))}
           returns={(data.returns ?? []) as { key: string; why: string | null; step: number | null }[]}
           specimen={{ no: data.garden.specimen_no, title: data.garden.title, collected: collectedOn ?? undefined, collectors: people.map((p) => p.name) }}

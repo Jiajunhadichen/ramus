@@ -3,6 +3,7 @@ import { CX, CY, W, H, computeLayout, curve, mergePath, taper, textWidth, thick,
 import { mainLineage, readingDetail, type ReadingLevel } from "@/lib/stam/reading";
 import { Button } from "@/components/ui/button";
 import { lineage, REASONS } from "@/lib/stam/focus";
+import { labelSize, settleLabels, wantedLabels } from "@/lib/stam/labels";
 import { runs } from "@/lib/epigraphs";
 import { Epigraph } from "@/components/epigraph/Epigraph";
 import { Upright } from "@/components/epigraph/Epigraph";
@@ -29,8 +30,17 @@ type Props = {
   /** Margin notes in the naturalist's hand, pinned to an idea or a merge. */
   notes?: MarginNote[];
   level?: ReadingLevel;
-  main?: Set<string>;
+  main?: Set<string> | undefined;
+  /** "zoom": labels appear by zoom and selection (the workspace); "level": by reading level (Present, landing). */
+  labels?: "level" | "zoom";
+  /** A miniature: no labels, legend, specimen or interaction. */
+  thumbnail?: boolean;
+  /** Composed as a poster for export: title, one line, the whole tree, specimen label bottom-right, mark bottom-left. */
+  poster?: { title: string; line?: string | null } | null;
 };
+
+/** Poster sheet (viewBox units): square, margin 6% of the side. */
+export const POSTER = { w: 1600, h: 1600, m: 96 };
 
 export type MarginNote = { text: string; id: string; from?: string };
 
@@ -74,21 +84,50 @@ function useMeasure(labels: { label: string; major: boolean; dormant?: boolean }
   return widths;
 }
 
-export function StamTree({ nodes, step, selected, onSelect, freshStep = null, freshKey = 0, ariaLabel = "Idea tree", specimen = null, interactive = false, notes = [], level = "record", main: suppliedMain }: Props) {
+export function StamTree(props: Props) {
+  return props.thumbnail ? <ThumbTree nodes={props.nodes} ariaLabel={props.ariaLabel} /> : <FullTree {...props} />;
+}
+
+function FullTree({ nodes, step, selected, onSelect, freshStep = null, freshKey = 0, ariaLabel = "Idea tree", specimen = null, interactive = false, notes = [], level = "record", main: suppliedMain, labels = "level", poster = null }: Props) {
+  if (poster) interactive = false;
   const widths = useMeasure(useMemo(() => nodes.map((n) => ({ label: n.label, major: !!n.knot, dormant: n.status === "dormant" })), [nodes]));
   const L = useMemo(() => computeLayout(nodes, {
-    obstacle: specimen ? CARD : null,
+    obstacle: specimen && !poster ? CARD : null,
     measure: (s, major) => widths?.get((major ? "M" : "m") + s) ?? textWidth(s, major),
   }), [nodes, widths, specimen]);
   const main = useMemo(() => suppliedMain ?? mainLineage(nodes), [nodes, suppliedMain]);
-  const detail = useMemo(() => readingDetail(nodes, level, main, selected), [nodes, level, main, selected]);
-  const labeled = (id: string) => detail.has(id) || hover === id;
-  const focus = useMemo(() => lineage(nodes, selected), [nodes, selected]);
   const [hover, setHover] = useState<string | null>(null);
-  const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
   const [view, setView] = useState<View>(FIT);
-  const wrap = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const detail = useMemo(() => readingDetail(nodes, level, main, selected), [nodes, level, main, selected]);
+  const zoomLabels = labels === "zoom" || !!poster;
+  // screen pixels per tree unit at the fitted view, so labels can stay 13–18px at any zoom
+  const [scr, setScr] = useState(0.6);
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el || poster || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => { const w = el.clientWidth; if (w) setScr(w / W); });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [poster]);
+  const fs = zoomLabels && !poster ? labelSize(view.k, scr) : 15;
+  const shownZoom = useMemo(() => {
+    if (!zoomLabels) return null;
+    const k = poster ? 1 : view.k;
+    const r = fs / 15;
+    const ln = L.nodes.map((n) => ({ ...n, desc: n.desc, isRoot: n.isRoot }));
+    const want = wantedLabels(ln, { k, main, selected, hover });
+    return settleLabels(ln, want, (n) => {
+      if (!n.box) return null;
+      const ax = n.label0.x, ay = n.ly;
+      return { x0: ax + (n.box.x0 - ax) * r, x1: ax + (n.box.x1 - ax) * r, top: ay + (n.box.top - ay) * r, h: n.box.h * r };
+    }, main, selected, hover);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoomLabels, poster, view.k, fs, L, main, selected, hover]);
+  const labeled = (id: string) => shownZoom ? shownZoom.has(id) : detail.has(id) || hover === id;
+  const focus = useMemo(() => lineage(nodes, selected), [nodes, selected]);
+  const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
+  const wrap = useRef<HTMLDivElement>(null);
 
   const vis = (id: string) => (L.byId.get(id)?.step ?? Infinity) <= step;
   const dim = (...ids: string[]) => (focus && !ids.every((i) => focus.has(i)) ? " dim" : "");
@@ -172,8 +211,8 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
 
   return (
     <div ref={wrap} className="relative">
-      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={ariaLabel}
-        data-level={level} className={"stam-tree block h-auto w-full select-none" + (interactive ? " touch-none" : "")}
+      <svg ref={svgRef} viewBox={poster ? `0 0 ${POSTER.w} ${POSTER.h}` : `0 0 ${W} ${H}`} role="img" aria-label={ariaLabel}
+        data-level={level} style={{ ["--lr" as string]: String(fs / 15) }} className={"stam-tree block h-auto w-full select-none" + (interactive ? " touch-none" : "")}
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
         <desc>Each dot is an idea. Branches show what grew from what, dashed lines show ideas recombining, colors show who said it, hollow tips are resting.</desc>
         <defs>
@@ -191,6 +230,8 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
             </pattern>
           ))}
         </defs>
+        {poster && <PosterFrame {...poster} />}
+        <g transform={poster ? posterMatrix() : undefined}>
         <rect x={0} y={0} width={W} height={H} fill="url(#gen-rules)" pointerEvents="none" />
         <rect x={-W} y={-H} width={W * 3} height={H * 3} fill="transparent" onClick={() => click(null)} />
         <g transform={`translate(${view.x.toFixed(1)} ${view.y.toFixed(1)}) scale(${view.k.toFixed(3)})`}>
@@ -273,7 +314,8 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
           </g>
           <g>{notes.map((nt, i) => <Note key={nt.text} note={nt} pos={notePos[i]} />)}</g>
         </g>
-        {specimen && <SpecimenLabel {...specimen} nodes={nodes} />}
+        </g>
+        {specimen && <SpecimenLabel {...specimen} nodes={nodes} at={poster ? { x: POSTER.w - POSTER.m - CARD.w, y: POSTER.h - POSTER.m - CARD.h } : undefined} />}
       </svg>
       {interactive && (view.k !== 1 || view.x !== 0 || view.y !== 0) && (
         <Button variant="outline" size="sm" className="absolute right-3 top-3" onClick={() => setView(FIT)}>Fit</Button>
@@ -287,9 +329,10 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
 }
 
 /** The herbarium label, drawn inside the sheet so it shares the tree's coordinates. */
-function SpecimenLabel({ no, title, collected, collectors, nodes }: SpecimenInfo & { nodes: TreeNode[] }) {
+function SpecimenLabel({ no, title, collected, collectors, nodes, at }: SpecimenInfo & { nodes: TreeNode[]; at?: { x: number; y: number } | undefined }) {
   const merges = nodes.reduce((s, n) => s + Math.max(0, n.parents.length - 1), 0);
-  const { x, y, w, h } = CARD;
+  const { w, h } = CARD;
+  const { x, y } = at ?? CARD;
   const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
   return (
     <g className="specimen" aria-label="Specimen label">
@@ -384,5 +427,55 @@ function Note({ note, pos }: { note: MarginNote; pos: NotePos | null | undefined
       <circle cx={p.x} cy={p.y} r={1.6} className="note-dot" />
       <text x={x} y={y} textAnchor={side > 0 ? "start" : "end"} className="note-text">{note.text}</text>
     </g>
+  );
+}
+
+/** Where the tree sits on the poster: below the title, above the specimen label, centred. */
+function posterMatrix() {
+  const { w, h, m } = POSTER;
+  const top = m + 110, bottom = h - m - CARD.h - 12;
+  const k = Math.min((w - 2 * m) / W, (bottom - top) / H);
+  const x = (w - W * k) / 2, y = top + (bottom - top - H * k) / 2;
+  return `matrix(${k.toFixed(4)} 0 0 ${k.toFixed(4)} ${x.toFixed(1)} ${y.toFixed(1)})`;
+}
+
+function PosterFrame({ title, line }: { title: string; line?: string | null }) {
+  const { w, h, m } = POSTER;
+  const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
+  return (
+    <g className="poster">
+      <rect x={0} y={0} width={w} height={h} style={{ fill: "var(--paper)" }} />
+      <text x={m} y={m + 34} className="poster-title"><Runs s={clip(title, 60)} /></text>
+      {line && <text x={m} y={m + 74} className="poster-line"><Runs s={clip(line, 90)} /></text>}
+      <text x={m} y={h - m} className="poster-mark">grown with Ramus</text>
+    </g>
+  );
+}
+
+/** A miniature of the tree for a garden's plate: branches and buds in their people's colours, nothing else. */
+function ThumbTree({ nodes, ariaLabel = "Idea tree" }: { nodes: TreeNode[]; ariaLabel?: string | undefined }) {
+  const L = useMemo(() => computeLayout(nodes), [nodes]);
+  if (!L.nodes.length) return null;
+  const xs = L.nodes.map((n) => n.x), ys = L.nodes.map((n) => n.y);
+  const pad = 24;
+  const x0 = Math.min(...xs, CX - 120) - pad, x1 = Math.max(...xs, CX + 120) + pad, y0 = Math.min(...ys) - pad, y1 = CY + 6;
+  return (
+    <svg viewBox={`${x0} ${y0} ${x1 - x0} ${y1 - y0}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label={ariaLabel} className="stam-thumb block h-40 w-full">
+      <line x1={CX - 120} y1={CY + 1} x2={CX + 120} y2={CY + 1} strokeWidth={2} style={{ stroke: "var(--rule)" }} />
+      {L.nodes.flatMap((n) => n.parents.slice(1).map((mid) => {
+        const m = L.byId.get(mid);
+        return m ? <path key={`m-${mid}-${n.id}`} d={mergePath(m, n)} fill="none" strokeWidth={3} strokeDasharray="12 10" style={{ stroke: (m as TreeNode).color, opacity: 0.7 }} /> : null;
+      }))}
+      {L.nodes.map((n) => {
+        const p = n.parents.length ? L.byId.get(n.parents[0]!) : null;
+        if (!p) return null;
+        const w1 = Math.max(2.4, thick(n) * 0.85), w0 = Math.min(thick(p), Math.max(w1 * 1.5, w1 + 1));
+        return <path key={`b-${n.id}`} d={taper(curve(p, n, 0.5, 0.3), w0 * 1.4, w1 * 1.4)} style={{ fill: n.color, opacity: n.status === "dormant" ? 0.35 : 0.9 }} />;
+      })}
+      {L.nodes.map((n) => (
+        <circle key={`n-${n.id}`} cx={n.x} cy={n.y} r={n.isRoot ? 10 : 7} strokeWidth={3}
+          style={{ stroke: n.color, fill: n.status === "dormant" ? "var(--sheet)" : n.color }} />
+      ))}
+    </svg>
   );
 }

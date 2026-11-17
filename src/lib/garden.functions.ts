@@ -1,3 +1,4 @@
+import { planters } from "@/lib/stam/people";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -128,15 +129,32 @@ export const listGardens = createServerFn({ method: "GET" })
       .map((g) => ({ id: g.id, title: g.title, specimen_no: g.specimen_no, updated_at: g.updated_at, is_demo: g.is_demo, mine: g.created_by === context.userId, deleted_at: g.deleted_at ?? null }));
     const ids = gardens.map((g) => g.id);
     if (!ids.length) return [];
-    const ideas = check(await supabase.from("ideas").select("garden_id,status,is_knot").in("garden_id", ids).eq("confirmed", true).is("rejected_at", null));
-    const merges = check(await supabase.from("idea_links").select("garden_id").eq("kind", "merge").in("garden_id", ids));
-    const people = check(await supabase.from("contributors").select("garden_id").in("garden_id", ids));
+    // one batched query per table for every listed garden, never one per garden
+    const [ideas, links, people] = await Promise.all([
+      supabase.from("ideas").select("id,garden_id,label,status,is_knot,is_outcome,step,contributor_id").in("garden_id", ids).eq("confirmed", true).is("rejected_at", null).order("step"),
+      supabase.from("idea_links").select("garden_id,parent_id,child_id,kind").in("garden_id", ids),
+      supabase.from("contributors").select("id,color").in("garden_id", ids),
+    ]).then((r) => r.map((x) => check(x as any)) as [any[], any[], any[]]);
+    const color = new Map(people.map((p) => [p.id, p.color as string]));
     return gardens.map((g) => {
       const gi = ideas.filter((i) => i.garden_id === g.id);
+      const live = new Set(gi.map((i) => i.id));
+      const gl = links.filter((l) => l.garden_id === g.id && live.has(l.child_id) && live.has(l.parent_id));
+      const tree = gi.map((i) => ({
+        id: i.id as string, label: "", step: i.step as number, status: i.status as "growing" | "dormant", knot: !!i.is_knot, outcome: !!i.is_outcome,
+        color: color.get(i.contributor_id) ?? "var(--muted-ink)",
+        parents: [...gl.filter((l) => l.child_id === i.id && l.kind === "primary"), ...gl.filter((l) => l.child_id === i.id && l.kind === "merge")].map((l) => l.parent_id as string),
+      }));
+      const outcome = gi.find((i) => i.is_outcome);
+      const root = gi.find((i) => !gl.some((l) => l.child_id === i.id && l.kind === "primary"));
       return {
         ...g,
         ideas: gi.length, knots: gi.filter((i) => i.is_knot).length, dormant: gi.filter((i) => i.status === "dormant").length,
-        merges: merges.filter((m) => m.garden_id === g.id).length, people: people.filter((p) => p.garden_id === g.id).length,
+        merges: gl.filter((l) => l.kind === "merge").length,
+        // who planted the branches, not every speaker in the conversations
+        people: planters(gi),
+        line: (outcome ?? root)?.label as string | undefined ?? null,
+        tree: g.deleted_at ? [] : tree,
       };
     });
   });

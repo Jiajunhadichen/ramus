@@ -1,7 +1,7 @@
 /**
  * The tree as a file: a standalone SVG (fonts embedded, colors resolved) or a high-resolution PNG.
- * Browser only. What is exported is what is on screen: the same reading level and labels,
- * fitted to the sheet, without hover rings, tooltips or running animations.
+ * Browser only. Downloads pass a poster-composed StamTree (see DownloadTree); the same fonts and canvas text
+ * drawing keep the file identical to the screen, without hover rings, tooltips or running animations.
  */
 import { facesFor, familiesOf, parseFontFaces } from "./fonts";
 
@@ -119,6 +119,7 @@ export async function treeSvg(svg: SVGSVGElement, { title, mark = "grown with Ra
   const sheet = document.createElementNS(SVG_NS, "rect");
   Object.entries({ x: "0", y: "0", width: String(width), height: String(height), fill: paper === "none" ? "#f3f1ea" : paper }).forEach(([k, v]) => sheet.setAttribute(k, v));
   clone.insertBefore(sheet, clone.firstChild);
+  if (mark) {
   const sig = document.createElementNS(SVG_NS, "text");
   const handFamily = getComputedStyle(document.documentElement).getPropertyValue("--font-sans").trim() || "IM Fell English, serif";
   Object.entries({ x: String(width - 18), y: String(height - 16), "text-anchor": "end" }).forEach(([k, v]) => sig.setAttribute(k, v));
@@ -127,6 +128,7 @@ export async function treeSvg(svg: SVGSVGElement, { title, mark = "grown with Ra
   sig.textContent = mark;
   clone.appendChild(sig);
   for (const f of familiesOf(handFamily)) { const set = used.get(f) ?? new Set<number>(); for (const ch of mark) set.add(ch.codePointAt(0)!); used.set(f, set); }
+  }
 
   // fonts, embedded: the very files the page draws with
   const faces = embedFonts ? facesFor(await pageFontFaces(), used) : [];

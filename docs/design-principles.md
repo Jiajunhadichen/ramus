@@ -176,3 +176,9 @@ Still in force from v1.5.1: pen wobble, left-handed hatching, uneven merge dashe
 - Two weights of rule: every separator is 1px rule; a 1px ink rule only opens a Story chapter or a Present step. Control outlines and the specimen frame stay ink.
 - Visible text says “Ramus file”, not “Stam JSON” (format unchanged). Sentence case everywhere. Stats lines wrap only at “ · ”; each number + word is nowrap.
 - Delete forever is a destructive text button apart from Restore; its dialog defaults focus to Cancel and confirms with a filled destructive button.
+
+## v2.7 part 4 — plates, calmer workspace, posters
+- My gardens shows specimen plates: miniature tree, N°, title, one italic line (outcome, else the question), "ideas · people", updated date.
+- People = distinct people or AIs who planted at least one idea in the tree.
+- Field notes can be hidden; labels appear by zoom (all from 2.5×) and selection, staying 13–18px on screen; overlaps hide the lower priority (selected, root, outcome, knot, main lineage, more descendants, others).
+- Downloads are posters: paper, 6% margin, title and one line top-left, whole tree, specimen label bottom-right, "grown with Ramus" bottom-left; PNG longer side ≥ 3000px.

@@ -177,9 +177,9 @@
 
 /* StamTree — ported from docs/tree-prototype.html */
 /* Labels: no halos; branches are masked around them instead, as engravers left space around lettering. */
-.stam-tree .lbl { font-family: var(--font-sans); font-size: 15px; fill: var(--ink); stroke: color-mix(in oklab, var(--sheet) 55%, transparent); stroke-width: 2.4px; stroke-linejoin: round; paint-order: stroke fill; cursor: pointer; }
+.stam-tree .lbl { font-family: var(--font-sans); font-size: calc(15px * var(--lr, 1)); fill: var(--ink); stroke: color-mix(in oklab, var(--sheet) 55%, transparent); stroke-width: 2.4px; stroke-linejoin: round; paint-order: stroke fill; cursor: pointer; }
 .stam-tree .lbl.major { font-family: var(--font-sc); letter-spacing: .06em; }
-.stam-tree .lbl.major .cjk { font-size: 16px; letter-spacing: 0; }
+.stam-tree .lbl.major .cjk { font-size: calc(16px * var(--lr, 1)); letter-spacing: 0; }
 .stam-tree .lbl.dormant { fill: var(--muted-ink); font-style: normal; }
 .cjk { font-family: "Ramus Digits", "Noto Serif SC", serif; font-style: normal !important; font-weight: 400 !important; }
 .stam-tree .lbl.sel { text-decoration: underline; }
@@ -251,3 +251,8 @@
 .lit-card { border-color: var(--ink) !important; }
 .rule-dotted { border-top: 1px dotted var(--rule); }
 @media (prefers-reduced-motion: reduce) { .accession-stamp.pressed { animation: none; } }
+
+/* Poster export (v2.7): title, one italic line, the mark in the naturalist's hand */
+.stam-tree .poster-title { font-family: var(--font-display); font-size: 40px; fill: var(--ink); }
+.stam-tree .poster-line { font-family: var(--font-sans); font-style: italic; font-size: 18px; fill: var(--muted-ink); }
+.stam-tree .poster-mark { font-family: var(--font-sans); font-style: italic; font-size: 13px; fill: var(--sepia); opacity: .85; }
