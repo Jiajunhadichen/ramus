@@ -1,6 +1,14 @@
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, type ReactNode } from "react";
+import { Upright } from "@/components/epigraph/Epigraph";
+
+/** The classification line: root › … › parent › idea, following primary parents. */
+function lineageOf<T extends { id: string; parents: string[] }>(idea: T, byKey: Map<string, T>): T[] {
+  const out: T[] = []; const seen = new Set<string>();
+  for (let n: T | undefined = idea; n && !seen.has(n.id); n = n.parents[0] ? byKey.get(n.parents[0]) : undefined) { seen.add(n.id); out.unshift(n); }
+  return out;
+}
 import { toast } from "sonner";
 import { addEvidence, editIdea, graftMerge, growBranch, reopenKnot, setKnot, setStatus } from "@/lib/garden.functions";
 import { MAX_LABEL } from "@/lib/stam/validate";
@@ -44,7 +52,17 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
   return (
     <aside className="sticky top-4 grid gap-3 rounded-md border border-rule bg-sheet p-5" aria-live="polite">
       <p className="eyebrow">Field notes · Step {idea.step}{stepTitle?.title ? ` · ${stepTitle.title}` : ""}{stepTitle?.date ? ` · ${stepTitle.date}` : ""}</p>
-      <h2 className="font-display text-2xl font-bold leading-snug">{idea.label}</h2>
+      <nav aria-label="Lineage" className="smallcaps flex flex-wrap items-baseline gap-x-1.5 text-[13px] text-muted-foreground">
+        {lineageOf(idea, byKey).map((n, i, arr) => (
+          <span key={n.id} className="inline-flex items-baseline gap-1.5">
+            {i === 0 && <span>{data.garden.title}</span>}
+            <span aria-hidden>›</span>
+            {i === arr.length - 1 ? <span className="text-foreground"><Upright>{n.label}</Upright></span>
+              : <button type="button" className="hover:text-foreground hover:underline" onClick={() => onSelect(n.id)}><Upright>{n.label}</Upright></button>}
+          </span>
+        ))}
+      </nav>
+      <h2 className="font-display text-[24px] leading-tight"><Upright>{idea.label}</Upright></h2>
       <div className="flex flex-wrap gap-1.5">
         <span className="chip" style={{ color: idea.color }}>{idea.by}</span>
         <span className="chip">{idea.status === "dormant" ? "Resting, but kept" : "Growing"}</span>
@@ -59,8 +77,8 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
           <ol className="grid gap-3">
             {evidence.map((e) => (
               <li key={e.id} className="grid gap-0.5" data-role={e.role}>
-                <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">{ROLE_LABEL[e.role as EvidenceRole] ?? e.role}</span>
-                <blockquote className="hand">“{e.content}”</blockquote>
+                <span className="smallcaps text-[13px] text-muted-foreground">{ROLE_LABEL[e.role as EvidenceRole] ?? e.role}</span>
+                <blockquote className="hand text-[15px]">“{e.content}”</blockquote>
                 <span className="text-xs">
                   <span style={{ color: e.speaker?.color }}>{e.speaker?.name ?? "Unattributed"}</span>
                   {" · "}{formatTime(e.sentAt, e.precision)}

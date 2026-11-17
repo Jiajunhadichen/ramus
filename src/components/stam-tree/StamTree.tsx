@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CX, CY, W, H, computeLayout, curve, mergePath, taper, textWidth, thick, type LayoutInput, type Rect } from "@/lib/stam/layout";
 import { lineage, REASONS } from "@/lib/stam/focus";
+import { runs } from "@/lib/epigraphs";
+import { Epigraph } from "@/components/epigraph/Epigraph";
+
+const Runs = ({ s }: { s: string }) => <>{runs(s).map((r, i) => (r.cjk ? <tspan key={i} className="cjk">{r.t}</tspan> : r.t))}</>;
 
 export type TreeNode = LayoutInput & { by: string; color: string; status: "growing" | "dormant"; confirmed?: boolean };
 
@@ -25,12 +29,12 @@ type Props = {
 
 export type MarginNote = { text: string; id: string; from?: string };
 
-const CARD: Rect = { x: 16, y: 16, w: 290, h: 128 };
+const CARD: Rect = { x: 16, y: 16, w: 330, h: 128 };
 type View = { k: number; x: number; y: number };
 const FIT: View = { k: 1, x: 0, y: 0 };
 
 /** Measure label widths from rendered text after the fonts load (as the prototype does). */
-function useMeasure(labels: { label: string; major: boolean }[]) {
+function useMeasure(labels: { label: string; major: boolean; dormant?: boolean }[]) {
   const [widths, setWidths] = useState<Map<string, number> | null>(null);
   const key = labels.map((l) => (l.major ? "M" : "m") + l.label).join("|");
   useEffect(() => {
@@ -43,8 +47,12 @@ function useMeasure(labels: { label: string; major: boolean }[]) {
       const m = new Map<string, number>();
       for (const l of labels) {
         const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        t.setAttribute("class", "lbl" + (l.major ? " major" : ""));
-        t.textContent = l.label;
+        t.setAttribute("class", "lbl" + (l.major ? " major" : "") + (l.dormant ? " dormant" : ""));
+        for (const r of runs(l.label)) {
+          const sp = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
+          if (r.cjk) sp.setAttribute("class", "cjk");
+          sp.textContent = r.t; t.appendChild(sp);
+        }
         svg.appendChild(t);
         m.set((l.major ? "M" : "m") + l.label, t.getBBox().width);
       }
@@ -62,7 +70,7 @@ function useMeasure(labels: { label: string; major: boolean }[]) {
 }
 
 export function StamTree({ nodes, step, selected, onSelect, freshStep = null, freshKey = 0, ariaLabel = "Idea tree", specimen = null, interactive = false, notes = [] }: Props) {
-  const widths = useMeasure(useMemo(() => nodes.map((n) => ({ label: n.label, major: !!n.knot || !n.parents.length })), [nodes]));
+  const widths = useMeasure(useMemo(() => nodes.map((n) => ({ label: n.label, major: !!n.knot, dormant: n.status === "dormant" })), [nodes]));
   const L = useMemo(() => computeLayout(nodes, {
     obstacle: specimen ? CARD : null,
     measure: (s, major) => widths?.get((major ? "M" : "m") + s) ?? textWidth(s, major),
@@ -163,7 +171,7 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
         <defs>
           <filter id="pen" x="-5%" y="-5%" width="110%" height="110%">
             <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3" result="n" />
-            <feDisplacementMap in="SourceGraphic" in2="n" scale="1.2" xChannelSelector="R" yChannelSelector="G" />
+            <feDisplacementMap in="SourceGraphic" in2="n" scale="0.8" xChannelSelector="R" yChannelSelector="G" />
           </filter>
           <pattern id="gen-rules" width="8" height="40" patternUnits="userSpaceOnUse">
             <circle cx="1" cy="39.5" r="0.7" style={{ fill: "var(--rule)" }} />
@@ -171,13 +179,20 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
           {inks.map((c, i) => (
             <pattern key={c} id={`hatch-${i}`} width="4" height="4" patternUnits="userSpaceOnUse">
               {/* left-handed hatching: top-left to bottom-right */}
-              <path d="M-1 -1 L5 5 M-1 3 L1 5 M3 -1 L5 1" strokeWidth="0.6" style={{ stroke: `color-mix(in oklab, ${c} 60%, black)`, opacity: 0.35 }} />
+              <path d="M-1 -1 L5 5 M-1 3 L1 5 M3 -1 L5 1" strokeWidth="0.6" style={{ stroke: `color-mix(in oklab, ${c} 60%, black)`, opacity: 0.25 }} />
             </pattern>
           ))}
         </defs>
+        <mask id="lbl-space" maskUnits="userSpaceOnUse" x={-W} y={-H} width={W * 3} height={H * 3}>
+          <rect x={-W} y={-H} width={W * 3} height={H * 3} fill="white" />
+          {L.nodes.filter((n) => n.box && vis(n.id)).map((n) => (
+            <rect key={n.id} x={n.box!.x0 - 3} y={n.box!.top - 3} width={n.box!.x1 - n.box!.x0 + 6} height={n.box!.h + 6} fill="black" />
+          ))}
+        </mask>
         <rect x={0} y={0} width={W} height={H} fill="url(#gen-rules)" pointerEvents="none" />
         <rect x={-W} y={-H} width={W * 3} height={H * 3} fill="transparent" onClick={() => click(null)} />
         <g transform={`translate(${view.x.toFixed(1)} ${view.y.toFixed(1)}) scale(${view.k.toFixed(3)})`}>
+          <g mask="url(#lbl-space)">
           <g>{merges.map(({ n, m }) => (hot.has(n.id) || hot.has(m!.id) ? null : mergeEl(n, m!, false)))}</g>
           <g filter="url(#pen)">
             <line x1={CX - 120} y1={CY + 1} x2={CX + 120} y2={CY + 1} className="ground" />
@@ -200,7 +215,7 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
                   )}
                   <path d={taper(c, w0, w1)} mask={grow ? `url(#${mid})` : undefined} className={"branch " + cls(n.id, p.id)}
                     style={{ fill: n.color, opacity: n.status === "dormant" ? 0.3 : 0.9 }} />
-                  {w0 > 6 && (
+                  {w0 > 8 && (
                     <path d={taper(c, w0, w1)} mask={grow ? `url(#${mid})` : undefined} className={"hatch " + cls(n.id, p.id)}
                       fill={`url(#hatch-${inks.indexOf(n.color)})`} pointerEvents="none" />
                   )}
@@ -209,6 +224,7 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
             })}
           </g>
           <g>{merges.map(({ n, m }) => (hot.has(n.id) || hot.has(m!.id) ? mergeEl(n, m!, true) : null))}</g>
+          </g>
           <g>
             {L.nodes.map((n) =>
               n.leader ? <line key={`l-${n.id}`} x1={n.x} y1={n.y} x2={n.anchor === "end" ? n.label0.x + 2 : n.label0.x - 2} y2={n.ly - 4} className={"leader " + cls(n.id)} /> : null,
@@ -245,8 +261,8 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
             {L.nodes.map((n) => (
               <text key={`t-${n.id}`} x={n.label0.x} y={n.ly} textAnchor={n.anchor} onClick={(e) => { e.stopPropagation(); click(n.id); }}
                 {...tipProps(reasonOf(n), n.id)}
-                className={"lbl " + cls(n.id) + (n.knot || n.isRoot ? " major" : "") + (n.status === "dormant" ? " dormant" : "") + (selected === n.id ? " sel" : "")}>
-                {n.label}
+                className={"lbl " + cls(n.id) + (n.knot ? " major" : "") + (n.status === "dormant" ? " dormant" : "") + (selected === n.id ? " sel" : "")}>
+                <Runs s={n.label} />
               </text>
             ))}
           </g>
@@ -273,17 +289,17 @@ function SpecimenLabel({ no, title, collected, collectors, nodes }: SpecimenInfo
   return (
     <g className="specimen" aria-label="Specimen label">
       <rect x={x} y={y} width={w} height={h} style={{ fill: "var(--sheet)", stroke: "var(--ink)" }} strokeWidth={1} />
-      <g className="stamp" transform={`rotate(-4 ${x + w - 66} ${y + 52})`}>
-        <ellipse cx={x + w - 66} cy={y + 52} rx={52} ry={19} fill="none" strokeWidth={1} />
-        <ellipse cx={x + w - 66} cy={y + 52} rx={48} ry={15.5} fill="none" strokeWidth={0.5} />
-        <text x={x + w - 66} y={y + 50} textAnchor="middle" className="sp-stamp">Ramus</text>
-        <text x={x + w - 66} y={y + 60} textAnchor="middle" className="sp-stamp small">herbarium of ideas</text>
+      <g className="stamp" transform={`rotate(-4 ${x + w - 60} ${y + 52})`}>
+        <ellipse cx={x + w - 60} cy={y + 52} rx={52} ry={19} fill="none" strokeWidth={1} />
+        <ellipse cx={x + w - 60} cy={y + 52} rx={48} ry={15.5} fill="none" strokeWidth={0.5} />
+        <text x={x + w - 60} y={y + 50} textAnchor="middle" className="sp-stamp">Ramus</text>
+        <text x={x + w - 60} y={y + 60} textAnchor="middle" className="sp-stamp small">herbarium of ideas</text>
       </g>
-      <text x={x + 14} y={y + 24} className="sp-mono">标本 Nº {String(no).padStart(3, "0")}</text>
+      <text x={x + 14} y={y + 24} className="sp-mono">Specimen Nº {String(no).padStart(3, "0")}</text>
       <line x1={x + 14} x2={x + w - 14} y1={y + 33} y2={y + 33} style={{ stroke: "var(--rule)" }} />
-      <text x={x + 14} y={y + 56} className="sp-title">{clip(title, 17)}</text>
-      {collected && <text x={x + 14} y={y + 78} className="sp-body">Collected: {clip(collected, 30)}</text>}
-      <text x={x + 14} y={y + (collected ? 98 : 78)} className="sp-body">Collectors: {clip(collectors.join(", "), 28)}</text>
+      <text x={x + 14} y={y + 56} className="sp-title"><Runs s={clip(title, 20)} /></text>
+      {collected && <text x={x + 14} y={y + 78} className="sp-body">Collected — {clip(collected, 30)}</text>}
+      <text x={x + 14} y={y + (collected ? 98 : 78)} className="sp-body">Collectors — <Runs s={clip(collectors.join(", "), 30)} /></text>
       <text x={x + 14} y={y + h - 10} className="sp-mono muted">
         {nodes.length} ideas · {merges} merges · {nodes.filter((n) => n.status === "dormant").length} resting · {nodes.filter((n) => n.knot).length} knots
       </text>
@@ -299,7 +315,8 @@ export function Seed({ children }: { children?: ReactNode }) {
         <line x1="10" y1="30" x2="50" y2="30" style={{ stroke: "var(--ink)" }} strokeWidth="1" />
         <circle cx="30" cy="24" r="6" style={{ fill: "var(--person-1)" }} />
       </svg>
-      <p className="font-display text-xl">Every garden starts with one question.</p>
+      <p className="font-display text-[24px] leading-tight">Every garden starts with one question.</p>
+      <Epigraph n={4} className="max-w-[46ch] text-left" />
       {children}
     </div>
   );

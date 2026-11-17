@@ -11,6 +11,7 @@ import { AddConversationDialog } from "@/components/garden/AddConversationDialog
 import { stepDate, toIdeas, toStam } from "@/components/garden/model";
 import { maxStep, selectionAt } from "@/lib/stam/layout";
 import { Button } from "@/components/ui/button";
+import { Systema } from "@/components/garden/Systema";
 
 export const gardenQuery = (id: string) => queryOptions({ queryKey: ["garden", id], queryFn: () => getGarden({ data: { id } }) });
 
@@ -38,6 +39,7 @@ function GardenPage() {
   const max = maxStep(ideas);
   const r = useReplay(max);
   const [convOpen, setConvOpen] = useState(false);
+  const [view, setView] = useState<"tree" | "systema">("tree");
 
   const focusKey = data.ideas.find((i: any) => i.id === data.garden.focus_idea_id)?.key;
   const newest = [...ideas].sort((a, b) => b.step - a.step || ideas.indexOf(b) - ideas.indexOf(a))[0]?.id;
@@ -76,8 +78,8 @@ function GardenPage() {
     <main className="mx-auto grid max-w-[1400px] gap-6 px-5 py-8">
       <header className="flex flex-wrap items-end gap-4">
         <div className="grid gap-1.5">
-          <p className="eyebrow"><Link to="/gardens" className="hover:underline">My gardens</Link> · 标本 Nº {String(data.garden.specimen_no).padStart(3, "0")}</p>
-          <h1 className="font-display text-4xl font-bold leading-tight">{data.garden.title}</h1>
+          <p className="eyebrow"><Link to="/gardens" className="hover:underline">My gardens</Link> · Specimen Nº {String(data.garden.specimen_no).padStart(3, "0")}</p>
+          <h1 className="font-display text-[40px] leading-[1.1]">{data.garden.title}</h1>
           <p className="text-muted-foreground">{ideas.length} ideas from {people.length} {people.length === 1 ? "person" : "people"}, grown over {max} {max === 1 ? "step" : "steps"}.</p>
         </div>
         <div className="ml-auto flex flex-wrap gap-2">
@@ -98,13 +100,21 @@ function GardenPage() {
             <button type="button" className="ink-btn px-3.5 py-2.5" onClick={r.play}>{r.playing ? "Pause" : "Play growth"}</button>
             <input type="range" className="range-green min-w-[160px] flex-1" min={1} max={max} step={1} value={r.step}
               onChange={(e) => r.setStep(Number(e.target.value))} aria-label="Step" />
-            <span className="text-sm" aria-live="polite">
-              <b className="font-mono font-medium">第 {r.step} / {max} 步</b>
+            <div role="tablist" aria-label="View" className="smallcaps ml-auto flex gap-3 text-[15px] order-first basis-full sm:basis-auto sm:order-none">
+              {(["tree", "systema"] as const).map((v) => (
+                <button key={v} role="tab" aria-selected={view === v} type="button" onClick={() => setView(v)}
+                  className={view === v ? "text-foreground underline underline-offset-4" : "text-muted-foreground hover:text-foreground"}>{v === "tree" ? "Tree" : "Systema"}</button>
+              ))}
+            </div>
+            <span className="text-[15px]" aria-live="polite">
+              <span className="smallcaps">Step {r.step} of {max}</span>
               {stepInfo?.title ? <span className="ml-2">{stepInfo.title}</span> : null}
-              <span className="ml-2 font-mono text-xs text-muted-foreground">{stepDate(data, ideas, r.step) ?? "time unknown"}</span>
+              <span className="eyebrow ml-2">{stepDate(data, ideas, r.step) ?? "time unknown"}</span>
             </span>
           </div>
-          {ideas.length === 0 ? <Seed /> : (
+          {ideas.length === 0 ? <Seed /> : view === "systema" ? (
+            <Systema title={data.garden.title} nodes={ideas} selected={selected} onSelect={(k) => { select(k); }} />
+          ) : (
             <StamTree nodes={ideas} step={r.step} selected={selected} onSelect={select} freshStep={r.fresh.step} freshKey={r.fresh.key}
               ariaLabel={data.garden.title} interactive
               specimen={{ no: data.garden.specimen_no, title: data.garden.title, collected: collectedOn ?? undefined, collectors: people.map((p) => p.name) }} />

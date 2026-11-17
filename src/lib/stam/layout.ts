@@ -80,7 +80,7 @@ export function computeLayout<T extends LayoutInput>(input: T[], opts: LayoutOpt
 
 /** Approximate text width (the prototype measured with getBBox; this keeps layout pure). */
 export function textWidth(s: string, major: boolean) {
-  const size = major ? 15 : 13;
+  const size = major ? 16 : 15;
   let w = 0;
   for (const ch of s) w += /[\u2E80-\uFFEF]/.test(ch) ? size : /[A-Z0-9]/.test(ch) ? size * 0.66 : size * 0.55;
   return w;
@@ -140,8 +140,8 @@ function placeLabels(nodes: LNode<any>[], opts: LayoutOpts) {
   const placed: LabelBox[] = [];
   const OFFS = [0, -6, 6, -12, 12, -18, 18, -24, 24, -32, 32, -40, 40, -50, 50, -62, 62];
   for (const n of order) {
-    const major = !!n.knot || n.isRoot;
-    const w = measure(n.label, major), h = major ? 20 : 17;
+    const major = !!n.knot;
+    const w = measure(n.label, major), h = major ? 21 : 19;
     const pref: "start" | "end" | "middle" = n.isRoot ? "middle" : n.x >= CX ? "start" : "end";
     const sides: ("start" | "end" | "middle")[] = n.isRoot ? ["middle"] : [pref, pref === "start" ? "end" : "start"];
     let best: { score: number; side: "start" | "end" | "middle"; x: number; y: number; dy: number; box: LabelBox } | null = null;

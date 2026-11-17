@@ -11,7 +11,7 @@ export function NightToggle() {
     try { localStorage.setItem("ramus-night", next ? "1" : "0"); } catch { /* private mode */ }
   }
   return (
-    <button type="button" aria-pressed={night} onClick={toggle} aria-label="Night palette" className="font-mono text-xs text-muted-foreground hover:text-foreground">
+    <button type="button" aria-pressed={night} onClick={toggle} aria-label="Night palette" className="smallcaps text-[13px] text-muted-foreground hover:text-foreground">
       <span className={night ? "" : "text-foreground"}>Day</span> · <span className={night ? "text-foreground" : ""}>Night</span>
     </button>
   );

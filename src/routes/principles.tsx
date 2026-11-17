@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { Epigraph } from "@/components/epigraph/Epigraph";
 
 export const Route = createFileRoute("/principles")({
   head: () => ({
@@ -46,27 +47,38 @@ const PRINCIPLES: { title: string; text: string; source: string }[] = [
     text: "Stasser and Titus showed that groups tend to discuss what everyone already knows, while the piece only one member holds goes unsaid. Ramus helps people think on their own first, then share, and it shows the ideas only one person raised." },
 ];
 
+const GROUPS: { name: string; pair?: number; titles: string[] }[] = [
+  { name: "Lineage", pair: 6, titles: ["Retention is the heart", "Make the click audible", "Build on stable subassemblies", "Keep the recipe, not only the blueprint"] },
+  { name: "Change", pair: 5, titles: ["Ideas recombine", "Don't converge too fast"] },
+  { name: "People", pair: 1, titles: ["Private before shared", "Cooperation without consensus", "Branches belong to people; the gardener only tends", "Every voice counts"] },
+];
+const grouped = [...GROUPS, { name: "Reading the tree", titles: PRINCIPLES.map((p) => p.title).filter((t) => !GROUPS.some((g) => g.titles.includes(t))) }];
+
 function Principles() {
+  let i = 0;
   return (
     <main className="mx-auto max-w-[760px] px-6 py-16">
       <p className="eyebrow"><Link to="/" className="hover:underline">Ramus</Link> · Principles</p>
-      <h1 className="mt-3 font-display text-4xl font-bold">Why the garden grows this way</h1>
-      <p className="essay mt-6 text-muted-foreground">Thirteen rules shape every part of Ramus. Each one comes from a thinker who studied how ideas, systems or groups grow. They are written here as plainly as we can.</p>
-      <ol className="mt-10 grid gap-10">
-        {PRINCIPLES.map((p, i) => (
-          <li key={p.title} className="essay">
-            <h2 className="font-display text-xl font-bold"><span className="mr-3 font-mono text-sm font-normal text-muted-foreground">{String(i + 1).padStart(2, "0")}</span>{p.title}</h2>
-            <p className="mt-2">{p.text}</p>
-            <p className="mt-2 font-mono text-xs leading-relaxed text-muted-foreground">{p.source}</p>
-          </li>
-        ))}
-      </ol>
+      <h1 className="mt-3 font-display text-[40px] leading-[1.1]">Why the garden grows this way</h1>
+      <Epigraph n={3} className="mt-8" />
+      <p className="essay mt-8 text-muted-foreground">Thirteen rules shape every part of Ramus. Each one comes from a thinker who studied how ideas, systems or groups grow. They are written here as plainly as we can.</p>
+      {grouped.map((g) => (
+        <section key={g.name} className="mt-14">
+          <h2 className="smallcaps border-b border-rule pb-2 text-[18px]">{g.name}</h2>
+          {g.pair && <Epigraph n={g.pair} className="mt-5" />}
+          <ol className="mt-8 grid gap-10">
+            {g.titles.map((t) => PRINCIPLES.find((p) => p.title === t)!).map((p) => (
+              <li key={p.title} className="essay">
+                <h3 className="font-display text-[24px] leading-tight"><span className="smallcaps mr-3 text-[15px] text-muted-foreground">{String(++i).padStart(2, "0")}</span>{p.title}</h3>
+                <p className="mt-2">{p.text}</p>
+                <p className="smallcaps mt-2 text-[13px] text-muted-foreground">{p.source}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ))}
       <hr className="my-14 border-rule" />
-      <blockquote className="essay text-center">
-        <p className="text-2xl">独学而无友，则孤陋而寡闻。</p>
-        <p className="mt-1 text-sm text-muted-foreground">《礼记·学记》</p>
-        <p className="mt-4 italic">“Learning alone, without friends, one stays narrow and hears little.”</p>
-      </blockquote>
+      <Epigraph n={8} />
     </main>
   );
 }

@@ -52,11 +52,101 @@ Acceptance criteria
 - Hovering a knot shows the Simon line; hovering a resting branch shows the Dawkins line.
 - /principles lists all 13 principles with their thinkers and reads like a printed essay.
 - With reduced motion on, nothing animates.
-# v1.5.1 — the naturalist's notebook (supersedes older type and color rules above)
-A Western naturalist working on paper (Leonardo's notebooks, Darwin's 1837 "I think" sketch), always legible and in color. Nothing East Asian decorative (no seals, brush scripts, painting motifs); no fake parchment, stains or heavy texture.
-1. Three hands. Printed: headings and body in EB Garamond, Chinese in Noto Serif SC; small caps for specimen/section labels. Naturalist's hand: margin notes, the gardener's questions and quotes in IM Fell English Italic, sepia #6B4A2E. Records: numbers, dates, step counters, counts in IBM Plex Mono. Tree labels: EB Garamond / Noto Serif SC at 14px, never handwriting fonts.
-2. Inks for people, in order (day / night): Verdigris #3B7A57 / #7CC59C; Prussian blue #2F4F7F / #93AEDD; Burnt sienna #8F5A2A / #D9A06A; Madder rose #9A3A55 / #E28DA3; Viridian #2E6E73 / #7EC1C6. Paper #E9EDE6, sheet #F4F6F1, text ink #1C2520. Sepia is only for margin notes, never data.
-3. Drawn, not rendered: pen-wobble displacement filter (scale ~1.2) on branches, fills at 90%; branches thicker than 6px get left-handed hatching (top-left to bottom-right, darker same ink, ~35%); merge lines are uneven pen dashes; knot rings are two offset circles; faint paper grain (~3%) on the page; dotted generation rules every 40px on the tree sheet only; the selected idea gets a faint dashed construction circle.
-4. Margin notes: on the landing page the tree grows from a seed once (~0.6s per step), then three sepia notes appear with pen leaders (knot, resting branch, merge), then it rests; "Grow again" replays. Reduced motion shows everything at once. The tree is the largest element (~60% width, ~85vh).
-5. Specimen card carries an oval accession stamp, "Ramus · herbarium of ideas" in small caps, rotated -4°, 70% opacity.
-6. Theme toggle reads "Day · Night" in mono, the active word in ink.
+# v1.5.2 — the natural philosopher's book
+This section replaces the type, label, color and epigraph rules above and from v1.5.1. Source brief, verbatim:
+
+Ramus v1.5.2: the natural philosopher's book. A design pass that replaces the type, label, color and epigraph rules from v1.5.1 and from the epigraphs prompt. Beauty is a requirement, not a nice-to-have. Reference: a 17th- and 18th-century natural philosophy book and Linnaeus's Systema Naturae: letterpress type, generous margins, sepia marginalia, careful tables, printed on the pale green paper we already have. Not abstract, not decorative, no East Asian ornament, no fake parchment.
+
+Update AGENTS.md and docs/design-principles.md: replace the older type, label, color and epigraph rules with the rules below, then apply them everywhere.
+
+1. One family of type, as if from one printing house
+- All Latin text uses the IM Fell types (Google Fonts), the 17th-century Fell types of Oxford:
+  - Display (landing headline, garden titles): IM Fell Double Pica, regular and italic.
+  - Text (lede, Field notes, Principles page, buttons): IM Fell English.
+  - Small caps (section labels, specimen labels, step counters, counts, the lineage line): IM Fell English SC, letter-spacing 0.06em.
+  - Margin notes, quotes and the gardener's questions: IM Fell English Italic, in sepia #6B4A2E.
+- All Chinese text uses Noto Serif SC regular, always upright. Set font-synthesis: none so Chinese is never fake-italic or fake-bold. Font stacks put the Fell face first and Noto Serif SC second, e.g. "IM Fell English", "Noto Serif SC", serif.
+- Remove IBM Plex Mono, EB Garamond and Noto Sans SC from the app entirely. Numbers are set in IM Fell; where numbers must align, use tabular-nums.
+- One type scale: 13 / 15 / 18 / 24 / 40 / 64 px. Line height 1.5 for text, 1.1 for display.
+
+2. Labels on the tree: no halos
+- Remove every text halo, outline, paint-order stroke or white border around labels. Nothing may look like a sticker.
+- Readability comes from space instead: mask the branch and merge layers under each label's box (plus 3px padding), so lines stop just before the text, the way engravers left white space around lettering. Paper, grain and rules stay visible behind labels.
+- Labels: IM Fell English + Noto Serif SC at 15px in ink #1C2520. Knots in IM Fell English SC (Chinese at 16px). Resting ideas in IM Fell English Italic in muted ink (Chinese stays upright).
+- Keep the collision pass (labels, nodes, branches, the specimen card) with measured widths, re-run after fonts load.
+
+3. Inks for people. Keep the order people liked: first person green, second ochre, third blue.
+- Verdigris: day #2F7651, night #6FC497
+- Yellow ochre: day #A8701A, night #E2B25A
+- Ultramarine: day #3D4FA0, night #9DA9F0
+- Madder crimson: day #A3354B, night #E58FA2
+- Viridian: day #2C7277, night #7EC5C9
+Text ink #1C2520. Sepia #6B4A2E only for marginalia. No browns in the people palette, so notes never look like data.
+
+4. Drawn, but calm
+- Pen wobble very subtle (displacement scale about 0.8). Hatching, top-left to bottom-right like Leonardo's left hand, only on branches thicker than 8px, at about 25% opacity.
+- Keep the pale green paper, the faint grain and the faint dotted rules on the tree sheet.
+- The whole tree is always visible on load, fitted to its sheet with margins. Nothing is clipped at the top.
+
+5. Landing page
+- Restore the side-by-side layout: the tree on the left (about 60% of the width, 85% of the viewport height), the text on the right. On phones the text stacks under the tree.
+- Right column, top to bottom: "Ideas grow between people." in IM Fell Double Pica 64px with "between" in italic; the lede in IM Fell English 18px; the landing epigraph (pair 2 below); "Start a garden" as an outlined ink button in IM Fell English SC.
+- Under the tree, one line in IM Fell English SC: "Step 10 of 10 · The origin of Ramus", then "Grow again" in IM Fell English Italic.
+- Keep the growth from a seed and the three sepia margin notes, in IM Fell English Italic with fine pen leaders.
+
+6. Linnaeus: order and names
+- Specimen card as a herbarium label: "Specimen Nº 004" in small caps; the title in Double Pica; "Collected — Stockholm, 17 Nov 2026"; "Collectors — 你, ChatGPT, Claude"; counts in small caps; keep the oval accession stamp.
+- Field notes shows the idea's lineage as a classification line in small caps, like Regnum › Classis › Ordo: the garden › … › parent › the idea, each part a link.
+- A second view of every garden, "Systema", as a tab beside the tree: a Linnaean table in the manner of Systema Naturae (1735). One column per first-level branch, its ideas listed beneath and indented by depth, joined by fine rules; knots in small caps, resting ideas in muted italic, merges noted as "× other idea". Selecting an entry selects it on the tree. This is the readable index of the garden.
+
+7. Epigraphs in the original language
+Ramus speaks to people everywhere, so every quote appears in the language its author wrote it in. Under each quote that is not in English, a small English gloss in muted IM Fell English Italic. Quote only public-domain classics; modern thinkers are cited by work on /principles, never quoted. Save the list as docs/epigraphs.md and use these exact texts:
+
+Pair 1 · difference
+君子和而不同。——《论语·子路》 Gloss: The noble person seeks harmony, not sameness.
+"He who knows only his own side of the case, knows little of that." — John Stuart Mill, On Liberty (1859)
+
+Pair 2 · sharpening
+如切如磋，如琢如磨。——《诗经·卫风·淇奥》 Gloss: Like bone cut and filed, like jade carved and polished.
+« … frotter et limer notre cervelle contre celle d'autrui. » — Michel de Montaigne, Essais, I, 26 (1580). Gloss: to rub and file our minds against the minds of others.
+
+Pair 3 · together
+独学而无友，则孤陋而寡闻。——《礼记·学记》 Gloss: Learning alone, without friends, one stays narrow and hears little.
+"No man is an island, entire of itself." — John Donne, Devotions upon Emergent Occasions (1624)
+
+Pair 4 · method
+博学之，审问之，慎思之，明辨之，笃行之。——《礼记·中庸》 Gloss: Study broadly, question closely, think it through, discern clearly, practise earnestly.
+"Reading maketh a full man; conference a ready man; and writing an exact man." — Francis Bacon, "Of Studies", Essays (1625)
+
+Pair 5 · change
+穷则变，变则通，通则久。——《周易·系辞下》 Gloss: When a way is exhausted it changes; changing, it flows; flowing, it endures.
+"…endless forms most beautiful and most wonderful have been, and are being, evolved." — Charles Darwin, On the Origin of Species (1859)
+
+Pair 6 · lineage
+他山之石，可以攻玉。——《诗经·小雅·鹤鸣》 Gloss: Stones from other hills can polish jade.
+"If I have seen further it is by standing on the shoulders of Giants." — Isaac Newton, letter to Robert Hooke (1675/76)
+
+Pair 7 · names
+名不正，则言不顺。——《论语·子路》 Gloss: If names are not right, speech does not flow.
+Nomina si nescis, perit et cognitio rerum. — Carl Linnaeus, Philosophia Botanica (1751). Gloss: If you do not know the names, the knowledge of things is lost too.
+
+Pair 8 · experience
+Sapienza è figliola della sperienza. — Leonardo da Vinci, notebooks. Gloss: Wisdom is the daughter of experience.
+纸上得来终觉浅，绝知此事要躬行。——陆游《冬夜读书示子聿》 Gloss: What comes from paper stays shallow; to truly know a thing, do it yourself.
+
+Where they appear (never more than one pair on a page or panel):
+- Landing page: Pair 2.
+- /principles: opens with Pair 3 and ends with Pair 8. Principle groups: lineage (retention, knots, stable subassemblies, keep the recipe) gets Pair 6; change (ideas recombine, don't converge too fast) gets Pair 5; people (private before shared, cooperation without consensus, branches belong to people, every voice counts) gets Pair 1.
+- Systema view: Pair 7 above the table.
+- Empty garden: Pair 4 under "Every garden starts with one question."
+- Gardener modes (phase 3), as quiet tooltips from Pair 4: Explore = 博学之，审问之; Converge = 慎思之，明辨之; Knot = 笃行之.
+
+Acceptance criteria
+- Only IM Fell faces (Latin) and Noto Serif SC (Chinese) appear anywhere; no mono, no sans, no EB Garamond.
+- No Chinese text is italic or fake-bold.
+- No label has a halo or outline; branch lines stop just before labels.
+- The landing page shows the tree on the left and the text on the right at 1440px, the whole tree visible, and stacks cleanly at 390px.
+- Every quote matches docs/epigraphs.md exactly, in its original language, with its gloss where needed.
+- The Systema view lists every idea of the demo garden in one readable table, and selecting an entry selects it on the tree.
+
+Still in force from v1.5.1: pen wobble, left-handed hatching, uneven merge dashes, offset knot rings, faint grain and dotted rules, construction circle, landing growth from a seed with three sepia margin notes, accession stamp, the Day · Night toggle.

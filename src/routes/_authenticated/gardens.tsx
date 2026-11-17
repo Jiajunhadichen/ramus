@@ -39,7 +39,7 @@ function GardensPage() {
       <div className="flex flex-wrap items-end gap-4">
         <div>
           <p className="eyebrow">Herbarium</p>
-          <h1 className="font-display text-3xl font-bold">My gardens</h1>
+          <h1 className="font-display text-[40px] leading-[1.1]">My gardens</h1>
         </div>
         <div className="ml-auto flex gap-2">
           <Button variant="outline" onClick={() => setImportOpen(true)}>Import Stam JSON</Button>
@@ -51,12 +51,12 @@ function GardensPage() {
         {data.map((g) => (
           <Link key={g.id} to="/g/$id" params={{ id: g.id }} search={{ idea: undefined }}
             className="block rounded-md border border-rule bg-sheet p-4 transition-colors hover:border-ink">
-            <p className="border-b border-rule pb-1 font-mono text-xs tracking-wider">标本 Nº {String(g.specimen_no).padStart(3, "0")}</p>
-            <h2 className="mt-2 font-display text-lg font-bold leading-snug">{g.title}</h2>
-            <p className="mt-2 font-mono text-xs text-muted-foreground">
+            <p className="border-b border-rule pb-1 smallcaps text-[13px]">Specimen Nº {String(g.specimen_no).padStart(3, "0")}</p>
+            <h2 className="mt-2 font-display text-lg leading-snug">{g.title}</h2>
+            <p className="mt-2 smallcaps text-[13px] text-muted-foreground">
               {g.ideas} ideas · {g.knots} knots · {g.dormant} resting · {g.merges} merges · {g.people} people
             </p>
-            <p className="mt-1 font-mono text-xs text-muted-foreground">Last change {new Date(g.updated_at).toLocaleString()}</p>
+            <p className="mt-1 smallcaps text-[13px] text-muted-foreground">Last change {new Date(g.updated_at).toLocaleString()}</p>
           </Link>
         ))}
       </div>
@@ -124,11 +124,11 @@ function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
         <p className="text-sm text-muted-foreground">Paste a Stam JSON garden or upload a .json file. It becomes a new garden.</p>
         <input type="file" accept=".json,application/json" aria-label="Upload JSON file" className="text-sm"
           onChange={async (e) => { const file = e.target.files?.[0]; if (file) setText(await file.text()); }} />
-        <Textarea aria-label="Stam JSON" className="min-h-[240px] font-mono text-xs" value={text} onChange={(e) => { setText(e.target.value); setErrors([]); }} />
+        <Textarea aria-label="Stam JSON" className="min-h-[240px] text-[15px]" value={text} onChange={(e) => { setText(e.target.value); setErrors([]); }} />
         {errors.length > 0 && (
           <ul className="grid gap-2 rounded border border-destructive p-3 text-sm" role="alert">
             {errors.map((e, i) => (
-              <li key={i}><span className="font-mono text-xs">{e.idea ? `Idea "${e.idea}"` : "Garden"}</span> — <b className="text-destructive">{e.problem}</b>. <span className="text-muted-foreground">{e.fix}</span></li>
+              <li key={i}><span className="smallcaps text-[13px]">{e.idea ? `Idea "${e.idea}"` : "Garden"}</span> — <b className="text-destructive">{e.problem}</b>. <span className="text-muted-foreground">{e.fix}</span></li>
             ))}
           </ul>
         )}

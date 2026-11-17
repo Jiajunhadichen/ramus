@@ -4,6 +4,7 @@ import sample from "../../docs/sample-garden.json";
 import { StamTree, type MarginNote, type TreeNode } from "@/components/stam-tree/StamTree";
 import { useReplay } from "@/components/stam-tree/useReplay";
 import { NightToggle } from "@/components/NightToggle";
+import { Epigraph } from "@/components/epigraph/Epigraph";
 import { stamToTree } from "@/lib/stam/toTree";
 import { maxStep } from "@/lib/stam/layout";
 import type { StamGarden } from "@/lib/stam/types";
@@ -52,23 +53,20 @@ function Landing() {
   }, [done, all]);
 
   return (
-    <main className="relative mx-auto grid max-w-[1440px] items-center gap-6 px-5 pb-8 pt-2 lg:grid-cols-[60fr_40fr]">
+    <main className="relative mx-auto grid max-w-[1440px] items-center gap-6 px-5 pb-8 pt-2 lg:grid-cols-[minmax(0,60fr)_minmax(0,40fr)]">
       <div className="absolute right-5 top-3 z-10"><NightToggle /></div>
       <figure className="mx-auto w-full" style={{ maxWidth: "calc(85vh * 1100 / 900)" }} aria-label="The demo garden, growing from a seed">
         <StamTree nodes={nodes} step={r.step} selected={null} freshStep={r.fresh.step} freshKey={r.fresh.key}
           notes={all.slice(0, shown)} ariaLabel="The origin of Ramus, growing from a seed" />
-        <figcaption className="eyebrow mt-1 flex justify-center gap-4">
-          <span>第 {r.step} / {max} 步 · The origin of Ramus</span>
-          {done && <button type="button" className="underline underline-offset-4 hover:text-foreground" onClick={() => r.play()}>Grow again</button>}
+        <figcaption className="mt-1 flex flex-wrap items-baseline justify-center gap-x-4">
+          <span className="eyebrow">Step {r.step} of {max} · The origin of Ramus</span>
+          {done && <button type="button" className="text-[15px] italic text-muted-foreground underline underline-offset-4 hover:text-foreground" onClick={() => r.play()}>Grow again</button>}
         </figcaption>
       </figure>
       <section className="grid gap-5">
-        <h1 className="font-display text-4xl font-normal leading-tight lg:text-5xl">Ideas grow <em>between</em> people.</h1>
-        <p className="text-lg text-muted-foreground">Ramus keeps your group's conversations as a living tree: who said what, what grew from it, what got settled.</p>
-        <blockquote className="hand border-l border-rule pl-4 leading-relaxed">
-          <p>独学而无友，则孤陋而寡闻。</p>
-          <p className="mt-1">“Learning alone, without friends, one stays narrow and hears little.” — 《礼记·学记》</p>
-        </blockquote>
+        <h1 className="font-display text-[40px] font-normal leading-[1.1] xl:text-[64px]">Ideas grow <em>between</em> people.</h1>
+        <p className="text-[18px] leading-normal text-muted-foreground">Ramus keeps your group's conversations as a living tree: who said what, what grew from it, what got settled.</p>
+        <Epigraph n={2} />
         <div><Link to="/gardens" className="ink-btn inline-block px-5 py-3">Start a garden</Link></div>
       </section>
     </main>

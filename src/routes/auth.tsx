@@ -48,7 +48,7 @@ function AuthPage() {
       <SiteHeader />
       <main className="mx-auto mt-16 max-w-sm rounded-md border border-rule bg-sheet p-6">
         <p className="eyebrow">{mode === "in" ? "Welcome back" : "New collector"}</p>
-        <h1 className="font-display text-2xl font-bold">{mode === "in" ? "Sign in" : "Create an account"}</h1>
+        <h1 className="font-display text-2xl">{mode === "in" ? "Sign in" : "Create an account"}</h1>
         <form onSubmit={submit} className="mt-5 grid gap-4">
           <div className="grid gap-1.5"><Label htmlFor="email">Email</Label><Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
           <div className="grid gap-1.5"><Label htmlFor="pw">Password</Label><Input id="pw" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} /></div>

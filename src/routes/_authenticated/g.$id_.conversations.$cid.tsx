@@ -26,7 +26,7 @@ function ConversationPage() {
   return (
     <main className="mx-auto max-w-3xl px-5 py-8">
       <Link to="/g/$id" params={{ id }} search={{ idea: undefined }} className="eyebrow hover:underline">← {data.garden.title}</Link>
-      <h1 className="mt-2 font-display text-3xl font-bold">{data.conversation.title}</h1>
+      <h1 className="mt-2 font-display text-[40px] leading-[1.1]">{data.conversation.title}</h1>
       <p className="eyebrow mt-1">{data.conversation.source} · Happened: {formatDate(data.conversation.happened_at)} · Imported: {data.conversation.imported_at.slice(0, 10)} · recorded with everyone's consent</p>
       <ol className="mt-6 grid gap-3">
         {data.messages.map((m) => {
@@ -37,7 +37,7 @@ function ConversationPage() {
               style={{ borderLeftWidth: 4, borderLeftColor: who?.color ?? "var(--rule)" }}>
               <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
                 <span className="font-medium" style={{ color: who?.color }}>{who?.name ?? "Unattributed"}</span>
-                <span className="font-mono text-xs text-muted-foreground">#{m.sequence + 1} · {formatTime(m.sent_at, m.time_precision)} · imported {m.imported_at.slice(0, 10)}</span>
+                <span className="smallcaps text-[13px] text-muted-foreground">#{m.sequence + 1} · {formatTime(m.sent_at, m.time_precision)} · imported {m.imported_at.slice(0, 10)}</span>
               </p>
               <p className="mt-1 whitespace-pre-wrap">{m.content}</p>
               {born.length > 0 && (

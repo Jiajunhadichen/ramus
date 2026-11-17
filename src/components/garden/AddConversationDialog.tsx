@@ -62,7 +62,7 @@ export function AddConversationDialog({ data, open, onOpenChange, onSaved }: { d
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="c-x">Text</Label>
-            <Textarea id="c-x" required className="min-h-[180px] font-mono text-xs" placeholder={"Ana: What if…\nBo: Then we could…"} value={f.text} onChange={(e) => setF({ ...f, text: e.target.value })} />
+            <Textarea id="c-x" required className="min-h-[180px] text-[15px]" placeholder={"Ana: What if…\nBo: Then we could…"} value={f.text} onChange={(e) => setF({ ...f, text: e.target.value })} />
             <span className="text-xs text-muted-foreground">{parts.length} message{parts.length === 1 ? "" : "s"} · lines starting with “Name:” start a new message</span>
           </div>
           <div className="grid gap-1.5">
