@@ -31,7 +31,7 @@ use the editor.
 
 ## Ramus architecture
 - Product knowledge lives in docs/project-knowledge.md; its principles are product rules.
-- Every garden write goes through a createServerFn in src/lib/garden.functions.ts that runs validateGarden (src/lib/stam/validate.ts) before writing and logs an event; there is no delete path.
+- Every garden write goes through a createServerFn in src/lib/garden.functions.ts that runs validateGarden (src/lib/stam/validate.ts) before writing and logs an event. Inside a garden nothing is deleted. A whole garden can be renamed (writers), moved to the trash and restored (owner; trash_garden RPC, gardens.deleted_at), and deleted forever from the trash (owner; delete_garden_forever RPC, which alone may pass the insert-only guards, for that one garden). Why: people manage gardens like notes, while the history inside one stays evidence.
 - Tree layout and validation are pure functions in src/lib/stam with vitest tests; StamTree (src/components/stam-tree) is plain SVG ported from docs/tree-prototype.html.
 - Ideas carry a per-garden `key` that is the Stam JSON id, so import/export round-trips.
 - Archive vs garden: conversations and messages are insert-only (DB triggers reject update/delete); ideas rest on messages via idea_evidence. ideas.message_id/conversation_id/source_excerpt are deprecated and must not be written.

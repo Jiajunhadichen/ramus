@@ -1,3 +1,7 @@
+# Ramus v2.5 — Gardens managed like notes
+- [x] Card menu: Rename, Move to trash (with Undo); Trash: Restore, Delete forever (one clear question).
+- [ ] Database update in Lovable: gardens.deleted_at, trash_garden, delete_garden_forever, guards, storage delete policy (kit: v2.5-删除花园-数据库.txt). Until then, Move to trash says it needs this update.
+
 # Ramus v2.4 — Showing it
 - [x] Download: the tree as PNG (3×) or SVG, fonts embedded, "grown with Ramus".
 - [x] Present: full screen, step by step, with the Story as captions; ends on the outcome.

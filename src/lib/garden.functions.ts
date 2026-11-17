@@ -83,6 +83,9 @@ async function importStamInto(ctx: Ctx, obj: StamGarden, opts: { demo?: boolean 
 export const ensureDemoGarden = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    // someone who deleted the example garden forever does not get it planted again
+    const meta = (context.claims as { user_metadata?: { ramus_demo_dismissed?: boolean } } | undefined)?.user_metadata;
+    if (meta?.ramus_demo_dismissed) return { created: false };
     const existing = check(await context.supabase.from("gardens").select("id").eq("is_demo", true).eq("created_by", context.userId).limit(1));
     if (existing.length) return { created: false };
     await importStamInto(context, { ...(sample as StamGarden), title: "The origin of Ramus" }, { demo: true });
@@ -120,7 +123,9 @@ export const listGardens = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase } = context;
-    const gardens = check(await supabase.from("gardens").select("id,title,specimen_no,updated_at,is_demo").order("updated_at", { ascending: false }));
+    // "*" so the list works before and after gardens.deleted_at exists (the trash)
+    const gardens = (check(await supabase.from("gardens").select("*").order("updated_at", { ascending: false })) as { id: string; title: string; specimen_no: number; updated_at: string; is_demo: boolean; created_by: string; deleted_at?: string | null }[])
+      .map((g) => ({ id: g.id, title: g.title, specimen_no: g.specimen_no, updated_at: g.updated_at, is_demo: g.is_demo, mine: g.created_by === context.userId, deleted_at: g.deleted_at ?? null }));
     const ids = gardens.map((g) => g.id);
     if (!ids.length) return [];
     const ideas = check(await supabase.from("ideas").select("garden_id,status,is_knot").in("garden_id", ids).eq("confirmed", true).is("rejected_at", null));
@@ -134,6 +139,59 @@ export const listGardens = createServerFn({ method: "GET" })
         merges: merges.filter((m) => m.garden_id === g.id).length, people: people.filter((p) => p.garden_id === g.id).length,
       };
     });
+  });
+
+/** A name can always be changed by the people who write in the garden. */
+export const renameGarden = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { gardenId: string; title: string }) => {
+    if (!d.title.trim()) fail("A garden needs a name.");
+    if (d.title.trim().length > 120) fail("Keep the name under 120 characters.");
+    return d;
+  })
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    if (!check(await supabase.rpc("can_write_garden", { _garden: data.gardenId }))) fail("You cannot rename this garden.");
+    check(await supabase.from("gardens").update({ title: data.title.trim(), updated_at: new Date().toISOString() }).eq("id", data.gardenId));
+    return { ok: true };
+  });
+
+/** The database functions for the trash arrive with migration v2.5; until then say so plainly. */
+const NEEDS_TRASH = "Deleting gardens needs one database update in Lovable first (v2.5).";
+function missingFunction(e: { code?: string; message?: string } | null) {
+  return !!e && (e.code === "PGRST202" || e.code === "42883" || /could not find the function|does not exist/i.test(e.message ?? ""));
+}
+
+/** Move a garden to the trash, or bring it back. Owners only; nothing is lost. */
+export const trashGarden = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { gardenId: string; trash: boolean }) => d)
+  .handler(async ({ data, context }) => {
+    const { error } = await (context.supabase.rpc as unknown as (f: string, a: object) => Promise<{ error: { code?: string; message?: string } | null }>)("trash_garden", { _garden: data.gardenId, _trash: data.trash });
+    if (missingFunction(error)) fail(NEEDS_TRASH);
+    if (error) fail(error.message ?? "The garden could not be moved.");
+    return { ok: true };
+  });
+
+/** Delete a garden in the trash forever: its tree, its conversations and their original files. Owners only. */
+export const deleteGardenForever = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { gardenId: string }) => d)
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    // the original files first, while the garden still says who owns them
+    const bucket = supabase.storage.from("conversation-originals");
+    for (let round = 0; round < 50; round++) {
+      const { data: files } = await bucket.list(data.gardenId, { limit: 100 });
+      const names = (files ?? []).filter((f) => f.name && f.id).map((f) => `${data.gardenId}/${f.name}`);
+      if (!names.length) break;
+      const { error } = await bucket.remove(names);
+      if (error) break;
+    }
+    const { error } = await (supabase.rpc as unknown as (f: string, a: object) => Promise<{ error: { code?: string; message?: string } | null }>)("delete_garden_forever", { _garden: data.gardenId });
+    if (missingFunction(error)) fail(NEEDS_TRASH);
+    if (error) fail(error.message ?? "The garden could not be deleted.");
+    return { ok: true };
   });
 
 export const getGarden = createServerFn({ method: "GET" })
