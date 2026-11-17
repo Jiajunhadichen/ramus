@@ -36,11 +36,6 @@ export function Systema({ title, nodes, steps = {}, level = "record", selected, 
   const how = (e: SysEntry, step: number) =>
     returns.some((r) => r.step === step && r.key === e.from[0]?.id) && e.from.length === 1 ? `grows again from ${e.from[0]!.label}` : grewFrom(e, rootId);
 
-  const Mark = ({ e }: { e: SysEntry }) => (
-    <span aria-hidden className="mr-2 inline-block size-2 shrink-0 rounded-full align-middle"
-      style={{ background: e.resting ? "transparent" : color.get(e.id), border: `1px solid ${color.get(e.id)}` }} />
-  );
-
   return (
     <div className="grid gap-6 px-5 py-6" aria-label="Systema">
       <Epigraph n={7} className="max-w-[60ch]" />
@@ -78,24 +73,7 @@ export function Systema({ title, nodes, steps = {}, level = "record", selected, 
               ))}
               {written.length > 0 && (
                 <ol className="grid gap-3">
-                  {written.map((e) => (
-                    <li key={e.id} className="grid gap-x-4 gap-y-0.5 sm:grid-cols-[6.5rem_1fr]">
-                      <span className="smallcaps flex items-baseline pt-0.5 text-[14px]" style={{ color: color.get(e.id) }}><Mark e={e} /><Upright>{e.by}</Upright></span>
-                      <div className="grid gap-0.5">
-                        <p className="leading-snug">
-                          <button type="button" onClick={() => onSelect(e.id)} aria-current={selected === e.id || undefined}
-                            className={"text-left font-display text-[19px] hover:underline " + (selected === e.id ? "underline underline-offset-4 " : "") + (e.resting ? "text-muted-foreground" : "")}>
-                            <Upright>{e.label}</Upright>
-                          </button>
-                          {e.knot && <span className="smallcaps ml-2 text-[13px]">· knot</span>}
-                          {e.outcome && <span className="smallcaps ml-2 text-[13px]">· outcome</span>}
-                          {e.resting && <span className="ml-2 text-[13px] italic text-muted-foreground">resting</span>}
-                        </p>
-                        {how(e, ch.step) && <p className="hand text-[15px]"><Upright>{how(e, ch.step)}</Upright></p>}
-                        {e.note && <p className="text-[15px] text-muted-foreground"><Upright>{e.note}</Upright></p>}
-                      </div>
-                    </li>
-                  ))}
+                  {written.map((e) => <StoryEntry key={e.id} e={e} color={color.get(e.id) ?? "var(--ink)"} how={how(e, ch.step)} selected={selected === e.id} onSelect={onSelect} />)}
                 </ol>
               )}
               {named.length > 0 && (
@@ -114,5 +92,32 @@ export function Systema({ title, nodes, steps = {}, level = "record", selected, 
         })}
       </div>
     </div>
+  );
+}
+
+/** One idea written out: who raised it (in their color), its name, how it grew, and its note. */
+export function StoryEntry({ e, color, how, selected = false, onSelect, large = false }: {
+  e: SysEntry; color: string; how: string; selected?: boolean; onSelect?: ((id: string) => void) | undefined; large?: boolean;
+}) {
+  return (
+    <li className={"grid gap-x-4 gap-y-0.5 " + (large ? "sm:grid-cols-[7rem_1fr]" : "sm:grid-cols-[6.5rem_1fr]")}>
+      <span className={"smallcaps flex items-baseline pt-0.5 " + (large ? "text-[16px]" : "text-[14px]")} style={{ color }}>
+        <span aria-hidden className="mr-2 inline-block size-2 shrink-0 rounded-full align-middle" style={{ background: e.resting ? "transparent" : color, border: `1px solid ${color}` }} />
+        <Upright>{e.by}</Upright>
+      </span>
+      <div className="grid gap-0.5">
+        <p className="leading-snug">
+          {onSelect
+            ? <button type="button" onClick={() => onSelect(e.id)} aria-current={selected || undefined}
+                className={"text-left font-display hover:underline " + (large ? "text-[24px] " : "text-[19px] ") + (selected ? "underline underline-offset-4 " : "") + (e.resting ? "text-muted-foreground" : "")}><Upright>{e.label}</Upright></button>
+            : <span className={"font-display " + (large ? "text-[24px] " : "text-[19px] ") + (e.resting ? "text-muted-foreground" : "")}><Upright>{e.label}</Upright></span>}
+          {e.knot && <span className="smallcaps ml-2 text-[13px]">· knot</span>}
+          {e.outcome && <span className="smallcaps ml-2 text-[13px]">· outcome</span>}
+          {e.resting && <span className="ml-2 text-[13px] italic text-muted-foreground">resting</span>}
+        </p>
+        {how && <p className={"hand " + (large ? "text-[17px]" : "text-[15px]")}><Upright>{how}</Upright></p>}
+        {e.note && <p className={(large ? "text-[17px] " : "text-[15px] ") + "text-muted-foreground"}><Upright>{e.note}</Upright></p>}
+      </div>
+    </li>
   );
 }

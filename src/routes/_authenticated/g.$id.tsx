@@ -19,6 +19,8 @@ import { mainLineage, type ReadingLevel } from "@/lib/stam/reading";
 import { DEMO_LABELS } from "@/lib/stam/demo-labels";
 import { Upright } from "@/components/epigraph/Epigraph";
 import { Systema } from "@/components/garden/Systema";
+import { Present } from "@/components/garden/Present";
+import { DownloadTree } from "@/components/garden/DownloadTree";
 
 export const gardenQuery = (id: string) => queryOptions({ queryKey: ["garden", id], queryFn: () => getGarden({ data: { id } }) });
 
@@ -71,6 +73,8 @@ function GardenPage() {
   useBringIn((got) => { setIncoming(got); setBringOpen(true); });
   const fresh = data.conversations.length === 0 && data.ideas.length <= 1;
   const [view, setView] = useState<"tree" | "systema">("tree");
+  const [presenting, setPresenting] = useState(false);
+  const sheet = useRef<HTMLElement>(null);
   const [mode, setMode] = useState<"steps" | "events">("steps");
   const events = useMemo(() => replayOrder((data.thoughts ?? []) as Thought[]), [data.thoughts]);
   const byDb = useMemo(() => new Map(ideas.map((i) => [i.dbId, i])), [ideas]);
@@ -185,9 +189,10 @@ function GardenPage() {
         </section>
       </div>
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <section className="rounded-md border border-rule bg-sheet" aria-label="Specimen sheet">
+        <section ref={sheet} className="rounded-md border border-rule bg-sheet" aria-label="Specimen sheet">
           <div className="flex flex-wrap items-center gap-4 border-b border-rule px-4 py-3">
             <Button variant="outline" onClick={mode === "steps" ? r.play : playEvents}>{(mode === "steps" ? r.playing : evPlaying) ? "Pause" : "Play growth"}</Button>
+            <Button variant="outline" onClick={() => { r.stop(); stopEv(); setPresenting(true); }}>Present</Button>
             <div role="radiogroup" aria-label="Replay by" className="smallcaps flex gap-2 text-[13px]">
               {(["steps", "events"] as const).map((m) => (
                 <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => { r.stop(); stopEv(); setMode(m); setEvIdx(null); }}
@@ -203,6 +208,7 @@ function GardenPage() {
               ))}
             </div>
             <ReadingSwitch value={level} onChange={changeLevel} />
+            {view === "tree" && <DownloadTree title={data.garden.title} getSvg={() => sheet.current?.querySelector<SVGSVGElement>("svg.stam-tree") ?? null} />}
             {data.garden.is_demo && <div role="radiogroup" aria-label="Idea language" className="smallcaps flex">{(["zh", "en"] as const).map((lang) => <Button key={lang} size="sm" variant="ghost" role="radio" aria-checked={language === lang} className={language === lang ? "underline" : "text-muted-foreground"} onClick={() => setLanguage(lang)}>{lang === "zh" ? "中文" : "EN"}</Button>)}</div>}
             <span className="text-[15px]" aria-live="polite">
               <span className="smallcaps">Step {r.step} of {max}</span>
@@ -235,6 +241,13 @@ function GardenPage() {
           </Sheet>
         ) : notes}
       </div>
+      {presenting && (
+        <Present title={data.garden.title} nodes={ideas} level={level} main={main} notes={returnNotes}
+          steps={Object.fromEntries(data.steps.map((st: { step: number; title: string | null }) => [st.step, st.title]))}
+          returns={(data.returns ?? []) as { key: string; why: string | null; step: number | null }[]}
+          specimen={{ no: data.garden.specimen_no, title: data.garden.title, collected: collectedOn ?? undefined, collectors: people.map((p) => p.name) }}
+          dateOf={(st) => stepDate(data, ideas, st)} onClose={() => setPresenting(false)} />
+      )}
     </main>
   );
 }

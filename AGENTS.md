@@ -50,6 +50,10 @@ use the editor.
 - thought_events is insert-only (no UPDATE/DELETE grants plus a guard trigger); confirmed/rejected_at are set once only via review_thought_event, and corrections are new rows with corrects_event_id. Why: history is evidence and must not be rewritten.
 - Digits everywhere render from a "Ramus Digits" alias of Noto Serif SC (self-hosted in public/fonts, unicode-range 0-9) placed first in every font token. Why: IM Fell old-style zero reads as the letter o.
 
+## Showing a garden (v2.4)
+- Download (src/components/garden/DownloadTree.tsx → src/lib/export/treeImage.ts) exports the live StamTree SVG: computed styles inlined, colors resolved to rgb through a 1×1 canvas, pan/zoom reset, hover/pulse/grow masks dropped, fonts embedded as data URLs (src/lib/export/fonts.ts picks only the @font-face slices whose unicode-range covers characters drawn in that family; pure, tested). PNG is that SVG drawn to a canvas at 3×. Why: the shared image is the main way people see Ramus, so it must look exactly like the screen.
+- Present (src/components/garden/Present.tsx) reuses StamTree and the Story's StoryEntry; slides are the question, each step, and where it has reached. Why: showing how an idea grew is half of Ramus's value, and it should not need a second design language.
+
 ## Reading hierarchy
 - Principle 14 — Show what matters first (Herbert Simon, “The Architecture of Complexity”, 1962): levels change emphasis, never what exists; retain every idea while showing the question, outcomes, main growth, then the full record.
 - Compute main lineage and reading detail in pure src/lib/stam/reading.ts; keep layout inputs independent of reading level. Why: switching depth must preserve the mental map and remain testable.

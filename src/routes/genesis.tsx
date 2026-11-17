@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import sample from "../../docs/sample-garden.json";
 import { StamTree, Legend } from "@/components/stam-tree/StamTree";
 import { ReadingSwitch } from "@/components/garden/ReadingSwitch";
 import { Systema } from "@/components/garden/Systema";
+import { Present } from "@/components/garden/Present";
+import { DownloadTree } from "@/components/garden/DownloadTree";
 import { Button } from "@/components/ui/button";
 import { Upright } from "@/components/epigraph/Epigraph";
 import { stamToTree } from "@/lib/stam/toTree";
@@ -27,6 +29,10 @@ function Genesis() {
   const [en, setEn] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [table, setTable] = useState(false);
+  const [presenting, setPresenting] = useState(false);
+  const sheet = useRef<HTMLDivElement>(null);
+  const steps = useMemo(() => Object.fromEntries(Object.entries(sample.steps).map(([k, v]) => [Number(k), v])), []);
+  const withNotes = useMemo(() => stamToTree(sample as StamGarden).map((n) => ({ ...n, label: en ? DEMO_LABELS[n.id] ?? n.label : n.label, note: sample.nodes.find((o) => o.id === n.id)?.note ?? "" })), [en]);
   const nodes = useMemo(() => stamToTree(sample as StamGarden).map((n) => ({ ...n, label: en ? DEMO_LABELS[n.id] ?? n.label : n.label })), [en]);
   const main = useMemo(() => mainLineage(nodes, sample.focus), [nodes]);
   const ideaBlock = (id: string, heading: string) => {
@@ -37,8 +43,9 @@ function Genesis() {
   return <main className="mx-auto grid max-w-[1100px] gap-6 px-5 py-8">
     <h1 className="font-display text-[40px]">The origin of Ramus</h1>
     <div className="grid gap-6 border-y border-rule py-5 sm:grid-cols-2">{ideaBlock("root", "The question")}{ideaBlock("humans", "Where it has reached")}</div>
-    <div className="flex flex-wrap items-center gap-4"><div role="tablist" aria-label="View">{[false, true].map((v) => <Button key={String(v)} variant="ghost" role="tab" aria-selected={table === v} onClick={() => setTable(v)} className={table === v ? "smallcaps underline" : "smallcaps text-muted-foreground"}>{v ? "Story" : "Tree"}</Button>)}</div><ReadingSwitch value={level} onChange={setLevel} /><Button variant="ghost" className="smallcaps ml-auto" onClick={() => setEn(!en)}>{en ? "中文" : "EN"}</Button></div>
-    {table ? <Systema nodes={nodes.map((n) => ({ ...n, note: sample.nodes.find((o) => o.id === n.id)?.note ?? "" }))} steps={Object.fromEntries(Object.entries(sample.steps).map(([k, v]) => [Number(k), v]))} level={level} main={main} title="The origin of Ramus" selected={selected} onSelect={setSelected} /> : <StamTree nodes={nodes} level={level} main={main} step={10} selected={selected} onSelect={setSelected} interactive specimen={{ no: "001", title: "The origin of Ramus", collectors: ["你", "ChatGPT", "Claude"] }} />}
+    <div className="flex flex-wrap items-center gap-4"><div role="tablist" aria-label="View">{[false, true].map((v) => <Button key={String(v)} variant="ghost" role="tab" aria-selected={table === v} onClick={() => setTable(v)} className={table === v ? "smallcaps underline" : "smallcaps text-muted-foreground"}>{v ? "Story" : "Tree"}</Button>)}</div><ReadingSwitch value={level} onChange={setLevel} /><Button variant="outline" size="sm" onClick={() => setPresenting(true)}>Present</Button>{!table && <DownloadTree title="The origin of Ramus" getSvg={() => sheet.current?.querySelector<SVGSVGElement>("svg.stam-tree") ?? null} />}<Button variant="ghost" className="smallcaps ml-auto" onClick={() => setEn(!en)}>{en ? "中文" : "EN"}</Button></div>
+    {table ? <Systema nodes={withNotes} steps={steps} level={level} main={main} title="The origin of Ramus" selected={selected} onSelect={setSelected} /> : <div ref={sheet}><StamTree nodes={nodes} level={level} main={main} step={10} selected={selected} onSelect={setSelected} interactive specimen={{ no: "001", title: "The origin of Ramus", collectors: ["你", "ChatGPT", "Claude"] }} /></div>}
+    {presenting && <Present title="The origin of Ramus" nodes={withNotes} steps={steps} level={level} main={main} specimen={{ no: "001", title: "The origin of Ramus", collectors: ["你", "ChatGPT", "Claude"] }} onClose={() => setPresenting(false)} />}
     <Legend people={[...new Map(nodes.map((n) => [n.by, { name: n.by, color: n.color }])).values()]} />
   </main>;
 }

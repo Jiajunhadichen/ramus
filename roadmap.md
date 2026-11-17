@@ -1,3 +1,9 @@
+# Ramus v2.4 — Showing it
+- [x] Download: the tree as PNG (3×) or SVG, fonts embedded, "grown with Ramus".
+- [x] Present: full screen, step by step, with the Story as captions; ends on the outcome.
+- [ ] Public share link (needs a schema change by Lovable and a privacy decision: tree and notes, not the raw messages).
+- [ ] Growth as a video or GIF.
+
 # Ramus v2.3 — Grow again from an earlier point; readable at first sight
 - [x] Story (was Systema): the garden read step by step; who raised each idea, how it grew, its note; reading level picks what is written out.
 - [x] Going back: "Grow again from here" + an optional note to the gardener; the gardener also recognises a clear return; abandoned line rests with the reason; margin note on the tree; line in the Story.
