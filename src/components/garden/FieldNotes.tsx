@@ -198,15 +198,15 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
           ? <Button size="sm" variant="outline" onClick={() => run(() => status({ data: { gardenId: data.garden.id, key: idea.id, status: "dormant" } }), "Resting now, still on the tree.")}>Let it rest</Button>
           : <Button size="sm" variant="outline" onClick={() => run(() => status({ data: { gardenId: data.garden.id, key: idea.id, status: "growing" } }), "Growing again.")}>Revive</Button>}
         <Button size="sm" variant="outline" onClick={() => run(() => outcomeFn({ data: { gardenId: data.garden.id, key: idea.id, outcome: !idea.outcome } }), idea.outcome ? "Outcome unmarked." : "Outcome marked.")}>{idea.outcome ? "Unmark outcome" : "Mark as outcome"}</Button>
-        <Button size="sm" variant="ghost" onClick={() => setDialog("edit")}>Edit</Button>
-        <Button size="sm" variant="ghost" aria-expanded={more} onClick={() => setMore(!more)}>{more ? "Less" : "More"}</Button>
+        <Button size="sm" variant="outline" onClick={() => setDialog("edit")}>Edit</Button>
+        <Button size="sm" variant="outline" aria-expanded={more} onClick={() => setMore(!more)}>{more ? "Less" : "More"}</Button>
         {more && <>
-          <Button size="sm" variant="ghost" onClick={() => setDialog("grow")}>Add a branch by hand</Button>
-          <Button size="sm" variant="ghost" onClick={() => setDialog("graft")} disabled={!idea.parents.length}>Graft a merge</Button>
+          <Button size="sm" variant="outline" onClick={() => setDialog("grow")}>Add a branch by hand</Button>
+          <Button size="sm" variant="outline" onClick={() => setDialog("graft")} disabled={!idea.parents.length}>Graft a merge</Button>
           {idea.knot
-            ? <Button size="sm" variant="ghost" onClick={() => setDialog("reopen")}>Reopen knot</Button>
-            : <Button size="sm" variant="ghost" onClick={() => setDialog("knot")}>Mark as knot</Button>}
-          <Button size="sm" variant="ghost" onClick={() => setDialog("evidence")} disabled={!(data.convMessages ?? []).length}>Add evidence</Button>
+            ? <Button size="sm" variant="outline" onClick={() => setDialog("reopen")}>Reopen knot</Button>
+            : <Button size="sm" variant="outline" onClick={() => setDialog("knot")}>Mark as knot</Button>}
+          <Button size="sm" variant="outline" onClick={() => setDialog("evidence")} disabled={!(data.convMessages ?? []).length}>Add evidence</Button>
         </>}
       </div>}
 
