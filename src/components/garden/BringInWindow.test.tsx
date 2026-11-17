@@ -22,7 +22,7 @@ describe("the bring-in window", () => {
   });
   it("one button grows the tree once something readable is in", () => {
     open();
-    const go = screen.getByRole("button", { name: /That's everything — grow the tree/ });
+    const go = screen.getByRole("button", { name: /That’s everything — grow the tree/ });
     expect(go).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Paste anything"), { target: { value: "Ana: one idea\nBo: another" } });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));

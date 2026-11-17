@@ -3,7 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import sample from "../../docs/sample-garden.json";
 import { StamTree, type MarginNote, type TreeNode } from "@/components/stam-tree/StamTree";
 import { useReplay } from "@/components/stam-tree/useReplay";
-import { NightToggle } from "@/components/NightToggle";
+import { SiteHeader } from "@/components/SiteHeader";
+import { Button } from "@/components/ui/button";
 import { Epigraph } from "@/components/epigraph/Epigraph";
 import { stamToTree } from "@/lib/stam/toTree";
 import { maxStep } from "@/lib/stam/layout";
@@ -53,8 +54,9 @@ function Landing() {
   }, [done, all]);
 
   return (
-    <main className="relative mx-auto grid max-w-[1440px] items-center gap-6 px-5 pb-8 pt-2 lg:grid-cols-[minmax(0,60fr)_minmax(0,40fr)]">
-      <div className="absolute right-5 top-3 z-10"><NightToggle /></div>
+    <>
+    <SiteHeader bare />
+    <main className="page relative grid items-center gap-6 pb-8 pt-2 lg:grid-cols-[minmax(0,60fr)_minmax(0,40fr)]">
       <figure className="mx-auto w-full" style={{ maxWidth: "calc(85vh * 1100 / 900)" }} aria-label="The demo garden, growing from a seed">
         <StamTree level="form" nodes={nodes} step={r.step} selected={null} freshStep={r.fresh.step} freshKey={r.fresh.key}
           notes={all.slice(0, shown)} ariaLabel="The origin of Ramus, growing from a seed" />
@@ -67,8 +69,9 @@ function Landing() {
         <h1 className="font-display text-[40px] font-normal leading-[1.1] xl:text-[64px]">Ideas grow <em>between</em> people.</h1>
         <p className="font-display text-[22px] leading-snug xl:text-[26px]">Ramus remembers who planted every branch, and what grew from it.</p>
         <Epigraph n={2} />
-        <div><Link to="/gardens" className="ink-btn inline-block px-5 py-3">Start a garden</Link></div>
+        <div><Button asChild><Link to="/gardens">Start a garden</Link></Button></div>
       </section>
     </main>
+    </>
   );
 }

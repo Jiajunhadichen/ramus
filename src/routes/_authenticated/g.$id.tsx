@@ -40,7 +40,7 @@ export const Route = createFileRoute("/_authenticated/g/$id")({
   loader: ({ context, params }) => context.queryClient.ensureQueryData(gardenQuery(params.id)),
   component: GardenPage,
   errorComponent: ({ error }) => (
-    <main className="mx-auto grid max-w-[640px] gap-3 px-5 py-16">
+    <main className="page grid gap-3 py-16">
       <h1 className="font-display text-[40px]">No garden here</h1>
       <p>{String((error as Error)?.message).includes("cannot see") ? (error as Error).message : "This garden could not be opened."}</p>
       <Link to="/gardens" className="underline underline-offset-4">Back to my gardens</Link>
@@ -148,7 +148,7 @@ function GardenPage() {
     .map((x) => ({ id: x.key, text: `went back here${x.why ? ` · ${x.why.length > 44 ? x.why.slice(0, 43) + "…" : x.why}` : ""}` }));
   const notes = idea ? <FieldNotes data={data} ideas={ideas} idea={idea} currentStep={r.step} onSelect={select} onChanged={refresh} onGrowAgain={growAgain} /> : null;
   return (
-    <main className="mx-auto grid max-w-[1400px] gap-6 px-5 py-8">
+    <main className="page grid gap-6 py-8">
       <header className="flex flex-wrap items-end gap-4">
         <div className="grid gap-1.5">
           <p className="eyebrow"><Link to="/gardens" className="hover:underline">My gardens</Link> · Specimen Nº {String(data.garden.specimen_no).padStart(3, "0")}</p>
@@ -171,7 +171,7 @@ function GardenPage() {
         </div>
       </header>
       {data.conversations.length === 0 && !data.garden.is_demo && (
-        <section aria-label="Bring in the first conversations" className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-md border border-dashed border-ink/40 bg-sheet px-4 py-3">
+        <section aria-label="Bring in the first conversations" className="flex flex-wrap items-center gap-x-6 gap-y-2  border border-dashed border-ink/40 bg-sheet px-4 py-3">
           <p className="font-display text-lg">Nothing has been said here yet.</p>
           <Button size="sm" onClick={bringIn}>Bring in conversations</Button>
         </section>
@@ -193,7 +193,7 @@ function GardenPage() {
         </section>
       </div>
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <section ref={sheet} className="rounded-md border border-rule bg-sheet" aria-label="Specimen sheet">
+        <section ref={sheet} className=" border border-rule bg-sheet" aria-label="Specimen sheet">
           <div className="flex flex-wrap items-center gap-4 border-b border-rule px-4 py-3">
             <Button variant="outline" onClick={mode === "steps" ? r.play : playEvents}>{(mode === "steps" ? r.playing : evPlaying) ? "Pause" : "Play growth"}</Button>
             <Button variant="outline" onClick={() => { r.stop(); stopEv(); setPresenting(true); }}>Present</Button>

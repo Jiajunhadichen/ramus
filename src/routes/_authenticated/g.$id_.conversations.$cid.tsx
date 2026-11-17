@@ -42,10 +42,10 @@ function ConversationPage() {
   const asideCount = data.messages.length - data.messages.filter((m) => !m.hidden_reason).length;
   const batch = open ? batches.find((b) => b.id === (open.batchId ?? firstBatch)) : null;
   return (
-    <main className="mx-auto max-w-3xl px-5 py-8">
+    <main className="page py-8">
       <Link to="/g/$id" params={{ id }} search={{ idea: undefined }} className="eyebrow hover:underline">← {data.garden.title}</Link>
       <h1 className="mt-2 font-display text-[40px] leading-[1.1]">{data.conversation.title}</h1>
-      <p className="eyebrow mt-1">{data.conversation.source} · Happened: {formatDate(data.conversation.happened_at)} · Imported: {data.conversation.imported_at.slice(0, 10)} · recorded with everyone's consent</p>
+      <p className="eyebrow mt-1">{data.conversation.source} · Happened: {formatDate(data.conversation.happened_at)} · Imported: {data.conversation.imported_at.slice(0, 10)} · recorded with everyone’s consent</p>
       {batches.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-2" aria-label="Accessions">
           {batches.map((b) => <AccessionStamp key={b.id} small no={b.accession_no} line={stampLine({ receivedAt: b.created_at, format: b.source_format, messages: counts.get(b.id) ?? 0 })} />)}
@@ -55,12 +55,12 @@ function ConversationPage() {
         <label className="flex items-center gap-2"><Switch checked={showAside} onCheckedChange={setShowAside} aria-label="Show set-aside lines" />Show set-aside lines{asideCount ? ` (${asideCount})` : ""}</label>
         <Link to="/g/$id/accession" params={{ id }} search={{ into: cid }} className="underline underline-offset-4">Bring in more</Link>
       </div>
-      <ol className="mt-6 grid gap-3">
+      <ol className="measure mt-6 grid gap-3">
         {groupMessages(visible).map((group) => {
           const head = group[0]!;
           const who = head.contributor_id ? people.get(head.contributor_id) : null;
           return (
-            <li key={head.id} className="rounded-md border border-rule bg-sheet p-4" style={{ borderLeftWidth: 4, borderLeftColor: who?.color ?? "var(--rule)" }}>
+            <li key={head.id} className=" border border-rule bg-sheet p-4" style={{ borderLeftWidth: 4, borderLeftColor: who?.color ?? "var(--rule)" }}>
               {group.map((m, k) => {
                 const born = data.ideas.filter((i) => i.message_id === m.id);
                 return (

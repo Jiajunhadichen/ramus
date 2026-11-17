@@ -209,7 +209,7 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
         {/* once something is kept, finish this reading first; more can be added right after */}
         {!busy && !items.some((it) => it.kept) && (
           <div
-            className={"grid gap-2 rounded-md border border-dashed bg-sheet p-3 transition-colors " + (over ? "border-ink" : "border-ink/40")}
+            className={"grid gap-2  border border-dashed bg-sheet p-3 transition-colors " + (over ? "border-ink" : "border-ink/40")}
             onDragOver={(e) => { e.preventDefault(); setOver(true); }}
             onDragLeave={() => setOver(false)}
             onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setOver(false); const files = [...e.dataTransfer.files]; if (files.length) void addFiles(files); }}>
@@ -239,8 +239,8 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
               </p>
             )}
             <input aria-label="Anything to tell the gardener" value={told} onChange={(e) => setTold(e.target.value)} maxLength={600}
-              placeholder="Anything to tell the gardener? e.g. “Product says the cost won't come down, so we went back to the fabric.”"
-              className="h-9 w-full rounded-md border border-rule bg-transparent px-3 text-[15px] outline-none focus:border-ink" />
+              placeholder="Anything to tell the gardener? e.g. “Product says the cost won’t come down, so we went back to the fabric.”"
+              className="h-9 w-full  border border-rule bg-transparent px-3 text-[15px] outline-none focus:border-ink" />
           </div>
         )}
 
@@ -255,14 +255,14 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
         {phase.kind === "failed" && (
           <p role="alert" className="text-[15px]">
             {phase.message}{" "}
-            {keptAll && <span className="text-muted-foreground">What you brought in is kept; only the gardener's reading is missing.</span>}
+            {keptAll && <span className="text-muted-foreground">What you brought in is kept; only the gardener’s reading is missing.</span>}
           </p>
         )}
 
         {!busy && (
           <div className="grid gap-2 border-t border-rule pt-3">
             <Button disabled={!ready.length || items.some((it) => it.opening)} onClick={go}>
-              {phase.kind === "failed" ? (keptAll ? "Let the gardener try again" : "Try again") : target.kind === "more" && !target.fresh ? "Add to the tree" : "That's everything — grow the tree"}
+              {phase.kind === "failed" ? (keptAll ? "Let the gardener try again" : "Try again") : target.kind === "more" && !target.fresh ? "Add to the tree" : "That’s everything — grow the tree"}
             </Button>
             {phase.kind === "failed" && keptAll && gardenId && (
               <button type="button" className="text-sm underline underline-offset-4" onClick={() => { const g = gardenId; reset(); onOpenChange(false); onGrown(g); }}>Go to the garden without it</button>
@@ -281,7 +281,7 @@ function Row({ item, auto, locked, onRemove, onExtra }: { item: Item; auto: Auto
   const t = a ? timeLine(a.draft) : null;
   const words = a ? a.draft.kept.filter((m) => !m.hidden).length : 0;
   return (
-    <li className={"grid gap-1 rounded-md border bg-sheet px-3 py-2 text-[15px] " + (problem ? "border-rule opacity-70" : "border-rule")}>
+    <li className={"grid gap-1  border bg-sheet px-3 py-2 text-[15px] " + (problem ? "border-rule opacity-70" : "border-rule")}>
       <div className="flex items-baseline gap-2">
         <span className="min-w-0 flex-1 truncate">{item.name}</span>
         {item.kept && <span className="smallcaps text-[13px] text-muted-foreground">kept</span>}
@@ -300,13 +300,13 @@ function Row({ item, auto, locked, onRemove, onExtra }: { item: Item; auto: Auto
           {t?.kind === "clock" && (
             <label className="flex flex-wrap items-center gap-2 text-sm">
               <span className="text-muted-foreground">Clock times, but no day. Which day was it? (optional)</span>
-              <input type="date" disabled={locked} className="h-8 rounded border border-input bg-transparent px-2" value={item.extra.conversationDate ?? ""} onChange={(e) => onExtra({ conversationDate: e.target.value || null })} />
+              <input type="date" disabled={locked} className="h-8  border border-input bg-transparent px-2" value={item.extra.conversationDate ?? ""} onChange={(e) => onExtra({ conversationDate: e.target.value || null })} />
             </label>
           )}
           {t?.kind === "offsets" && (
             <label className="flex flex-wrap items-center gap-2 text-sm">
               <span className="text-muted-foreground">Times count from the start of the recording. When did it start? (optional)</span>
-              <input type="datetime-local" disabled={locked} className="h-8 rounded border border-input bg-transparent px-2" value={item.extra.recordingStart ?? ""} onChange={(e) => onExtra({ recordingStart: e.target.value || null })} />
+              <input type="datetime-local" disabled={locked} className="h-8  border border-input bg-transparent px-2" value={item.extra.recordingStart ?? ""} onChange={(e) => onExtra({ recordingStart: e.target.value || null })} />
             </label>
           )}
         </>

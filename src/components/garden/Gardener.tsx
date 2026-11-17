@@ -60,11 +60,11 @@ export function GardenerPanel({ gardenId, conversations, suggested, readConversa
     finally { setReading(null); }
   }
   if (reading) {
-    return <p role="status" className="rounded-md border border-dashed border-ink/40 bg-sheet px-4 py-3 text-[15px]"><span className="hand">The gardener is reading{reading.of > 1 ? ` (part ${reading.part} of ${reading.of})` : ""}…</span> It traces who raised what, in the order it was said.</p>;
+    return <p role="status" className=" border border-dashed border-ink/40 bg-sheet px-4 py-3 text-[15px]"><span className="hand">The gardener is reading{reading.of > 1 ? ` (part ${reading.part} of ${reading.of})` : ""}…</span> It traces who raised what, in the order it was said.</p>;
   }
   if (suggested > 0) {
     return (
-      <section aria-label="The gardener's suggestions" className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-dashed border-ink/40 bg-sheet px-4 py-3 text-[15px]">
+      <section aria-label="The gardener’s suggestions" className="flex flex-wrap items-center gap-x-4 gap-y-2  border border-dashed border-ink/40 bg-sheet px-4 py-3 text-[15px]">
         <p>{suggested} older suggestion{suggested === 1 ? " is" : "s are"} still dashed on the tree.</p>
         <div className="ml-auto flex gap-2">
           <Button size="sm" disabled={busy} onClick={() => decideAll(true)}>Put them on the tree</Button>
@@ -75,9 +75,9 @@ export function GardenerPanel({ gardenId, conversations, suggested, readConversa
   }
   if (!unread) return null;
   return (
-    <section aria-label="The gardener" className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-dashed border-ink/40 bg-sheet px-4 py-3 text-[15px]">
+    <section aria-label="The gardener" className="flex flex-wrap items-center gap-x-4 gap-y-2  border border-dashed border-ink/40 bg-sheet px-4 py-3 text-[15px]">
       <p>The gardener has not read “{unread.title}” yet.</p>
-      <Button size="sm" className="ml-auto" onClick={() => read(unread)}>Let the gardener read it</Button>
+      <Button variant="outline" size="sm" className="ml-auto" onClick={() => read(unread)}>Let the gardener read it</Button>
     </section>
   );
 }

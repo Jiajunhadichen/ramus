@@ -137,7 +137,7 @@ export function parseAnswer(text: string): unknown {
   try { return JSON.parse(t); } catch { /* fall through */ }
   const a = t.indexOf("{"), b = t.lastIndexOf("}");
   if (a >= 0 && b > a) { try { return JSON.parse(t.slice(a, b + 1)); } catch { /* fall through */ } }
-  throw new Error("The gardener's answer could not be read.");
+  throw new Error("The gardener’s answer could not be read.");
 }
 
 const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();

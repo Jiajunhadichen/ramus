@@ -1,4 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { SiteHeader } from "@/components/SiteHeader";
 import { Epigraph } from "@/components/epigraph/Epigraph";
 
 export const Route = createFileRoute("/principles")({
@@ -24,7 +25,7 @@ export const PRINCIPLES: { title: string; text: string; source: string }[] = [
   { title: "Make the click audible", source: SIMON,
     text: "Simon describes a safe whose dial clicks when a number is right, so the search no longer starts from nothing. A knot is that click: a group marks something it has settled. Knots are stable; untying one takes a deliberate act and a stated reason." },
   { title: "Build on stable subassemblies", source: SIMON,
-    text: "Simon's watchmaker, who builds from stable subassemblies, finishes the watch; the one who builds from loose parts is undone by every interruption. In Ramus new work grows from knots, and a settled branch can fold into a single node." },
+    text: "Simon’s watchmaker, who builds from stable subassemblies, finishes the watch; the one who builds from loose parts is undone by every interruption. In Ramus new work grows from knots, and a settled branch can fold into a single node." },
   { title: "Near-decomposability", source: SIMON,
     text: "Complex systems hold together because their parts are mostly independent, with weaker ties between them. Branches are explored on their own; where one line of thought touches another, the tree draws only a light merge line." },
   { title: "Keep the recipe, not only the blueprint", source: SIMON,
@@ -33,12 +34,12 @@ export const PRINCIPLES: { title: string; text: string; source: string }[] = [
     text: "With his biomorphs, Dawkins chose between visible variants long before he could say why. People can recognise the better alternative before they can explain it, so Ramus shows sibling ideas side by side." },
   { title: "AI proposes, people decide", source: "Anil Doshi & Oliver Hauser (2024), on generative AI and the diversity of ideas",
     text: "Anything the gardener suggests, a link, a knot, a harvested idea, stays a dashed suggestion until a person accepts it. A link the gardener infers is a hypothesis, not a fact: two ideas sounding alike does not mean one shaped the other." },
-  { title: "Don't converge too fast", source: "James G. March, “Exploration and Exploitation in Organizational Learning” (1991)",
+  { title: "Don’t converge too fast", source: "James G. March, “Exploration and Exploitation in Organizational Learning” (1991)",
     text: "March shows how organisations drift toward exploiting what they already know and stop exploring. In Explore mode the gardener widens the space with questions; it helps narrow down only in Converge mode, which only people switch on." },
   { title: "Private before shared", source: "Chris Argyris, “Teaching Smart People How to Learn” (1991)",
     text: "Argyris found that capable people defend themselves when learning feels exposed. Private thoughts in Ramus stay private until their author chooses to graft them onto the shared tree, and the gardener never reveals them." },
   { title: "Cooperation without consensus", source: "Susan Leigh Star & James Griesemer, “Institutional Ecology, ‘Translations’ and Boundary Objects” (1989); David Bohm, On Dialogue (1996)",
-    text: "A boundary object lets different groups work together without first agreeing on everything. The tree is one such object, read through different lenses. Following Bohm's idea of dialogue, disagreement is held in view rather than forced away." },
+    text: "A boundary object lets different groups work together without first agreeing on everything. The tree is one such object, read through different lenses. Following Bohm’s idea of dialogue, disagreement is held in view rather than forced away." },
   { title: "Ideas recombine", source: DAWKINS,
     text: "Lines of thought do not only split; they meet again. Each idea has one primary parent and may draw on others through merge lines. The primary chain never loops back on itself, and every garden grows from exactly one root." },
   { title: "Branches belong to people; the gardener only tends", source: "Anil Doshi & Oliver Hauser (2024), on generative AI and the diversity of ideas",
@@ -50,15 +51,17 @@ export const PRINCIPLES: { title: string; text: string; source: string }[] = [
 
 const GROUPS: { name: string; pair?: number; titles: string[] }[] = [
   { name: "Lineage", pair: 6, titles: ["Retention is the heart", "Make the click audible", "Build on stable subassemblies", "Keep the recipe, not only the blueprint"] },
-  { name: "Change", pair: 5, titles: ["Ideas recombine", "Don't converge too fast"] },
+  { name: "Change", pair: 5, titles: ["Ideas recombine", "Don’t converge too fast"] },
   { name: "People", pair: 1, titles: ["Private before shared", "Cooperation without consensus", "Branches belong to people; the gardener only tends", "Every voice counts"] },
 ];
 const grouped = [...GROUPS, { name: "Reading the tree", titles: PRINCIPLES.map((p) => p.title).filter((t) => !GROUPS.some((g) => g.titles.includes(t))) }];
 
 function Principles() {
   return (
-    <main className="mx-auto max-w-[760px] px-6 py-16">
-      <p className="eyebrow"><Link to="/" className="hover:underline">Ramus</Link> · Principles</p>
+    <>
+    <SiteHeader />
+    <main className="page py-16"><div className="measure">
+      <p className="eyebrow">Principles</p>
       <h1 className="mt-3 font-display text-[40px] leading-[1.1]">Why the garden grows this way</h1>
       <Epigraph n={3} className="mt-8" />
       <p className="essay mt-8 text-muted-foreground">Fourteen rules shape every part of Ramus. Each one comes from a thinker who studied how ideas, systems or groups grow. They are written here as plainly as we can.</p>
@@ -79,6 +82,7 @@ function Principles() {
       ))}
       <hr className="my-14 border-rule" />
       <Epigraph n={8} />
-    </main>
+    </div></main>
+    </>
   );
 }

@@ -49,7 +49,7 @@ function GardensPage() {
   const active = data.filter((g) => !g.deleted_at);
   const trash = data.filter((g) => g.deleted_at);
   return (
-    <main className="mx-auto max-w-[1180px] px-5 py-10">
+    <main className="page py-10">
       <div className="flex flex-wrap items-end gap-4">
         <div>
           <p className="eyebrow">Herbarium</p>
@@ -138,7 +138,7 @@ function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
           onChange={async (e) => { const file = e.target.files?.[0]; if (file) setText(await file.text()); }} />
         <Textarea aria-label="Stam JSON" className="min-h-[240px] text-[15px]" value={text} onChange={(e) => { setText(e.target.value); setErrors([]); }} />
         {errors.length > 0 && (
-          <ul className="grid gap-2 rounded border border-destructive p-3 text-sm" role="alert">
+          <ul className="grid gap-2  border border-destructive p-3 text-sm" role="alert">
             {errors.map((e, i) => (
               <li key={i}><span className="smallcaps text-[13px]">{e.idea ? `Idea "${e.idea}"` : "Garden"}</span> — <b className="text-destructive">{e.problem}</b>. <span className="text-muted-foreground">{e.fix}</span></li>
             ))}
@@ -167,7 +167,7 @@ function GardenCard({ g }: { g: GardenRow }) {
   return (
     <div className="relative">
       <Link to="/g/$id" params={{ id: g.id }} search={{ idea: undefined }}
-        className="block h-full rounded-md border border-rule bg-sheet p-4 pr-10 transition-colors hover:border-ink">
+        className="block h-full  border border-rule bg-sheet p-4 pr-10 transition-colors hover:border-ink">
         <p className="border-b border-rule pb-1 smallcaps text-[13px]">Specimen Nº {String(g.specimen_no).padStart(3, "0")}</p>
         <h2 className="mt-2 font-display text-lg leading-snug">{g.title}</h2>
         <p className="mt-2 smallcaps text-[13px] text-muted-foreground">
@@ -177,7 +177,7 @@ function GardenCard({ g }: { g: GardenRow }) {
       </Link>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button type="button" aria-label={`More for ${g.title}`} className="absolute right-2 top-2 rounded px-2 py-0.5 text-lg leading-none text-muted-foreground hover:bg-ink/10 hover:text-foreground">⋯</button>
+          <button type="button" aria-label={`More for ${g.title}`} className="absolute right-2 top-2  px-2 py-0.5 text-lg leading-none text-muted-foreground hover:bg-ink/10 hover:text-foreground">⋯</button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onSelect={() => setRenaming(true)}>Rename…</DropdownMenuItem>
@@ -243,7 +243,7 @@ function Trash({ gardens }: { gardens: GardenRow[] }) {
       {open && (
         <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {gardens.map((g) => (
-            <li key={g.id} className="grid gap-2 rounded-md border border-dashed border-rule bg-sheet/60 p-4">
+            <li key={g.id} className="grid gap-2  border border-dashed border-rule bg-sheet/60 p-4">
               <p className="font-display text-lg leading-snug text-muted-foreground">{g.title}</p>
               <p className="smallcaps text-[13px] text-muted-foreground">In the trash since {new Date(g.deleted_at!).toLocaleDateString()}</p>
               <div className="grid grid-cols-2 gap-2">

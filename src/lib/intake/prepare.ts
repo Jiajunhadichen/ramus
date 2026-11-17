@@ -250,7 +250,7 @@ export function checkDraft(draft: Draft): string[] {
     if (m.rawStart != null && m.rawEnd != null && (m.rawStart < 0 || m.rawEnd > raw.length || m.rawStart > m.rawEnd)) problems.push("A message points outside its original.");
     if (m.bodyStart != null && m.rawEnd != null) {
       const ws = (s: string) => s.replace(/[\u200e\u200f\u202f\u00a0\ufeff]/g, " ").replace(/\s+/g, " ").trim();
-      if (ws(m.content) !== ws(raw.slice(m.bodyStart, m.rawEnd))) problems.push("A message's words differ from the original.");
+      if (ws(m.content) !== ws(raw.slice(m.bodyStart, m.rawEnd))) problems.push("A message’s words differ from the original.");
     }
   }
   return [...new Set(problems)];

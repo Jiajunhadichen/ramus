@@ -1,3 +1,4 @@
+import { SiteHeader } from "@/components/SiteHeader";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 import sample from "../../docs/sample-garden.json";
@@ -40,12 +41,12 @@ function Genesis() {
     const original = sample.nodes.find((n) => n.id === id);
     return <section className="min-w-0"><p className="eyebrow">{heading}</p>{n && <Button variant="ghost" className="h-auto whitespace-normal p-0 text-left font-serif text-[24px] font-normal" onClick={() => setSelected(n.id)}><Upright>{n.label}</Upright></Button>}<p className="mt-1 text-muted-foreground"><Upright>{original?.note ?? ""}</Upright></p>{id === "humans" && <p className="smallcaps mt-1 text-[13px] text-muted-foreground">Step 10 · <Upright>{sample.steps["10"]}</Upright></p>}</section>;
   };
-  return <main className="mx-auto grid max-w-[1100px] gap-6 px-5 py-8">
+  return <><SiteHeader /><main className="page grid gap-6 py-8">
     <h1 className="font-display text-[40px]">The origin of Ramus</h1>
     <div className="grid gap-6 border-y border-rule py-5 sm:grid-cols-2">{ideaBlock("root", "The question")}{ideaBlock("humans", "Where it has reached")}</div>
     <div className="flex flex-wrap items-center gap-4"><div role="tablist" aria-label="View">{[false, true].map((v) => <Button key={String(v)} variant="ghost" role="tab" aria-selected={table === v} onClick={() => setTable(v)} className={table === v ? "smallcaps underline" : "smallcaps text-muted-foreground"}>{v ? "Story" : "Tree"}</Button>)}</div><ReadingSwitch value={level} onChange={setLevel} /><Button variant="outline" size="sm" onClick={() => setPresenting(true)}>Present</Button>{!table && <DownloadTree title="The origin of Ramus" getSvg={() => sheet.current?.querySelector<SVGSVGElement>("svg.stam-tree") ?? null} />}<Button variant="ghost" className="smallcaps ml-auto" onClick={() => setEn(!en)}>{en ? "中文" : "EN"}</Button></div>
     {table ? <Systema nodes={withNotes} steps={steps} level={level} main={main} title="The origin of Ramus" selected={selected} onSelect={setSelected} /> : <div ref={sheet}><StamTree nodes={nodes} level={level} main={main} step={10} selected={selected} onSelect={setSelected} interactive specimen={{ no: "001", title: "The origin of Ramus", collectors: ["你", "ChatGPT", "Claude"] }} /></div>}
     {presenting && <Present title="The origin of Ramus" nodes={withNotes} steps={steps} level={level} main={main} specimen={{ no: "001", title: "The origin of Ramus", collectors: ["你", "ChatGPT", "Claude"] }} onClose={() => setPresenting(false)} />}
     <Legend people={[...new Map(nodes.map((n) => [n.by, { name: n.by, color: n.color }])).values()]} />
-  </main>;
+  </main></>;
 }

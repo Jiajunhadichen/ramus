@@ -53,7 +53,7 @@ export async function askGardener(system: string, user: string, opts: { fetchImp
       const detail = (await res.text().catch(() => "")).slice(0, 300);
       if (res.status === 402) throw new GardenerUnavailable("The AI allowance for this project is used up. The gardener can read again when Lovable credits are available.");
       if (res.status === 429) throw new GardenerUnavailable("The gardener is reading too much at once. Try again in a minute.");
-      if (res.status === 401 || res.status === 403) throw new GardenerUnavailable("The gardener's key was refused. Check that Lovable AI is enabled for this project.");
+      if (res.status === 401 || res.status === 403) throw new GardenerUnavailable("The gardener’s key was refused. Check that Lovable AI is enabled for this project.");
       lastProblem = `${res.status} ${detail}`;
       // the JSON mode may be what the model refused; try once without it, then the next model
       if (res.status === 400 && json && /response_format|json/i.test(detail)) continue;

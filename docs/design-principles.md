@@ -160,3 +160,11 @@ Still in force from v1.5.1: pen wobble, left-handed hatching, uneven merge dashe
 ## Showing it (v2.4)
 - Download: the tree as drawn now (same reading level and labels, fitted to the sheet, no hover rings or running animations) as a PNG at 3× for posts and slides, or an SVG for print. Fonts are embedded (only the slices of the families that draw its characters), colors are resolved to plain rgb, and a small "grown with Ramus" sits in the corner in the naturalist's hand. The fonts are served by Ramus itself so that the file uses exactly the faces on screen: a download in a substitute serif loses the whole look.
 - Present: one button, full screen. The question first; then each step grows on the tree while the side tells who raised what, how it grew and its note (at most four entries, the rest counted), with "the group went back to …" where it did; it ends on where the discussion has reached. Arrow keys or space to move, Escape to leave. Not a separate mode with its own look: the same tree and the same Story, told one step at a time.
+
+## House style (v2.6)
+
+1. Real quotation marks and apostrophes in all copy: “ ” and ’, never straight quotes (code, attributes and JSON keys excepted).
+2. One page grid: every page, header and footer sits in `page` (max 1400px, 20px side padding); reading columns use `measure` (66ch) and start at the page’s left edge. Dialogs keep their own widths.
+3. One running head: SiteHeader on every page, `bare` on the home page (no background or rule, same positions). Day · Night lives only in the header.
+4. One grammar for buttons: small caps mean “go somewhere” (tabs, header and footer links, Day · Night); roman sentence case means “do something”. Every button is 36px high, 15px text-face, no letter-spacing. At most one filled (ink) button per screen, for the main action; everything else is outline, inverting to ink on hover. Focus is a 1px ink outline offset 2px.
+5. Square corners, no shadows: paper doesn’t float. Radius is 0 everywhere; rounded-full only for true circles (colour dots, swatches, knot rings, radio dots, switch thumbs, Present progress dots). Floating surfaces are sheet with a 1px ink border; inputs have a 1px rule border that turns ink on focus.

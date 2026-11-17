@@ -18,5 +18,5 @@ export const REASONS = {
   knot: "A click: something this group settled. (Herbert Simon)",
   resting: "Resting, not deleted. Every idea is kept. (Richard Dawkins)",
   merge: "Two lines of thought recombined.",
-  unconfirmed: "The gardener's guess. People decide.",
+  unconfirmed: "The gardener’s guess. People decide.",
 } as const;

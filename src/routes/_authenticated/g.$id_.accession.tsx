@@ -39,7 +39,7 @@ export const Route = createFileRoute("/_authenticated/g/$id_/accession")({
 });
 
 type Received = { input: PrepareInput; file: File | null; name: string | null; from: string | null };
-const selectCls = "h-9 rounded-md border border-input bg-sheet px-2 text-sm";
+const selectCls = "h-9  border border-input bg-sheet px-2 text-sm";
 const SELF = new Set<Format>(["chatgpt", "claude", "notes"]);
 
 /** Open received files (zip, docx, text, json); the original kept is what the opener chose, never a whole export. */
@@ -189,7 +189,7 @@ function AccessionPage() {
 
   if (kept) {
     return (
-      <main className="mx-auto grid max-w-3xl justify-items-center gap-5 px-5 py-16 text-center">
+      <main className="page grid justify-items-start gap-5 py-16">
         <p className="eyebrow">Kept in the archive</p>
         <AccessionStamp no={kept.no} line={kept.line} />
         <p className="text-[15px]">{kept.added === 0 ? "0 new messages: everything here was already kept." : `${kept.added} new message${kept.added === 1 ? "" : "s"}`}{kept.already > 0 && kept.added > 0 ? ` · ${kept.already} already kept` : ""}</p>
@@ -209,7 +209,7 @@ function AccessionPage() {
   const remaining = over ? draft!.kept.length - over.kept : 0;
 
   return (
-    <main className="mx-auto grid max-w-6xl gap-6 px-5 py-8">
+    <main className="page grid gap-6 py-8">
       <div>
         <Link to="/g/$id" params={{ id }} search={{ idea: undefined }} className="eyebrow hover:underline">← {ctx.garden.title}</Link>
         <h1 className="mt-2 font-display text-[40px] leading-[1.1]">Accession</h1>
@@ -225,7 +225,7 @@ function AccessionPage() {
             {queue.length > 0 && <span className="text-sm text-muted-foreground">Next: {queue.map((f) => f.name).join(", ")}</span>}
           </div>
         ) : (
-          <div className="rounded-md border border-dashed border-ink/40 bg-sheet p-3"
+          <div className=" border border-dashed border-ink/40 bg-sheet p-3"
             onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (e.dataTransfer.files.length) void receiveFiles(e.dataTransfer.files); }}>
             <textarea aria-label="Paste anything" className="min-h-[160px] w-full resize-y bg-transparent text-[15px] outline-none"
               placeholder="Paste or drop anything here" value={paste}
@@ -238,12 +238,12 @@ function AccessionPage() {
           </div>
         )}
         {received?.from && received.from !== received.name && <p className="hand text-[16px]">{received.from}</p>}
-        {refusal && <p role="alert" className="rounded-md border border-rule bg-sheet px-3 py-2 text-[15px]">{refusal}</p>}
+        {refusal && <p role="alert" className=" border border-rule bg-sheet px-3 py-2 text-[15px]">{refusal}</p>}
       </section>
 
       {draft && (
         <section aria-label="Prepare" className="grid gap-6">
-          <div className="rounded-md border border-rule bg-sheet p-4">
+          <div className=" border border-rule bg-sheet p-4">
             <div className="flex flex-wrap items-baseline gap-x-2 text-[15px]">
               <span>Read as</span>
               <select aria-label="Read as" className="border-0 border-b border-dotted border-ink bg-transparent text-[15px]" value={draft.format}
@@ -276,7 +276,7 @@ function AccessionPage() {
                 const v = options.voices?.[s.label] ?? s.suggested;
                 const sel = v.type === "person" ? v.id : v.type;
                 return (
-                  <div key={s.label} className="grid gap-2 rounded border border-rule p-3 md:grid-cols-[14em_1fr_18em]">
+                  <div key={s.label} className="grid gap-2  border border-rule p-3 md:grid-cols-[14em_1fr_18em]">
                     <div><span className="font-medium" style={{ color: colorOf(s.label || null) }}>{s.label || "Whose notes"}</span> <span className="smallcaps text-[13px] text-muted-foreground">{s.count}</span>{s.remembered && <span className="hand ml-2">remembered</span>}</div>
                     <div className="grid gap-0.5 text-sm text-muted-foreground">{s.samples.map((x, i) => <span key={i} className="truncate">“{x}”</span>)}</div>
                     <div className="flex gap-2">
@@ -309,7 +309,7 @@ function AccessionPage() {
             </div>
           )}
 
-          <div className="grid gap-3 rounded-md border border-rule bg-sheet p-4">
+          <div className="grid gap-3  border border-rule bg-sheet p-4">
             {(intoTitle || (over && overTitle)) && (
               <div className="grid gap-1 text-[15px]">
                 {intoTitle && into && <label className="flex items-center gap-2"><input type="radio" name="target" checked={target === into} onChange={() => setTarget(into)} />Add to “{intoTitle}”{over?.conversationId === into ? `: ${remaining} new, ${over.kept} already kept` : ""}</label>}
@@ -344,7 +344,7 @@ function LookFirst({ draft, options, setOptions }: { draft: Draft; options: Prep
       {!qs.length && <p className="hand text-[18px]">Nothing needs your eye.</p>}
       <ol className="grid gap-2">
         {qs.map((q, i) => (
-          <li key={q.kind + i} className="grid gap-2 rounded border border-rule p-3 text-[15px]">
+          <li key={q.kind + i} className="grid gap-2  border border-rule p-3 text-[15px]">
             <span>{q.text}</span>
             {q.kind === "date-order" && (
               <div className="flex flex-wrap gap-4">
@@ -386,7 +386,7 @@ function LookFirst({ draft, options, setOptions }: { draft: Draft; options: Prep
       </ol>
       {options.mask && <p className="hand">Masked before keeping{options.mask === "all" ? ": all phone numbers and emails" : ""}. The original file will not be uploaded. <button type="button" className="underline" onClick={() => setOptions((o) => ({ ...o, mask: undefined }))}>Undo</button></p>}
       {draft.conversations.length > 1 && (
-        <div className="grid gap-1 rounded border border-rule p-3">
+        <div className="grid gap-1  border border-rule p-3">
           <span className="eyebrow">Conversations in this export</span>
           {draft.conversations.map((c) => {
             const on = options.conversations?.includes(c.id) ?? false;
@@ -448,7 +448,7 @@ function Original({ draft, lit, setLit }: { draft: Draft; lit: number | null; se
       </>
     );
   }, [draft, setLit]);
-  return <div ref={box} className="original-sample max-h-[60vh] overflow-y-auto rounded-md border border-rule bg-sheet p-3 text-[15px]">{body}</div>;
+  return <div ref={box} className="original-sample max-h-[60vh] overflow-y-auto  border border-rule bg-sheet p-3 text-[15px]">{body}</div>;
 }
 
 function Prepared({ draft, lit, setLit, colorOf, nameOf, tz }: { draft: Draft; lit: number | null; setLit: (i: number | null) => void; colorOf: (l: string | null) => string; nameOf: (l: string | null) => string; tz: string | undefined }) {
@@ -461,7 +461,7 @@ function Prepared({ draft, lit, setLit, colorOf, nameOf, tz }: { draft: Draft; l
         if (!keptSet.has(m)) return null;
         return (
           <li key={m.externalId} data-o={i} tabIndex={0} onMouseEnter={() => setLit(i)} onMouseLeave={() => setLit(null)} onFocus={() => setLit(i)} onBlur={() => setLit(null)}
-            className={"rounded-md border border-rule bg-sheet p-3" + (m.hidden ? " opacity-50" : "")}
+            className={" border border-rule bg-sheet p-3" + (m.hidden ? " opacity-50" : "")}
             style={{ borderLeftWidth: 4, borderLeftColor: colorOf(m.speakerLabel) }}>
             <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
               <span className="font-medium" style={{ color: colorOf(m.speakerLabel) }}>{nameOf(m.speakerLabel)}</span>

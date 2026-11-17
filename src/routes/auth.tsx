@@ -12,9 +12,9 @@ export const Route = createFileRoute("/auth")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { title: "Sign in — Ramus" },
-      { name: "description", content: "Sign in to Ramus to tend your group's idea gardens." },
+      { name: "description", content: "Sign in to Ramus to tend your group’s idea gardens." },
       { property: "og:title", content: "Sign in — Ramus" },
-      { property: "og:description", content: "Sign in to Ramus to tend your group's idea gardens." },
+      { property: "og:description", content: "Sign in to Ramus to tend your group’s idea gardens." },
     ],
   }),
   component: AuthPage,
@@ -48,7 +48,7 @@ function AuthPage() {
   return (
     <div className="min-h-screen">
       <SiteHeader />
-      <main className="mx-auto mt-16 max-w-sm rounded-md border border-rule bg-sheet p-6">
+      <main className="page"><div className="mt-16 max-w-sm border border-rule bg-sheet p-6">
         <p className="eyebrow">{mode === "in" ? "Welcome back" : "New collector"}</p>
         <h1 className="font-display text-2xl">{mode === "in" ? "Sign in" : "Create an account"}</h1>
         <form onSubmit={submit} className="mt-5 grid gap-4">
@@ -60,7 +60,7 @@ function AuthPage() {
         <button type="button" className="mt-4 text-sm underline underline-offset-4" onClick={() => { setMode(mode === "in" ? "up" : "in"); setMsg(null); }}>
           {mode === "in" ? "No account yet? Create one" : "Already have an account? Sign in"}
         </button>
-      </main>
+      </div></main>
     </div>
   );
 }
