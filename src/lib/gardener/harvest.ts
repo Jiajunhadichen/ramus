@@ -47,7 +47,7 @@ You never add ideas of your own and you never summarise. Everything you return i
 
 2. Lineage.
 - "parent": the single idea this one most directly grew from: the key of an existing idea in the garden, or the id of another idea you propose. Ideas that start a new thread grow from the garden's root.
-- "nature": how it relates to its parent: "answers", "refines", "challenges", "splits" (an alternative branching off) or "combines" (only with merges).
+- "nature": how it relates to its parent: "answers", "refines", "challenges", "splits" (an alternative branching off) or "combines" (only with merges). Use null when there is no such relation, as when someone simply opens a new topic under the root; never say "answers" unless it really answers the parent.
 - "why": one checkable sentence on why this is the parent. Start with "Likely:" if it is a guess.
 - "merges": only when an idea explicitly combines earlier ideas: [{"with": key or id, "why": "..."}]. Similar topics are not a merge.
 - Never repeat an idea that is already in the garden; attach to it instead.
@@ -63,9 +63,25 @@ You never add ideas of your own and you never summarise. Everything you return i
 - Use only what is in the messages. Prefer fewer, well-grounded ideas over many thin ones: at most 15. Unrelated chatter is not a thread; leave it out.
 
 Return only JSON, exactly in this shape:
-{"stages":[{"n":1,"title":"..."}],"ideas":[{"id":"short-id","label":"...","note":"...","origin":"m3","quote":"...","evidence":[],"parent":"root-or-key-or-id","nature":"answers","why":"...","merges":[],"status":"growing","knot":null,"stage":1}]}`;
+{"stages":[{"n":1,"title":"..."}],"ideas":[{"id":"short-id","label":"...","note":"...","origin":"m3","quote":"...","evidence":[],"parent":"root-or-key-or-id","nature":null,"why":"...","merges":[],"status":"growing","knot":null,"stage":1}]}`;
 
 const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
+
+/** A long label is cut at a word boundary, never mid-word ("Socket overload trips fu"). */
+export function shorten(label: string): string {
+  const chars = [...label];
+  if (chars.length <= MAX_LABEL) return label;
+  const head = chars.slice(0, MAX_LABEL + 1).join("");
+  const space = head.lastIndexOf(" ");
+  if (space >= MAX_LABEL / 2) {
+    let cut = head.slice(0, space).replace(/[\s,;:–—-]+$/, "");
+    // Don't end on a little word: "Submit a fault report to" → "Submit a fault report".
+    const little = /\s+(?:a|an|the|to|of|and|or|for|in|on|at|by|with|och|att|en|ett|av|på|i|med|för|från)$/i;
+    while (little.test(cut)) cut = cut.replace(little, "");
+    return cut;
+  }
+  return chars.slice(0, MAX_LABEL).join("").trim();
+}
 
 /** The prompt: the garden as it stands and the conversation, with short message refs. */
 export function harvestPrompt(input: HarvestInput): { system: string; user: string } {
@@ -114,7 +130,7 @@ export function checkHarvest(answer: unknown, input: HarvestInput): Checked {
   for (const r of rawIdeas) {
     if (!r || typeof r !== "object") continue;
     let label = str(r["label"]).replace(/^["“'「]+|["”'」]+$/g, "");
-    if ([...label].length > MAX_LABEL) label = [...label].slice(0, MAX_LABEL).join("").trim();
+    if ([...label].length > MAX_LABEL) label = shorten(label);
     if (!label) { dropped.push({ label: "(no label)", reason: "it had no label" }); continue; }
     const origin = byRef.get(str(r["origin"]));
     if (!origin) { dropped.push({ label, reason: "its origin is not a message in this conversation" }); continue; }

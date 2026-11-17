@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { checkHarvest, fitMessages, harvestPrompt, parseAnswer, type HarvestInput } from "./harvest";
+import { checkHarvest, fitMessages, harvestPrompt, parseAnswer, type HarvestInput, shorten } from "./harvest";
 import { askGardener, GardenerUnavailable } from "./ai";
 
 const msg = (n: number, speaker: string, content: string, human = true) => ({
@@ -61,9 +61,16 @@ describe("checking what the gardener proposes", () => {
       idea({ id: "b", label: "Report", origin: "m4", knot: { kind: "decision", settled: "Everyone reports broken machines." } }),
       idea({ id: "c", label: "Bad knot", origin: "m3", knot: { kind: "vibes", settled: "x" } }),
     ] }, input);
-    expect([...c.proposals[0]!.label].length).toBeLessThanOrEqual(24);
+    expect(c.proposals[0]!.label).toBe("Submit a fault report");
     expect(c.proposals[0]!.nature).toBe(null);
     expect(c.proposals.map((p) => p.knot?.kind ?? null)).toEqual([null, "decision", null]);
+  });
+  it("long labels are cut between words, Chinese labels by characters", () => {
+    expect(shorten("Socket overload trips fuses")).toBe("Socket overload trips");
+    expect(shorten("Venus Beauty recommendation")).toBe("Venus Beauty");
+    expect(shorten("Shoulder-month heat cycling")).toBe("Shoulder-month heat");
+    expect(shorten("Supercalifragilisticexpialidocious")).toHaveLength(24);
+    expect([...shorten("宿舍洗衣机坏了大家一起向房东报修然后等待回复再说")]).toHaveLength(24);
   });
   it("stages: only the ones used, unknown stage numbers fall to the first", () => {
     const c = checkHarvest({ stages: [{ n: 1, title: "Asking" }, { n: 2, title: "Deciding" }, { n: 3, title: "Unused" }], ideas: [idea({ id: "a", label: "A", stage: 2 }), idea({ id: "b", label: "B", origin: "m2", stage: 9 })] }, input);
