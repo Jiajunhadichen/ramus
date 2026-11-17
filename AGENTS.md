@@ -59,9 +59,7 @@ use the editor.
 - Principle 14 — Show what matters first (Herbert Simon, “The Architecture of Complexity”, 1962): levels change emphasis, never what exists; retain every idea while showing the question, outcomes, main growth, then the full record.
 - Compute main lineage and reading detail in pure src/lib/stam/reading.ts; keep layout inputs independent of reading level. Why: switching depth must preserve the mental map and remain testable.
 - Outcome writes use the authenticated setOutcome server function and atomic set_idea_outcome RPC, with validation and an audit entry, never a fabricated thought event. Why: only people decide outcomes, and changing emphasis is not rewriting discussion history.
-- The workspace has no reading switch: labels appear by zoom and selection via pure src/lib/stam/labels.ts (priority rule tested); Present and the landing keep reading levels internally; Field notes collapse is a device-local preference. Why: fewer controls, and the label rule must stay testable.
-- Garden cards count people as distinct planters of ideas in the tree (src/lib/stam/people.ts), never contributor rows; listGardens batches one query per table for thumbnails. Why: imported conversations add every speaker as a contributor.
-- Downloads render an off-screen poster-composed StamTree (whole tree, fitted labels, specimen bottom-right) and export it through treeImage.ts. Why: a shared image must be the whole tree, never the current viewport.
+- v2.7: workspace labels come from pure src/lib/stam/labels.ts (no reading switch); card people = distinct planters (src/lib/stam/people.ts); downloads render an off-screen poster StamTree. Why: testable rules, honest counts, whole-tree images.
 - The public /genesis page reads bundled historical demo content, never authenticated archive records; English demo labels are presentation-only and export retains original labels. Why: public readings must not expose private gardens or rewrite their source.
 
 ## Intake (Accession, v2.0)
