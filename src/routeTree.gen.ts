@@ -16,6 +16,7 @@ import { Route as GenesisRouteImport } from './routes/genesis'
 import { Route as PrinciplesRouteImport } from './routes/principles'
 import { Route as AuthenticatedGardensRouteImport } from './routes/_authenticated/gardens'
 import { Route as AuthenticatedGIdRouteImport } from './routes/_authenticated/g.$id'
+import { Route as AuthenticatedGIdAccessionRouteImport } from './routes/_authenticated/g.$id_.accession'
 import { Route as AuthenticatedGIdConversationsCidRouteImport } from './routes/_authenticated/g.$id_.conversations.$cid'
 
 const IndexRoute = IndexRouteImport.update({
@@ -52,6 +53,12 @@ const AuthenticatedGIdRoute = AuthenticatedGIdRouteImport.update({
   path: '/g/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedGIdAccessionRoute =
+  AuthenticatedGIdAccessionRouteImport.update({
+    id: '/g/$id_/accession',
+    path: '/g/$id/accession',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedGIdConversationsCidRoute =
   AuthenticatedGIdConversationsCidRouteImport.update({
     id: '/g/$id_/conversations/$cid',
@@ -66,6 +73,7 @@ export interface FileRoutesByFullPath {
   '/principles': typeof PrinciplesRoute
   '/gardens': typeof AuthenticatedGardensRoute
   '/g/$id': typeof AuthenticatedGIdRoute
+  '/g/$id/accession': typeof AuthenticatedGIdAccessionRoute
   '/g/$id/conversations/$cid': typeof AuthenticatedGIdConversationsCidRoute
 }
 export interface FileRoutesByTo {
@@ -75,6 +83,7 @@ export interface FileRoutesByTo {
   '/principles': typeof PrinciplesRoute
   '/gardens': typeof AuthenticatedGardensRoute
   '/g/$id': typeof AuthenticatedGIdRoute
+  '/g/$id/accession': typeof AuthenticatedGIdAccessionRoute
   '/g/$id/conversations/$cid': typeof AuthenticatedGIdConversationsCidRoute
 }
 export interface FileRoutesById {
@@ -86,6 +95,7 @@ export interface FileRoutesById {
   '/principles': typeof PrinciplesRoute
   '/_authenticated/gardens': typeof AuthenticatedGardensRoute
   '/_authenticated/g/$id': typeof AuthenticatedGIdRoute
+  '/_authenticated/g/$id_/accession': typeof AuthenticatedGIdAccessionRoute
   '/_authenticated/g/$id_/conversations/$cid': typeof AuthenticatedGIdConversationsCidRoute
 }
 export interface FileRouteTypes {
@@ -97,6 +107,7 @@ export interface FileRouteTypes {
     | '/principles'
     | '/gardens'
     | '/g/$id'
+    | '/g/$id/accession'
     | '/g/$id/conversations/$cid'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -106,6 +117,7 @@ export interface FileRouteTypes {
     | '/principles'
     | '/gardens'
     | '/g/$id'
+    | '/g/$id/accession'
     | '/g/$id/conversations/$cid'
   id:
     | '__root__'
@@ -116,6 +128,7 @@ export interface FileRouteTypes {
     | '/principles'
     | '/_authenticated/gardens'
     | '/_authenticated/g/$id'
+    | '/_authenticated/g/$id_/accession'
     | '/_authenticated/g/$id_/conversations/$cid'
   fileRoutesById: FileRoutesById
 }
@@ -178,6 +191,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/g/$id_/accession': {
+      id: '/_authenticated/g/$id_/accession'
+      path: '/g/$id/accession'
+      fullPath: '/g/$id/accession'
+      preLoaderRoute: typeof AuthenticatedGIdAccessionRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/g/$id_/conversations/$cid': {
       id: '/_authenticated/g/$id_/conversations/$cid'
       path: '/g/$id/conversations/$cid'
@@ -191,12 +211,14 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedGardensRoute: typeof AuthenticatedGardensRoute
   AuthenticatedGIdRoute: typeof AuthenticatedGIdRoute
+  AuthenticatedGIdAccessionRoute: typeof AuthenticatedGIdAccessionRoute
   AuthenticatedGIdConversationsCidRoute: typeof AuthenticatedGIdConversationsCidRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedGardensRoute: AuthenticatedGardensRoute,
   AuthenticatedGIdRoute: AuthenticatedGIdRoute,
+  AuthenticatedGIdAccessionRoute: AuthenticatedGIdAccessionRoute,
   AuthenticatedGIdConversationsCidRoute: AuthenticatedGIdConversationsCidRoute,
 }
 

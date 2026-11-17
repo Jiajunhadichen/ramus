@@ -8,7 +8,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useReplay } from "@/components/stam-tree/useReplay";
 import { FieldNotes } from "@/components/garden/FieldNotes";
-import { AddConversationDialog } from "@/components/garden/AddConversationDialog";
+import { handOver } from "@/lib/intake/handover";
 import { stepDate, toIdeas, toStam } from "@/components/garden/model";
 import { maxStep, selectionAt } from "@/lib/stam/layout";
 import { Button } from "@/components/ui/button";
@@ -60,7 +60,26 @@ function GardenPage() {
   const changeLevel = (next: ReadingLevel) => { setLevel(next); localStorage.setItem(preferenceKey, next); };
   const max = maxStep(ideas);
   const r = useReplay(max);
-  const [convOpen, setConvOpen] = useState(false);
+  const bringIn = () => navigate({ to: "/g/$id/accession", params: { id } });
+  // Pasting 2+ lines (no field focused) or dropping a file opens the Accession page with it.
+  useEffect(() => {
+    const free = () => { const a = document.activeElement as HTMLElement | null; return !a || !(a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)); };
+    const onPaste = (e: ClipboardEvent) => {
+      const t = e.clipboardData?.getData("text/plain") ?? "";
+      if (!free() || t.split(/\r?\n/).filter((l) => l.trim()).length < 2) return;
+      e.preventDefault(); handOver(id, { text: t }); bringIn();
+    };
+    const onOver = (e: DragEvent) => { if (e.dataTransfer?.types.includes("Files")) e.preventDefault(); };
+    const onDrop = async (e: DragEvent) => {
+      const files = [...(e.dataTransfer?.files ?? [])];
+      if (!files.length) return;
+      e.preventDefault();
+      handOver(id, { files: await Promise.all(files.map(async (f) => ({ name: f.name, text: await f.text() }))) }); bringIn();
+    };
+    window.addEventListener("paste", onPaste); window.addEventListener("dragover", onOver); window.addEventListener("drop", onDrop);
+    return () => { window.removeEventListener("paste", onPaste); window.removeEventListener("dragover", onOver); window.removeEventListener("drop", onDrop); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
   const [view, setView] = useState<"tree" | "systema">("tree");
   const [mode, setMode] = useState<"steps" | "events">("steps");
   const events = useMemo(() => replayOrder((data.thoughts ?? []) as Thought[]), [data.thoughts]);
@@ -144,7 +163,7 @@ function GardenPage() {
               {(data.conversations as any[]).map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
             </select>
           )}
-          <Button variant="outline" size="sm" onClick={() => setConvOpen(true)}>Add a conversation</Button>
+          <Button variant="outline" size="sm" onClick={bringIn}>Bring in a conversation</Button>
           <Button variant="outline" size="sm" onClick={exportJson}>Export Stam JSON</Button>
         </div>
       </header>
@@ -209,7 +228,6 @@ function GardenPage() {
           </Sheet>
         ) : notes}
       </div>
-      <AddConversationDialog data={data} open={convOpen} onOpenChange={setConvOpen} onSaved={refresh} />
     </main>
   );
 }

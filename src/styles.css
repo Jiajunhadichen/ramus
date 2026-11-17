@@ -222,3 +222,15 @@
 .stam-tree .label-hidden { opacity: 0 !important; pointer-events: none; }
 .stam-tree .bud { opacity: .25; }
 .stam-tree .merge.quiet-merge { opacity: .2; }
+
+/* v2.0 accession */
+.accession-stamp { color: var(--ink); opacity: .78; }
+.accession-stamp .sp-stamp { font-family: var(--font-sc); letter-spacing: .06em; }
+.accession-stamp.pressed { animation: stamp-press 420ms ease-out both; }
+@keyframes stamp-press { from { opacity: 0; transform: scale(1.04) rotate(-1.5deg); } to { opacity: .78; transform: none; } }
+.original-sample { font-family: "Ramus Digits", "IM Fell English", "Noto Serif SC", serif; color: var(--sepia); }
+.original-sample .ln { font-family: var(--font-sc); font-size: 10px; color: var(--muted-foreground); user-select: none; }
+.original-sample .aside { opacity: .45; }
+.original-sample .lit { background: color-mix(in oklab, var(--sepia) 12%, transparent); }
+.rule-dotted { border-top: 1px dotted var(--rule); }
+@media (prefers-reduced-motion: reduce) { .accession-stamp.pressed { animation: none; } }
