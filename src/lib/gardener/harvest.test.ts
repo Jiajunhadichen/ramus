@@ -74,8 +74,55 @@ describe("checking what the gardener proposes", () => {
   });
   it("stages: only the ones used, unknown stage numbers fall to the first", () => {
     const c = checkHarvest({ stages: [{ n: 1, title: "Asking" }, { n: 2, title: "Deciding" }, { n: 3, title: "Unused" }], ideas: [idea({ id: "a", label: "A", stage: 2 }), idea({ id: "b", label: "B", origin: "m2", stage: 9 })] }, input);
-    expect(c.stages.map((s) => s.title)).toEqual(["Asking", "Deciding"]);
-    expect(c.proposals.map((p) => p.stage)).toEqual([2, 1]);
+    // "Deciding" begins with m1, before "Asking" begins with m2: stages follow the order of the messages
+    expect(c.stages.map((s) => s.title)).toEqual(["Deciding", "Asking"]);
+    expect(c.proposals.map((p) => p.stage)).toEqual([1, 2]);
+  });
+  it("order is evidence: a branch never grows from something said after it", () => {
+    const c = checkHarvest({ ideas: [
+      idea({ id: "q", label: "How to complain", origin: "m1" }),
+      idea({ id: "report", label: "Fault report", origin: "m2", parent: "rent", nature: "refines", merges: [{ with: "act" }] }),
+      idea({ id: "rent", label: "Rent reduction", origin: "m4", parent: "q", merges: [{ with: "act" }] }),
+      idea({ id: "act", label: "Do something", origin: "m3", parent: "rent" }),
+    ] }, input);
+    const by = new Map(c.proposals.map((p) => [p.label, p]));
+    // m2 cannot grow from m4: it moves up to where m4 grew from, which was said before it
+    expect(by.get("Fault report")).toMatchObject({ parent: "q", nature: null });
+    expect(by.get("Fault report")!.why).toMatch(/order of the messages/);
+    expect(by.get("Do something")).toMatchObject({ parent: "q" });
+    expect(by.get("Fault report")!.merges).toEqual([]);
+    // merging with something said earlier is fine
+    expect(by.get("Rent reduction")!.merges.map((m) => m.target)).toEqual(["act"]);
+    expect(c.proposals.map((p) => p.label).indexOf("Do something")).toBeLessThan(c.proposals.map((p) => p.label).indexOf("Rent reduction"));
+  });
+  it("an idea already on the tree that was said later is not a parent for older words", () => {
+    const later = { ...input, ideas: [...input.ideas, { key: "petition", label: "Petition", note: "", by: "Lea", parents: ["root"], status: "growing", knot: false, at: "2026-11-20T10:00:00Z" }] };
+    const c = checkHarvest({ ideas: [idea({ id: "a", label: "Fault report", origin: "m2", parent: "petition" })] }, later);
+    expect(c.proposals[0]!.parent).toBe("root");
+    const earlier = { ...input, ideas: [...input.ideas, { key: "petition", label: "Petition", note: "", by: "Lea", parents: ["root"], status: "growing", knot: false, at: "2026-11-10T10:00:00Z" }] };
+    expect(checkHarvest({ ideas: [idea({ id: "a", label: "Fault report", origin: "m2", parent: "petition" })] }, earlier).proposals[0]!.parent).toBe("petition");
+  });
+  it("a knot is settled where the group settled it, never before the idea was raised", () => {
+    const c = checkHarvest({ ideas: [
+      idea({ id: "a", label: "Report", origin: "m2", knot: { kind: "decision", settled: "Everyone reports.", m: "m4" } }),
+      idea({ id: "b", label: "Act", origin: "m3", knot: { kind: "decision", settled: "We act.", m: "m1" } }),
+    ] }, input);
+    expect(c.proposals.map((p) => p.knot?.messageId)).toEqual(["id-4", null]);
+  });
+  it("a new garden's root is named by the gardener, its words owned by a person", () => {
+    const fresh = { ...input, nameRoot: true };
+    expect(harvestPrompt(fresh).user).toMatch(/only a placeholder/);
+    expect(checkHarvest({ root: { label: "How to complain about the dryers", note: "n", origin: "m1" }, ideas: [] }, fresh).root)
+      .toMatchObject({ label: "How to complain about", personId: "p-Saloni", originMessageId: "id-1" });
+    expect(checkHarvest({ root: { label: "Dorm life", origin: "m5" }, ideas: [] }, fresh).root).toMatchObject({ label: "Dorm life", personId: null });
+    expect(checkHarvest({ root: { label: "Dorm life" }, ideas: [] }, input).root).toBe(null);
+  });
+  it("several sources read as one stream name their source; parts say which part", () => {
+    const two = { ...input, part: { n: 2, of: 3 }, messages: input.messages.map((m, i) => ({ ...m, source: i < 2 ? "WhatsApp" : "Meeting" })) };
+    const u = harvestPrompt(two).user;
+    expect(u).toContain("m3 [2026-11-17 13:03] (Meeting) Lea:");
+    expect(u).toContain("part 2 of 3");
+    expect(harvestPrompt(input).user).not.toContain("(Meeting)");
   });
   it("reads answers wrapped in a code fence or prose", () => {
     expect(parseAnswer('```json\n{"ideas":[]}\n```')).toEqual({ ideas: [] });

@@ -6,7 +6,8 @@ import { validateGarden, formatError, MAX_LABEL } from "./stam/validate";
 import type { StamGarden, ValidationError } from "./stam/types";
 import { prepare, checkDraft, resolveVoices, isRealName, type PrepareInput, type PrepareOptions, type Format } from "./intake";
 import { nextColor } from "./stam/palette";
-import { checkHarvest, fitMessages, harvestPrompt, parseAnswer } from "./gardener/harvest";
+import { checkHarvest, harvestPrompt, parseAnswer } from "./gardener/harvest";
+import { inTimeOrder, parts } from "./gardener/order";
 import { askGardener } from "./gardener/ai";
 import sample from "../../docs/sample-garden.json";
 
@@ -100,14 +101,17 @@ export const importGarden = createServerFn({ method: "POST" })
 
 export const createGarden = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { title: string; rootLabel: string; rootNote: string; person: string }) => d)
+  .inputValidator((d: { title: string; rootLabel: string; rootNote: string; person: string; asMe?: boolean | undefined }) => d)
   .handler(async ({ data, context }) => {
+    // planted from conversations: the root starts as the importer's, and the importer is linked to their own person
+    const by = data.asMe ? importerNameOf(context) : data.person.trim() || "Me";
     const r = await importStamInto(context, {
       title: data.title.trim() || "Untitled garden", collected: new Date().toISOString().slice(0, 10),
       steps: { "1": "Start" },
-      nodes: [{ id: "root", label: data.rootLabel.trim(), note: data.rootNote, by: data.person.trim() || "Me", step: 1, status: "growing", parents: [] }],
+      nodes: [{ id: "root", label: data.rootLabel.trim(), note: data.rootNote, by, step: 1, status: "growing", parents: [] }],
     });
     if (!r.ok) fail(r.errors.map(formatError).join("\n"));
+    if (data.asMe) check(await context.supabase.from("contributors").update({ user_id: context.userId }).eq("garden_id", r.gardenId).eq("name", by));
     return { gardenId: r.gardenId };
   });
 
@@ -155,7 +159,13 @@ export const getGarden = createServerFn({ method: "GET" })
     const liveLinks = links.filter((l: { parent_id: string; child_id: string }) => liveIds.has(l.parent_id) && liveIds.has(l.child_id));
     const proposed = check(await supabase.from("events").select("idea_id,payload").eq("garden_id", data.id).eq("actor_kind", "ai").eq("type", "idea_created"));
     const suggestions = Object.fromEntries(proposed.filter((e) => e.idea_id && liveIds.has(e.idea_id)).map((e) => [e.idea_id!, e.payload as { why?: string | null; quote?: string | null; knot?: { kind: string; settled: string } | null; conversation_id?: string }]));
-    return { viewerId: context.userId, garden, contributors, steps, ideas, links: liveLinks, conversations, convMessages, evidence, thoughts, thoughtEvidence, suggestions };
+    // which conversations the gardener has read, even where it found nothing to grow
+    const readings = check(await supabase.from("events").select("payload").eq("garden_id", data.id).eq("actor_kind", "ai").eq("type", "idea_edited"));
+    const readConversationIds = [...new Set([
+      ...proposed.map((e) => (e.payload as { conversation_id?: string } | null)?.conversation_id),
+      ...readings.flatMap((e) => (e.payload as { read?: { conversation_ids?: string[] } } | null)?.read?.conversation_ids ?? []),
+    ].filter((c): c is string => !!c))];
+    return { viewerId: context.userId, garden, contributors, steps, ideas, links: liveLinks, conversations, convMessages, evidence, thoughts, thoughtEvidence, suggestions, readConversationIds };
   });
 
 export const getConversation = createServerFn({ method: "GET" })
@@ -350,6 +360,16 @@ const SOURCE_OF: Record<Format, "meeting" | "chat" | "notes" | "other"> = {
   whatsapp: "chat", slack: "chat", chatgpt: "chat", claude: "chat", lines: "chat", transcript: "meeting", vtt: "meeting", srt: "meeting", notes: "notes",
 };
 
+/** The importer's own name if they gave one; never derived from their email address, which other members would see. */
+function importerNameOf(context: { claims?: unknown }): string {
+  const meta = (context.claims as { user_metadata?: { full_name?: string; name?: string } } | undefined)?.user_metadata;
+  return (meta?.full_name || meta?.name || "").trim() || "Me";
+}
+
+export const whoAmI = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => ({ name: importerNameOf(context) }));
+
 async function intakeContext(supabase: DB, gardenId: string, userId: string) {
   const contributors = check(await supabase.from("contributors").select("id,name,color,kind,user_id").eq("garden_id", gardenId));
   const aliases = check(await supabase.from("speaker_aliases").select("alias,contributor_id").eq("garden_id", gardenId));
@@ -365,10 +385,7 @@ export const getAccessionContext = createServerFn({ method: "GET" })
     if (!garden) fail("This garden does not exist or you cannot see it.");
     const ctx = await intakeContext(context.supabase, data.gardenId, context.userId);
     const conversations = check(await context.supabase.from("conversations").select("id,title").eq("garden_id", data.gardenId).order("created_at"));
-    // the importer's own name if they gave one; never derived from their email address, which other members would see
-    const meta = (context.claims as { user_metadata?: { full_name?: string; name?: string } } | undefined)?.user_metadata;
-    const importerName = (meta?.full_name || meta?.name || "").trim() || "Me";
-    return { garden, ...ctx, importerName, conversations };
+    return { garden, ...ctx, importerName: importerNameOf(context), conversations };
   });
 
 /** Which existing conversations already keep some of these messages. */
@@ -440,8 +457,8 @@ export const receiveBatch = createServerFn({ method: "POST" })
       _new_conversation: data.newConversation ? { title: data.newConversation.title.trim(), happened_at: data.newConversation.happenedAt || "", source: SOURCE_OF[draft.format] } : {},
       _batch: { raw_text: draft.raw, source_format: draft.format, original_file: data.originalFilePath ?? "", parser_version: draft.report.parser, options: { ...data.options }, report: draft.report },
       _people: people, _aliases: aliases, _messages: messages,
-    })) as { conversation_id: string; accession_no: number; added: number; already_kept: number };
-    return { conversationId: r.conversation_id, accessionNo: r.accession_no, added: r.added, alreadyKept: r.already_kept, format: draft.format, voices: draft.speakers.length, messages: draft.kept.length };
+    })) as { conversation_id: string; batch_id: string; accession_no: number; added: number; already_kept: number };
+    return { conversationId: r.conversation_id, batchId: r.batch_id, accessionNo: r.accession_no, added: r.added, alreadyKept: r.already_kept, format: draft.format, voices: draft.speakers.length, messages: draft.kept.length };
   });
 
 // ---------- the gardener: harvest a conversation into suggested branches ----------
@@ -456,89 +473,182 @@ async function allRows<T>(page: (from: number, to: number) => PromiseLike<{ data
   }
 }
 
-export const harvestConversation = createServerFn({ method: "POST" })
+type ThoughtRow = Database["public"]["Tables"]["thought_events"]["Insert"];
+
+/**
+ * The gardener grows the tree from what was brought in: one or more batches (or whole conversations),
+ * read as one stream in the order things were said, one part per call (the browser asks for the next part).
+ * Branches go straight onto the tree, marked as placed by the gardener; their history is written at the
+ * times the words were said, as the gardener's reading. People can take any branch off again.
+ */
+export const growTree = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { gardenId: string; conversationId: string }) => d)
+  .inputValidator((d: { gardenId: string; batchIds?: string[] | undefined; conversationIds?: string[] | undefined; part: number; nameRoot?: boolean | undefined; nameGarden?: boolean | undefined }) => {
+    const n = (d.batchIds?.length ?? 0) + (d.conversationIds?.length ?? 0);
+    if (!n) fail("Nothing to read.");
+    if (n > 50) fail("At most 50 conversations can be read together.");
+    if (!Number.isInteger(d.part) || d.part < 0) fail("Which part to read is missing.");
+    return d;
+  })
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
     if (!check(await supabase.rpc("can_write_garden", { _garden: data.gardenId }))) fail("You cannot write to this garden.");
     const garden = check(await supabase.from("gardens").select("id,title").eq("id", data.gardenId).single());
-    const conv = check(await supabase.from("conversations").select("id,title,happened_at").eq("id", data.conversationId).eq("garden_id", data.gardenId).maybeSingle());
-    if (!conv) fail("This conversation is not in this garden.");
     const people = check(await supabase.from("contributors").select("id,name,kind").eq("garden_id", data.gardenId));
+    const person = new Map(people.map((p) => [p.id, p]));
+
+    // what to read: messages of the given batches (or conversations), each source in its own order
+    const cols = "id,sequence,conversation_id,batch_id,contributor_id,speaker_label,content,sent_at,time_precision,hidden_reason";
+    const sources = [...(data.batchIds ?? []).map((id) => ({ kind: "batch" as const, id })), ...(data.conversationIds ?? []).map((id) => ({ kind: "conversation" as const, id }))];
+    const rows: (Awaited<ReturnType<typeof readSource>>[number] & { conversation: number })[] = [];
+    async function readSource(src: (typeof sources)[number]) {
+      return allRows((a, b) => supabase.from("messages").select(cols).eq("garden_id", data.gardenId).eq(src.kind === "batch" ? "batch_id" : "conversation_id", src.id).order("sequence").range(a, b));
+    }
+    for (const [i, src] of sources.entries()) rows.push(...(await readSource(src)).map((m) => ({ ...m, conversation: i })));
+    const convIds = [...new Set(rows.map((m) => m.conversation_id))];
+    const convs = convIds.length ? check(await supabase.from("conversations").select("id,title").in("id", convIds)) : [];
+    const titleOf = new Map(convs.map((c) => [c.id, c.title]));
+    const visible = rows.filter((m) => !m.hidden_reason && m.content.trim());
+    if (!visible.length) fail("There are no words to read in what was brought in.");
+    const stream = inTimeOrder(visible.map((m) => ({ ...m, sentAt: m.sent_at, precision: m.time_precision })));
+    const all = parts(stream);
+    const range = all[data.part];
+    if (!range) return { grown: 0, dropped: [], part: data.part, parts: all.length, read: 0, model: null, root: null };
+    const slice = stream.slice(range.from, range.to);
+
+    // the tree as it stands, with when each idea's first words were said
     const ideaRows = await allRows((a, b) => supabase.from("ideas").select("id,key,label,note,contributor_id,status,is_knot,step,position,rejected_at").eq("garden_id", data.gardenId).order("position").range(a, b));
     const linkRows = await allRows((a, b) => supabase.from("idea_links").select("parent_id,child_id,kind,position").eq("garden_id", data.gardenId).order("position").range(a, b));
     const stepRows = check(await supabase.from("steps").select("step").eq("garden_id", data.gardenId));
-    const msgRows = await allRows((a, b) => supabase.from("messages").select("id,sequence,contributor_id,speaker_label,content,sent_at,time_precision,hidden_reason").eq("conversation_id", conv.id).order("sequence").range(a, b));
-
     const live = ideaRows.filter((i) => !i.rejected_at);
     const liveIds = new Set(live.map((i) => i.id));
     const keyOf = new Map(ideaRows.map((i) => [i.id, i.key]));
-    const person = new Map(people.map((p) => [p.id, p]));
+    const originTimes = await originTimesOf(supabase, data.gardenId);
     const parentsOf = (id: string) => linkRows.filter((l) => l.child_id === id && liveIds.has(l.parent_id)).sort((x, y) => (x.kind === "primary" ? -1 : y.kind === "primary" ? 1 : x.position - y.position)).map((l) => keyOf.get(l.parent_id)!);
-    const ideas = live.map((i) => ({ key: i.key, label: i.label, note: i.note, by: person.get(i.contributor_id ?? "")?.name ?? "Unknown", parents: parentsOf(i.id), status: i.status, knot: i.is_knot }));
+    const ideas = live.map((i) => ({ key: i.key, label: i.label, note: i.note, by: person.get(i.contributor_id ?? "")?.name ?? "Unknown", parents: parentsOf(i.id), status: i.status, knot: i.is_knot, at: originTimes.get(i.id) ?? null }));
     const root = ideas.find((i) => !i.parents.length) ?? fail("This garden has no root to grow from.");
-    const visible = msgRows.filter((m) => !m.hidden_reason && m.content.trim());
-    if (!visible.length) fail("This conversation has no words to read.");
-    const { kept, skipped } = fitMessages(visible);
-    const messages = kept.map((m, i) => {
+    const rootRow = live.find((i) => i.key === root.key)!;
+    const nameRoot = !!data.nameRoot && data.part === 0 && live.length === 1;
+
+    const messages = slice.map((m, i) => {
       const p = m.contributor_id ? person.get(m.contributor_id) : undefined;
-      return { ref: `m${i + 1}`, id: m.id, speaker: p?.name ?? m.speaker_label ?? null, personId: p?.id ?? null, personIsHuman: p?.kind === "person", sentAt: m.time_precision !== "unknown" ? m.sent_at : null, content: m.content };
+      return { ref: `m${i + 1}`, id: m.id, speaker: p?.name ?? m.speaker_label ?? null, personId: p?.id ?? null, personIsHuman: p?.kind === "person", sentAt: m.time_precision !== "unknown" ? m.sent_at : null, content: m.content, source: titleOf.get(m.conversation_id) ?? null };
     });
-    const input = { gardenTitle: garden.title, conversationTitle: conv.title, rootKey: root.key, ideas, messages, skipped };
+    const titles = [...new Set(convIds.map((c) => titleOf.get(c)).filter(Boolean))];
+    const input = { gardenTitle: garden.title, conversationTitle: titles.join("; "), rootKey: root.key, ideas, messages, skipped: 0, part: { n: data.part + 1, of: all.length }, nameRoot };
 
     const prompt = harvestPrompt(input);
     const asked = await askGardener(prompt.system, prompt.user).catch((e) => fail((e as Error).message));
-    const { proposals, stages, dropped } = checkHarvest(parseAnswer(asked.text), input);
-    if (!proposals.length) return { proposed: 0, dropped, read: kept.length, skipped, model: asked.model };
+    const { proposals, stages, dropped, root: rootName } = checkHarvest(parseAnswer(asked.text), input);
+    const sentOf = new Map(slice.map((m) => [m.id, m.time_precision !== "unknown" ? { at: m.sent_at, precision: m.time_precision } : null]));
+    const orderOf = new Map(slice.map((m, i) => [m.id, i]));
+    const speakerOf = new Map(slice.map((m) => [m.id, m.contributor_id]));
+    const thoughtFor = (t: Omit<ThoughtRow, "garden_id" | "origin" | "confirmed" | "recorded_by" | "occurred_at" | "time_precision">, messageId: string | null) => {
+      const when = messageId ? sentOf.get(messageId) : null;
+      return { row: { ...t, garden_id: data.gardenId, origin: "ai", confirmed: false, recorded_by: userId, occurred_at: when?.at ?? null, time_precision: when?.precision ?? "unknown" } as ThoughtRow, messageId, order: messageId ? orderOf.get(messageId) ?? 1e9 : 1e9 };
+    };
+    const thoughts: ReturnType<typeof thoughtFor>[] = [];
 
-    // keys and steps for what the gardener proposes
+    // a new garden's root, named from the conversation
+    if (rootName) {
+      check(await supabase.from("ideas").update({ label: rootName.label, note: rootName.note, ...(rootName.personId ? { contributor_id: rootName.personId } : {}), updated_at: new Date().toISOString() }).eq("id", rootRow.id));
+      if (rootName.originMessageId) {
+        check(await supabase.from("idea_evidence").insert({ garden_id: data.gardenId, idea_id: rootRow.id, message_id: rootName.originMessageId, role: "origin", note: null, created_by: userId }));
+        const seeded = check(await supabase.from("thought_events").select("id").eq("idea_id", rootRow.id).eq("type", "raised").order("seq").limit(1)).at(0);
+        thoughts.push(thoughtFor({ type: "raised", idea_id: rootRow.id, person_id: rootName.personId, corrects_event_id: seeded?.id ?? null, rationale: "The gardener found where it was first raised." }, rootName.originMessageId));
+      }
+      // a garden planted from pasted words has only a placeholder name; it takes the root's
+      if (data.nameGarden) check(await supabase.from("gardens").update({ title: rootName.label }).eq("id", data.gardenId));
+      check(await supabase.from("events").insert({ garden_id: data.gardenId, actor: userId, actor_kind: "ai", type: "idea_edited", idea_id: rootRow.id, payload: { named_root: true, was: rootRow.label, label: rootName.label, model: asked.model } as never }));
+    }
+    if (!proposals.length) {
+      await writeThoughts(supabase, thoughts);
+      await noteReading();
+      return { grown: 0, dropped, part: data.part, parts: all.length, read: slice.length, model: asked.model, root: rootName?.label ?? null };
+    }
+
+    // keys and steps
     const key = new Map(proposals.map((p) => [p.temp, newKey()]));
     const keyFor = (t: string, isNew: boolean) => (isNew ? key.get(t)! : t);
     const g = await loadGraph(supabase, data.gardenId);
     assertValid([...g.nodes, ...proposals.map((p) => ({ id: key.get(p.temp)!, label: p.label, parents: [keyFor(p.parent, p.parentIsNew), ...p.merges.map((m) => keyFor(m.target, m.isNew))] }))]);
     const base = Math.max(0, ...stepRows.map((s) => s.step), ...ideaRows.map((i) => i.step));
-    const sentOf = new Map(messages.map((m) => [m.id, m.sentAt]));
     const stepOf = new Map(stages.map((s, i) => [s.n, base + i + 1]));
-    const stageDate = (n: number) => proposals.filter((p) => p.stage === n).map((p) => sentOf.get(p.originMessageId)).filter((t): t is string => !!t).sort()[0]?.slice(0, 10) ?? null;
-    check(await supabase.from("steps").insert(stages.map((s) => ({ garden_id: data.gardenId, step: stepOf.get(s.n)!, title: s.title, date: stageDate(s.n) }))));
+    const stageDate = (n: number) => proposals.filter((p) => p.stage === n).map((p) => sentOf.get(p.originMessageId)?.at).filter((t): t is string => !!t).sort()[0]?.slice(0, 10) ?? null;
+    if (stages.length) check(await supabase.from("steps").insert(stages.map((s) => ({ garden_id: data.gardenId, step: stepOf.get(s.n)!, title: s.title, date: stageDate(s.n) }))));
 
-    const rows = check(await supabase.from("ideas").insert(proposals.map((p, i) => ({
+    const inserted = check(await supabase.from("ideas").insert(proposals.map((p, i) => ({
       garden_id: data.gardenId, key: key.get(p.temp)!, label: p.label, note: p.note, contributor_id: p.personId,
-      step: stepOf.get(p.stage) ?? base + 1, status: p.status, origin: "ai" as const, confirmed: false,
-      position: ideaRows.length + i, owner_user_id: context.userId,
+      step: stepOf.get(p.stage) ?? base + 1, status: p.status, is_knot: !!p.knot, settled: p.knot?.settled ?? null,
+      origin: "ai" as const, confirmed: true, position: ideaRows.length + i, owner_user_id: userId,
     }))).select("id,key"));
-    const idOf = new Map([...g.nodes.map((n) => [n.id, n.dbId] as const), ...rows.map((r) => [r.key, r.id] as const)]);
-    const links = proposals.flatMap((p) => {
-      const child = idOf.get(key.get(p.temp)!)!;
-      return [
-        { garden_id: data.gardenId, parent_id: idOf.get(keyFor(p.parent, p.parentIsNew))!, child_id: child, kind: "primary" as const, nature: p.nature, rationale: p.why, origin: "ai" as const, confirmed: false, position: 0 },
-        ...p.merges.map((m, j) => ({ garden_id: data.gardenId, parent_id: idOf.get(keyFor(m.target, m.isNew))!, child_id: child, kind: "merge" as const, nature: "combines", rationale: m.why, origin: "ai" as const, confirmed: false, position: j + 1 })),
-      ];
-    });
-    check(await supabase.from("idea_links").insert(links));
-    const evidence = proposals.flatMap((p) => {
-      const idea = idOf.get(key.get(p.temp)!)!;
-      return [
-        { garden_id: data.gardenId, idea_id: idea, message_id: p.originMessageId, role: "origin" as const, note: p.quote ? `“${p.quote}”` : null, created_by: context.userId },
-        ...p.evidence.map((e) => ({ garden_id: data.gardenId, idea_id: idea, message_id: e.messageId, role: e.role, note: null, created_by: context.userId })),
-      ];
-    });
-    check(await supabase.from("idea_evidence").insert(evidence));
-    // the audit log says the gardener proposed these, at whose request, and why
+    const idOf = new Map([...g.nodes.map((n) => [n.id, n.dbId] as const), ...inserted.map((r) => [r.key, r.id] as const)]);
+    const dbOf = (p: (typeof proposals)[number]) => idOf.get(key.get(p.temp)!)!;
+    check(await supabase.from("idea_links").insert(proposals.flatMap((p) => [
+      { garden_id: data.gardenId, parent_id: idOf.get(keyFor(p.parent, p.parentIsNew))!, child_id: dbOf(p), kind: "primary" as const, nature: p.nature, rationale: p.why, origin: "ai" as const, confirmed: true, position: 0 },
+      ...p.merges.map((m, j) => ({ garden_id: data.gardenId, parent_id: idOf.get(keyFor(m.target, m.isNew))!, child_id: dbOf(p), kind: "merge" as const, nature: "combines", rationale: m.why, origin: "ai" as const, confirmed: true, position: j + 1 })),
+    ])));
+    check(await supabase.from("idea_evidence").insert(proposals.flatMap((p) => [
+      { garden_id: data.gardenId, idea_id: dbOf(p), message_id: p.originMessageId, role: "origin" as const, note: p.quote ? `“${p.quote}”` : null, created_by: userId },
+      ...p.evidence.map((e) => ({ garden_id: data.gardenId, idea_id: dbOf(p), message_id: e.messageId, role: e.role, note: null, created_by: userId })),
+    ])));
+    // the audit log: the gardener placed these, at whose request, and why
     check(await supabase.from("events").insert(proposals.map((p) => ({
-      garden_id: data.gardenId, actor: context.userId, actor_kind: "ai" as const, type: "idea_created" as const, idea_id: idOf.get(key.get(p.temp)!)!,
-      payload: { suggestion: true, conversation_id: conv.id, label: p.label, why: p.why, quote: p.quote, knot: p.knot, model: asked.model } as never,
+      garden_id: data.gardenId, actor: userId, actor_kind: "ai" as const, type: "idea_created" as const, idea_id: dbOf(p),
+      payload: { placed_by_gardener: true, conversation_id: slice.find((m) => m.id === p.originMessageId)?.conversation_id ?? null, label: p.label, why: p.why, quote: p.quote, knot: p.knot, model: asked.model } as never,
     }))));
-    return { proposed: proposals.length, dropped, read: kept.length, skipped, model: asked.model };
+    // the discussion history, at the times the words were said
+    for (const p of proposals) {
+      const id = dbOf(p), parent = idOf.get(keyFor(p.parent, p.parentIsNew))!;
+      thoughts.push(thoughtFor({ type: "raised", idea_id: id, related_idea_id: parent, person_id: p.personId }, p.originMessageId));
+      if (p.nature === "refines") thoughts.push(thoughtFor({ type: "refined", idea_id: id, related_idea_id: parent, person_id: p.personId }, p.originMessageId));
+      for (const m of p.merges) thoughts.push(thoughtFor({ type: "merged", idea_id: id, related_idea_id: idOf.get(keyFor(m.target, m.isNew))!, person_id: p.personId, rationale: m.why }, p.originMessageId));
+      for (const e of p.evidence.filter((x) => x.role === "challenges")) thoughts.push(thoughtFor({ type: "challenged", idea_id: id, person_id: speakerOf.get(e.messageId) ?? null }, e.messageId));
+      if (p.knot) thoughts.push(thoughtFor({ type: "settled", idea_id: id, settled_kind: p.knot.kind, rationale: p.knot.settled, person_id: p.knot.messageId ? speakerOf.get(p.knot.messageId) ?? null : null }, p.knot.messageId));
+      if (p.status === "dormant") thoughts.push(thoughtFor({ type: "rested", idea_id: id }, null));
+    }
+    await writeThoughts(supabase, thoughts);
+    await noteReading();
+    return { grown: proposals.length, dropped, part: data.part, parts: all.length, read: slice.length, model: asked.model, root: rootName?.label ?? null };
+
+    /** After the last part: the audit log says what the gardener read, so it is not offered again. */
+    async function noteReading() {
+      if (data.part !== all.length - 1) return;
+      check(await supabase.from("events").insert({ garden_id: data.gardenId, actor: userId, actor_kind: "ai", type: "idea_edited", idea_id: rootRow.id, payload: { read: { conversation_ids: convIds, batch_ids: data.batchIds ?? [], parts: all.length, model: asked.model } } as never }));
+    }
   });
 
+/** When each idea's first words were said (from its origin evidence), where the time is known. */
+async function originTimesOf(supabase: DB, gardenId: string): Promise<Map<string, string>> {
+  const ev = await allRows((a, b) => supabase.from("idea_evidence").select("idea_id,message_id").eq("garden_id", gardenId).eq("role", "origin").range(a, b));
+  const out = new Map<string, string>();
+  for (let i = 0; i < ev.length; i += 300) {
+    const chunk = ev.slice(i, i + 300);
+    const ms = check(await supabase.from("messages").select("id,sent_at,time_precision").in("id", chunk.map((e) => e.message_id)));
+    const at = new Map(ms.filter((m) => m.sent_at && m.time_precision !== "unknown").map((m) => [m.id, m.sent_at!]));
+    for (const e of chunk) { const t = at.get(e.message_id); if (t) out.set(e.idea_id, t); }
+  }
+  return out;
+}
+
+/** Thought events in the order things were said, each with the message it rests on. */
+async function writeThoughts(supabase: DB, thoughts: { row: ThoughtRow; messageId: string | null; order: number }[]) {
+  if (!thoughts.length) return;
+  const sorted = [...thoughts].sort((a, b) => a.order - b.order);
+  const ids = check(await supabase.from("thought_events").insert(sorted.map((t) => t.row)).select("id,idea_id,type"));
+  const evidence = sorted.flatMap((t, i) => {
+    const r = ids[i];
+    return r && t.messageId && r.idea_id === t.row.idea_id && r.type === t.row.type ? [{ thought_event_id: r.id, message_id: t.messageId, garden_id: t.row.garden_id }] : [];
+  });
+  if (evidence.length) check(await supabase.from("thought_event_evidence").insert(evidence));
+}
+
 type SuggestionGraph = {
-  ideas: { id: string; key: string; confirmed: boolean; rejected_at: string | null; contributor_id: string | null }[];
+  ideas: { id: string; key: string; confirmed: boolean; rejected_at: string | null; contributor_id: string | null; origin: string }[];
   links: { parent_id: string; child_id: string; kind: string; confirmed: boolean; origin: string }[];
 };
 async function suggestionGraph(supabase: DB, gardenId: string): Promise<SuggestionGraph> {
-  const ideas = await allRows((a, b) => supabase.from("ideas").select("id,key,confirmed,rejected_at,contributor_id,position").eq("garden_id", gardenId).order("position").range(a, b));
+  const ideas = await allRows((a, b) => supabase.from("ideas").select("id,key,confirmed,rejected_at,contributor_id,origin,position").eq("garden_id", gardenId).order("position").range(a, b));
   const links = await allRows((a, b) => supabase.from("idea_links").select("parent_id,child_id,kind,confirmed,origin").eq("garden_id", gardenId).range(a, b));
   return { ideas, links };
 }
@@ -563,7 +673,10 @@ async function acceptSuggestion(ctx: Ctx, gardenId: string, g: SuggestionGraph, 
   return n + 1;
 }
 
-/** Reject a suggestion and the suggestions that grow from it; they stay in the record, off the tree. */
+/**
+ * Take a branch the gardener placed off the tree, with the gardener's branches that grow from it.
+ * They stay in the record; their history is marked rejected. Refused when people grew their own branches from it.
+ */
 async function rejectSuggestion(ctx: Ctx, gardenId: string, g: SuggestionGraph, ideaId: string) {
   const out = new Set<string>([ideaId]);
   for (let grew = true; grew; ) {
@@ -571,14 +684,16 @@ async function rejectSuggestion(ctx: Ctx, gardenId: string, g: SuggestionGraph, 
     for (const l of g.links) if (out.has(l.parent_id) && !out.has(l.child_id)) {
       const child = g.ideas.find((i) => i.id === l.child_id);
       if (!child || child.rejected_at) continue;
-      if (child.confirmed) fail("People have already grown branches from this suggestion, so it stays. Let it rest instead.");
+      if (child.origin !== "ai") fail("People have grown their own branches from this one, so it stays. Let it rest instead.");
       out.add(child.id); grew = true;
     }
   }
   const now = new Date().toISOString();
-  check(await ctx.supabase.from("ideas").update({ rejected_at: now, updated_at: now }).in("id", [...out]).eq("confirmed", false));
+  check(await ctx.supabase.from("ideas").update({ rejected_at: now, updated_at: now }).in("id", [...out]).eq("origin", "ai"));
   for (const i of g.ideas) if (out.has(i.id)) i.rejected_at = now;
-  await logEvent(ctx, gardenId, "idea_edited", ideaId, { rejected_suggestion: true, with_descendants: out.size - 1 });
+  const open = check(await ctx.supabase.from("thought_events").select("id").in("idea_id", [...out]).eq("origin", "ai").eq("confirmed", false).is("rejected_at", null));
+  for (const t of open) check(await ctx.supabase.rpc("review_thought_event", { _id: t.id, _confirm: false }));
+  await logEvent(ctx, gardenId, "idea_edited", ideaId, { taken_off: true, with_descendants: out.size - 1 });
   return out.size;
 }
 
@@ -588,7 +703,9 @@ export const reviewSuggestion = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const g = await suggestionGraph(context.supabase, data.gardenId);
     const idea = g.ideas.find((i) => i.key === data.key) ?? fail("That idea is not in this garden.");
-    if (idea.confirmed || idea.rejected_at) fail("This suggestion has already been decided.");
+    if (idea.rejected_at) fail("This branch is already off the tree.");
+    if (data.accept && idea.confirmed) fail("This branch is already on the tree.");
+    if (!data.accept && idea.origin !== "ai") fail("Only branches the gardener placed can be taken off.");
     const n = data.accept ? await acceptSuggestion(context, data.gardenId, g, idea.id) : await rejectSuggestion(context, data.gardenId, g, idea.id);
     return { decided: n };
   });

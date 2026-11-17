@@ -4,7 +4,6 @@ import { Switch } from "@/components/ui/switch";
 import { AccessionStamp, stampLine } from "@/components/garden/AccessionStamp";
 import { HIDDEN_NOTE, formatOffset, groupMessages } from "@/lib/intake/display";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useHarvest } from "@/components/garden/Gardener";
 import { Button } from "@/components/ui/button";
 import { queryOptions, useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { getBatchOriginal, getConversation } from "@/lib/garden.functions";
@@ -31,7 +30,6 @@ export const Route = createFileRoute("/_authenticated/g/$id_/conversations/$cid"
 function ConversationPage() {
   const { id, cid } = Route.useParams();
   const navigate = useNavigate();
-  const { read, reading } = useHarvest(id);
   const { data } = useSuspenseQuery(convQuery(id, cid));
   const people = new Map(data.contributors.map((c) => [c.id, c]));
   const [showAside, setShowAside] = useState(false);
@@ -56,7 +54,6 @@ function ConversationPage() {
       <div className="mt-4 flex flex-wrap items-center gap-4 text-sm">
         <label className="flex items-center gap-2"><Switch checked={showAside} onCheckedChange={setShowAside} aria-label="Show set-aside lines" />Show set-aside lines{asideCount ? ` (${asideCount})` : ""}</label>
         <Link to="/g/$id/accession" params={{ id }} search={{ into: cid }} className="underline underline-offset-4">Bring in more</Link>
-        <Button size="sm" disabled={!!reading} onClick={async () => { if (await read(cid)) navigate({ to: "/g/$id", params: { id }, search: { idea: undefined } }); }}>{reading ? "The gardener is reading…" : "Let the gardener read this"}</Button>
       </div>
       <ol className="mt-6 grid gap-3">
         {groupMessages(visible).map((group) => {

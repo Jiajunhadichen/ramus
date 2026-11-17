@@ -8,9 +8,8 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useReplay } from "@/components/stam-tree/useReplay";
 import { FieldNotes } from "@/components/garden/FieldNotes";
-import { handOver } from "@/lib/intake/handover";
 import { useBringIn } from "@/hooks/use-bring-in";
-import { BringInWindow } from "@/components/garden/BringInWindow";
+import { BringInWindow, type Incoming } from "@/components/garden/BringInWindow";
 import { GardenerPanel } from "@/components/garden/Gardener";
 import { stepDate, toIdeas, toStam } from "@/components/garden/model";
 import { maxStep, selectionAt } from "@/lib/stam/layout";
@@ -64,10 +63,11 @@ function GardenPage() {
   const max = maxStep(ideas);
   const r = useReplay(max);
   const [bringOpen, setBringOpen] = useState(false);
-  const received = (got: { text?: string; files?: File[] }) => { handOver(id, got); navigate({ to: "/g/$id/accession", params: { id }, search: {} }); };
+  const [incoming, setIncoming] = useState<Incoming | null>(null);
   const bringIn = () => setBringOpen(true);
-  // Pasting a discussion (no field focused) or dropping files anywhere on the garden opens the Accession page with it.
-  useBringIn(received);
+  // Pasting a discussion (no field focused) or dropping files anywhere on the garden opens the window with it.
+  useBringIn((got) => { setIncoming(got); setBringOpen(true); });
+  const fresh = data.conversations.length === 0 && data.ideas.length <= 1;
   const [view, setView] = useState<"tree" | "systema">("tree");
   const [mode, setMode] = useState<"steps" | "events">("steps");
   const events = useMemo(() => replayOrder((data.thoughts ?? []) as Thought[]), [data.thoughts]);
@@ -151,21 +151,21 @@ function GardenPage() {
               {(data.conversations as any[]).map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
             </select>
           )}
-          <Button variant="outline" size="sm" onClick={bringIn}>Bring in a conversation</Button>
+          {!data.garden.is_demo && <Button variant="outline" size="sm" onClick={bringIn}>{fresh ? "Bring in conversations" : "Add more"}</Button>}
           <Button variant="outline" size="sm" onClick={exportJson}>Export Stam JSON</Button>
         </div>
       </header>
-      {data.conversations.length === 0 && (
-        <section aria-label="Bring in the first conversation" className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-md border border-dashed border-ink/40 bg-sheet px-4 py-3">
+      {data.conversations.length === 0 && !data.garden.is_demo && (
+        <section aria-label="Bring in the first conversations" className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-md border border-dashed border-ink/40 bg-sheet px-4 py-3">
           <p className="font-display text-lg">Nothing has been said here yet.</p>
-          <Button size="sm" onClick={bringIn}>Bring in a conversation</Button>
+          <Button size="sm" onClick={bringIn}>Bring in conversations</Button>
         </section>
       )}
-      <BringInWindow open={bringOpen} onOpenChange={setBringOpen} onReceive={received} />
+      <BringInWindow open={bringOpen} onOpenChange={setBringOpen} target={{ kind: "more", gardenId: id, fresh }} incoming={incoming} onIncomingTaken={() => setIncoming(null)} onGrown={() => refresh()} />
       {data.conversations.length > 0 && !data.garden.is_demo && (
         <GardenerPanel gardenId={id} conversations={data.conversations as { id: string; title: string }[]}
           suggested={ideas.filter((i) => i.confirmed === false).length}
-          readConversationIds={new Set(Object.values((data.suggestions ?? {}) as Record<string, { conversation_id?: string }>).map((s) => s.conversation_id).filter((c): c is string => !!c))} />
+          readConversationIds={new Set(data.readConversationIds ?? [])} />
       )}
       <div className="grid gap-6 border-y border-rule py-5 sm:grid-cols-2">
         <section className="min-w-0" aria-label="The question">

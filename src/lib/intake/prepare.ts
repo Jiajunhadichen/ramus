@@ -1,6 +1,6 @@
 import { parseChatCopy } from "./chat";
 import { deepMap, readJson, type JsonSource } from "./json";
-import { GENERIC, OFTEN_NOT_PEOPLE, lineLabels, parseLines, shortExchange, parseNotes, parseTranscript, parseVtt, parseWhatsApp, speakerSet, statedRecordingStart, transcriptShape, waDateOrder, waHeader, waWhen, type Unit } from "./text";
+import { GENERIC, OFTEN_NOT_PEOPLE, lineLabels, parseLines, shortExchange, parseNotes, parseTranscript, parseVtt, parseWhatsApp, speakerSet, statedRecordingStart, transcriptShape, waDateOrder, waHeader, waOrderByTime, waWhen, type Unit } from "./text";
 import { PARSER_VERSION, type Draft, type DraftMessage, type Format, type Hidden, type PrepareContext, type PrepareInput, type PrepareOptions, type Question, type Segment, type SpeakerInfo, type Voice } from "./types";
 import { findPrivate, hash, localStringToUtc, maskText, toLines, validTimeZone } from "./util";
 
@@ -115,7 +115,8 @@ export function prepare(input: PrepareInput, options: PrepareOptions, ctx: Prepa
     format = options.readAs && TEXT_FORMATS.includes(options.readAs) ? options.readAs : (readAs[0]?.format ?? "notes");
     if (format === "whatsapp") {
       const heads = toLines(raw).map((l) => waHeader(l.text)).filter((h) => h !== null);
-      const found = waDateOrder(heads);
+      // a day above 12 settles it; otherwise the chat's own forward order does; only then is the person asked
+      const found = waDateOrder(heads) ?? waOrderByTime(heads);
       const order = found ?? options.dateOrder ?? "DMY";
       if (!found && heads[0]) {
         const h = heads[0];

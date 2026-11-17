@@ -1,3 +1,11 @@
+# Ramus v2.2 — Straight to the tree
+- [x] One collecting window: drop or paste everything, see what each source is and when it was said, then "That's everything — grow the tree". No questions; automatic choices in src/lib/intake/auto.ts.
+- [x] Order is evidence: WhatsApp day/month order from chronology; several sources read as one time-ordered stream; no branch grows from later words; stages, step dates and history at message times.
+- [x] The gardener grows the tree directly (marked as its own), names a new garden's root, reads long material in parts; "Not right? Take it off the tree".
+- [x] Gardens page plants a new tree; inside a garden the same window is "Add more".
+- [ ] Check in the preview with real conversations (needs Lovable AI enabled and AI credits).
+- [ ] When older material is added later, renumber steps so the tree's steps follow time too (replay by events already does).
+
 # Ramus v2.1 — The gardener reads (harvest)
 - [x] Pure harvest rules and checks (src/lib/gardener/harvest.ts) with tests; Lovable AI gateway client with fallbacks and plain errors.
 - [x] harvestConversation: proposals written as unconfirmed ideas, dashed on the tree; accept / reject one by one or all; knots only by people.

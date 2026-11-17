@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useHarvest } from "@/components/garden/Gardener";
+import { grownLine, useGrow } from "@/components/garden/Gardener";
 import { queryOptions, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -66,7 +66,14 @@ function AccessionPage() {
   const { id } = Route.useParams();
   const { into } = Route.useSearch();
   const navigate = useNavigate();
-  const { read, reading } = useHarvest(id);
+  const grow = useGrow();
+  const [reading, setReading] = useState(false);
+  async function read(batchId: string) {
+    setReading(true);
+    try { toast.success(grownLine((await grow(id, { batchIds: [batchId] })).grown)); return true; }
+    catch (e) { toast.error((e as Error).message); return false; }
+    finally { setReading(false); }
+  }
   const qc = useQueryClient();
   const { data: ctx } = useSuspenseQuery(ctxQuery(id));
   const keep = useServerFn(receiveBatch);
@@ -85,7 +92,7 @@ function AccessionPage() {
   const [refusal, setRefusal] = useState<string | null>(null);
   const [pasted, setPasted] = useState(false);
   const [allVoices, setAllVoices] = useState(false);
-  const [kept, setKept] = useState<null | { no: number; line: string; conversationId: string; added: number; already: number }>(null);
+  const [kept, setKept] = useState<null | { no: number; line: string; conversationId: string; batchId: string; added: number; already: number }>(null);
   const touched = useRef({ title: false, happened: false });
 
   // defaults from the browser: timezone and date order
@@ -174,7 +181,7 @@ function AccessionPage() {
         input: { kind: json ? "json" : "text", text: draft.sendable, fileName: received.name ?? undefined },
         options, consent, originalFilePath,
       } });
-      setKept({ no: r.accessionNo, conversationId: r.conversationId, added: r.added, already: r.alreadyKept, line: stampLine({ receivedAt: new Date().toISOString(), format: r.format, voices: r.voices, messages: r.messages }) });
+      setKept({ no: r.accessionNo, conversationId: r.conversationId, batchId: r.batchId, added: r.added, already: r.alreadyKept, line: stampLine({ receivedAt: new Date().toISOString(), format: r.format, voices: r.voices, messages: r.messages }) });
       qc.invalidateQueries({ queryKey: ["garden", id] });
       qc.invalidateQueries({ queryKey: ["accession", id] });
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
@@ -187,7 +194,7 @@ function AccessionPage() {
         <AccessionStamp no={kept.no} line={kept.line} />
         <p className="text-[15px]">{kept.added === 0 ? "0 new messages: everything here was already kept." : `${kept.added} new message${kept.added === 1 ? "" : "s"}`}{kept.already > 0 && kept.added > 0 ? ` · ${kept.already} already kept` : ""}</p>
         <div className="flex flex-wrap justify-center gap-4">
-          <Button disabled={!!reading} onClick={async () => { if (await read(kept.conversationId)) navigate({ to: "/g/$id", params: { id }, search: { idea: undefined } }); }}>{reading ? "The gardener is reading…" : "Let the gardener read it"}</Button>
+          {kept.added > 0 && <Button disabled={reading} onClick={async () => { if (await read(kept.batchId)) navigate({ to: "/g/$id", params: { id }, search: { idea: undefined } }); }}>{reading ? "The gardener is reading…" : "Let the gardener grow the tree"}</Button>}
           <Link to="/g/$id/conversations/$cid" params={{ id, cid: kept.conversationId }} className="underline underline-offset-4">Read the conversation</Link>
           <Link to="/g/$id" params={{ id }} search={{ idea: undefined }} className="underline underline-offset-4">Back to the garden</Link>
           {queue.length > 0 && <button type="button" className="underline underline-offset-4" onClick={() => { const [n, ...rest] = queue; reset(); setQueue(rest); void readFiles([n!]).then((x) => { setReceived(x.received); setRefusal(x.refusal); }); }}>Bring in the next file: {queue[0]!.name}</button>}

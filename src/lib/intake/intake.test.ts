@@ -122,6 +122,12 @@ describe("WhatsApp", () => {
     expect(q && q.kind === "date-order" && q.sample).toEqual({ DMY: "3 April 2026", MDY: "4 March 2026" });
     expect(run("whatsapp-ambiguous.txt", { dateOrder: "MDY" }).messages[0]!.sentAt).toBe("2026-03-04T09:00:00.000Z");
   });
+  it("a chat runs forward in time, so its own order settles day/month when no day is above 12", () => {
+    const text = "12/03/2026, 21:40 - Ana: see you\n01/04/2026, 09:00 - Bo: back again\n02/04/2026, 09:05 - Ana: welcome";
+    const d = prepare({ kind: "text", text }, { timeZone: "UTC", dateOrder: "MDY" }, ctx);
+    expect(d.questions.some((q) => q.kind === "date-order")).toBe(false);
+    expect(d.messages.map((m) => m.sentAt?.slice(0, 10))).toEqual(["2026-03-12", "2026-04-01", "2026-04-02"]);
+  });
 });
 
 describe("transcripts and lines", () => {

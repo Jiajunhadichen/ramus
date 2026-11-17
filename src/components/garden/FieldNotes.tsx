@@ -99,6 +99,13 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
           {primaryParent?.confirmed === false && <p className="text-xs text-muted-foreground">Accepting it also accepts the suggestion it grows from.</p>}
         </section>
       )}
+      {!suggested && idea.suggestion && (
+        <section aria-label="Placed by the gardener" className="grid gap-1.5 border-l-2 border-dashed border-ink/50 pl-3 text-sm">
+          <p className="hand text-[15px]">The gardener placed this from what <span style={{ color: idea.color }}>{idea.by}</span> said.{idea.suggestion.why ? <> <Upright>{idea.suggestion.why}</Upright></> : null}</p>
+          <div><button type="button" className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+            onClick={() => run(() => suggestFn({ data: { gardenId: data.garden.id, key: idea.id, accept: false } }), "Taken off the tree. It stays in the record.")}>Not right? Take it off the tree</button></div>
+        </section>
+      )}
       {!suggested && !idea.knot && idea.suggestion?.knot && (
         <section aria-label="A knot the gardener noticed" className="grid gap-2 rounded-md border border-dashed border-ink p-3 text-sm">
           <p><span className="smallcaps text-[13px] text-muted-foreground">The gardener thinks this was settled · </span><Upright>{idea.suggestion.knot.settled}</Upright></p>
@@ -140,7 +147,8 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
         {life.length === 0 ? <p className="text-sm text-muted-foreground">Nothing recorded yet.</p> : (
           <ol className="grid gap-0 text-sm" data-testid="life">
             {life.map((t, i) => {
-              const pending = !t.confirmed && !t.rejected_at;
+              const gardener = t.origin === "ai";
+              const pending = !t.confirmed && !t.rejected_at && !gardener;
               const q = quoteOf(t.id);
               const who = names.person(t.person_id);
               return (
@@ -153,6 +161,7 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
                     {who && <span style={{ color: people.get(t.person_id!)?.color }}>{who} · </span>}
                     {formatTime(t.occurred_at, t.time_precision)}
                     {pending && " · suggested, not yet confirmed"}
+                    {gardener && !t.rejected_at && " · the gardener's reading"}
                     {(t as any).corrects_event_id && " · corrects an earlier entry"}
                     {t.rejected_at && " · rejected"}
                   </span>

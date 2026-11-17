@@ -1,19 +1,28 @@
 import { MAX_LABEL, validateGarden } from "@/lib/stam/validate";
 
 /**
- * Harvest: the gardener reads a conversation and proposes how the group's ideas grew.
- * The model only proposes; this module checks every proposal mechanically before anything is written,
- * and people accept or reject each one. Pure: no network, no database.
+ * Harvest: the gardener reads what was brought in and grows the tree: who raised what, and how it grew.
+ * The model only answers; this module checks every branch mechanically before anything is written
+ * (words, speakers, and the order things were said). People can take any branch off the tree afterwards.
+ * Pure: no network, no database.
  */
 
 export type HarvestMessage = {
   ref: string; id: string; speaker: string | null; personId: string | null; personIsHuman: boolean;
   sentAt: string | null; content: string;
+  /** which conversation it comes from, shown when several are read together */
+  source?: string | null | undefined;
 };
-export type HarvestIdea = { key: string; label: string; note: string; by: string; parents: string[]; status: string; knot: boolean };
+/** An idea already on the tree; `at` is when its first words were said, if known. */
+export type HarvestIdea = { key: string; label: string; note: string; by: string; parents: string[]; status: string; knot: boolean; at?: string | null | undefined };
+/** Messages are in the order they were said (see inTimeOrder); their position is their order. */
 export type HarvestInput = {
   gardenTitle: string; conversationTitle: string; rootKey: string;
   ideas: HarvestIdea[]; messages: HarvestMessage[]; skipped: number;
+  /** this reading is one part of a longer stream */
+  part?: { n: number; of: number } | undefined;
+  /** the garden is new and its root is only a placeholder: the gardener names it */
+  nameRoot?: boolean | undefined;
 };
 
 export const NATURES = ["refines", "answers", "challenges", "splits", "combines"] as const;
@@ -28,14 +37,17 @@ export type Proposal = {
   evidence: { messageId: string; role: (typeof EVIDENCE_ROLES)[number] }[];
   parent: string; parentIsNew: boolean; nature: (typeof NATURES)[number] | null; why: string | null;
   merges: { target: string; isNew: boolean; why: string | null }[];
-  status: "growing" | "dormant"; knot: { kind: (typeof KNOT_KINDS)[number]; settled: string } | null; stage: number;
+  status: "growing" | "dormant"; knot: { kind: (typeof KNOT_KINDS)[number]; settled: string; messageId: string | null } | null; stage: number;
 };
-export type Checked = { proposals: Proposal[]; stages: { n: number; title: string }[]; dropped: { label: string; reason: string }[] };
+export type RootName = { label: string; note: string; personId: string | null; originMessageId: string | null };
+export type Checked = { proposals: Proposal[]; stages: { n: number; title: string }[]; dropped: { label: string; reason: string }[]; root: RootName | null };
 
 const SYSTEM = `You are the gardener of a Ramus garden. Ramus believes the best ideas grow between people.
-You read a recorded group discussion and propose how the people's ideas grew out of each other: where an idea answered, refined, challenged or split from another, where two lines of thought merged, which ideas went quiet, and which questions the group settled.
+You read a recorded group discussion and trace how the people's ideas grew out of each other: where an idea answered, refined, challenged or split from another, where two lines of thought merged, which ideas went quiet, and which questions the group settled.
 
-You never add ideas of your own and you never summarise. Everything you return is a suggestion that people will accept or reject, so keep it checkable.
+You never add ideas of your own and you never summarise. What you return goes straight onto the group's tree, and anyone can take it off again, so keep every branch checkable.
+
+Messages are listed in the order they were said, across every source. Order is evidence: an idea can only grow from, merge with or be settled after something said before it.
 
 1. Ideas belong to people.
 - An idea is something a person said that others could build on: a proposal, claim, question, option, decision, correction or explanation. Small talk, greetings, thanks and plain agreement are not ideas.
@@ -54,16 +66,16 @@ You never add ideas of your own and you never summarise. Everything you return i
 
 3. Rest and clicks.
 - "status": "dormant" when an idea was raised and then dropped or never taken up; otherwise "growing". Quiet ideas matter; keep them.
-- "knot": a click, a sub-question the group clearly settled: an explicit decision, a confirmed result, an option ruled out, or a conclusion others then built on. Give {"kind": "decision" | "result" | "ruled_out" | "conclusion", "settled": "one sentence on what is now settled"}; otherwise null. Be strict: most discussions have 0 to 3.
+- "knot": a click, a sub-question the group clearly settled: an explicit decision, a confirmed result, an option ruled out, or a conclusion others then built on. Give {"kind": "decision" | "result" | "ruled_out" | "conclusion", "settled": "one sentence on what is now settled", "m": the ref of the message where it was settled}; otherwise null. Be strict: most discussions have 0 to 3.
 
 4. Time.
-- "stages": 1 to 6 natural turns of the discussion, in order, each {"n": 1, "title": "at most 6 words"}. Each idea has "stage": the stage where it first appears.
+- "stages": 1 to 6 natural turns of the discussion, in the order they happened, each {"n": 1, "title": "at most 6 words"}. Each idea has "stage": the stage where it first appears.
 
 5. Honesty.
 - Use only what is in the messages. Prefer fewer, well-grounded ideas over many thin ones: at most 15. Unrelated chatter is not a thread; leave it out.
 
 Return only JSON, exactly in this shape:
-{"stages":[{"n":1,"title":"..."}],"ideas":[{"id":"short-id","label":"...","note":"...","origin":"m3","quote":"...","evidence":[],"parent":"root-or-key-or-id","nature":null,"why":"...","merges":[],"status":"growing","knot":null,"stage":1}]}`;
+{"stages":[{"n":1,"title":"..."}],"root":null,"ideas":[{"id":"short-id","label":"...","note":"...","origin":"m3","quote":"...","evidence":[],"parent":"root-or-key-or-id","nature":null,"why":"...","merges":[],"status":"growing","knot":null,"stage":1}]}`;
 
 const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 
@@ -83,17 +95,25 @@ export function shorten(label: string): string {
   return chars.slice(0, MAX_LABEL).join("").trim();
 }
 
-/** The prompt: the garden as it stands and the conversation, with short message refs. */
+const when = (t: string | null | undefined) => (t ? t.slice(0, 16).replace("T", " ") : "time unknown");
+
+/** The prompt: the garden as it stands and the messages in the order they were said, with short refs. */
 export function harvestPrompt(input: HarvestInput): { system: string; user: string } {
-  const tree = input.ideas.map((i) => `- ${i.key}: ${i.label}${i.note ? ` (${clip(i.note, 140)})` : ""}; by ${i.by}${i.parents.length ? `; grew from ${i.parents.join(", ")}` : "; the root"}${i.status === "dormant" ? "; resting" : ""}${i.knot ? "; knot" : ""}`).join("\n");
-  const msgs = input.messages.map((m) => `${m.ref} [${m.sentAt ? m.sentAt.slice(0, 16).replace("T", " ") : "time unknown"}] ${m.speaker ?? "Unattributed"}${m.personIsHuman ? "" : " (AI)"}: ${m.content.replace(/\s*\n\s*/g, " / ")}`).join("\n");
+  const tree = input.ideas.map((i) => `- ${i.key}: ${i.label}${i.note ? ` (${clip(i.note, 140)})` : ""}; by ${i.by}${i.at ? `, ${when(i.at)}` : ""}${i.parents.length ? `; grew from ${i.parents.join(", ")}` : "; the root"}${i.status === "dormant" ? "; resting" : ""}${i.knot ? "; knot" : ""}`).join("\n");
+  const several = new Set(input.messages.map((m) => m.source ?? "")).size > 1;
+  const msgs = input.messages.map((m) => `${m.ref} [${when(m.sentAt)}]${several && m.source ? ` (${m.source})` : ""} ${m.speaker ?? "Unattributed"}${m.personIsHuman ? "" : " (AI)"}: ${m.content.replace(/\s*\n\s*/g, " / ")}`).join("\n");
+  const root = input.nameRoot ? `
+
+This garden is new: its root "${input.rootKey}" is only a placeholder. Also return "root": {"label": the question or subject the group keeps coming back to, as a short name (same limits as idea labels), "note": one sentence, "origin": the ref of the message where a person first raised it, or null when it is the group's shared subject rather than one person's words}. Ideas that start a thread still grow from "${input.rootKey}".` : "";
+  const part = input.part && input.part.of > 1 ? ` (part ${input.part.n} of ${input.part.of}; the ideas of earlier parts are already in the garden above)` : "";
   const user = `Garden: ${input.gardenTitle}
-The root (the group's question) is "${input.rootKey}".
+The root (the group's question) is "${input.rootKey}".${root}
 
 Ideas already in the garden:
 ${tree || "(only the root)"}
 
-Conversation: ${input.conversationTitle}${input.skipped ? ` (the ${input.skipped} earliest messages are not shown)` : ""}
+${several ? "Conversations" : "Conversation"}: ${input.conversationTitle}${part}${input.skipped ? ` (the ${input.skipped} earliest messages are not shown)` : ""}
+Times are UTC. Messages in the order they were said:
 ${msgs}`;
   return { system: SYSTEM, user };
 }
@@ -159,7 +179,7 @@ export function checkHarvest(answer: unknown, input: HarvestInput): Checked {
       why: clip(str(r["why"]), 240) || null,
       merges: (Array.isArray(r["merges"]) ? (r["merges"] as Any[]) : []).map((x) => ({ target: str(x?.["with"]), isNew: false, why: clip(str(x?.["why"]), 240) || null })),
       status: str(r["status"]) === "dormant" ? "dormant" : "growing",
-      knot: k && KNOT_KINDS.includes(kind) && settled ? { kind, settled } : null,
+      knot: k && KNOT_KINDS.includes(kind) && settled ? { kind, settled, messageId: byRef.get(str(k["m"]))?.id ?? null } : null,
       stage: stageOf(r["stage"]),
     });
     if (out.length >= MAX_PROPOSALS) break;
@@ -183,6 +203,31 @@ export function checkHarvest(answer: unknown, input: HarvestInput): Checked {
       seen.add(q.temp);
     }
   }
+  // 2b. order is evidence: nothing grows from, merges with or is settled by something said later
+  const index = new Map(input.messages.map((m, i) => [m.id, i]));
+  const sentAt = new Map(input.messages.map((m) => [m.id, m.sentAt]));
+  const proposal = new Map(out.map((p) => [p.temp, p]));
+  const saidAfter = (key: string, child: Proposal): boolean => {
+    const np = proposal.get(key);
+    if (np) return index.get(np.originMessageId)! > index.get(child.originMessageId)!;
+    const at = existing.get(key)?.at, ct = sentAt.get(child.originMessageId);
+    return !!(at && ct && Date.parse(at) > Date.parse(ct));
+  };
+  const parentOf = (key: string) => proposal.get(key)?.parent ?? existing.get(key)?.parents[0] ?? input.rootKey;
+  for (const p of [...out].sort((a, b) => index.get(a.originMessageId)! - index.get(b.originMessageId)!)) {
+    let moved = false;
+    for (let guard = 0; p.parent !== input.rootKey && saidAfter(p.parent, p) && guard <= out.length + input.ideas.length; guard++) { p.parent = parentOf(p.parent); moved = true; }
+    if (moved) {
+      if (saidAfter(p.parent, p)) p.parent = input.rootKey;
+      p.parentIsNew = proposal.has(p.parent);
+      p.nature = null;
+      p.why = "Placed by the order of the messages: what it seemed to grow from was said later.";
+    }
+    p.merges = p.merges.filter((m) => !saidAfter(m.target, p) && m.target !== p.parent);
+    if (p.nature === "combines" && !p.merges.length) p.nature = null;
+    if (p.knot?.messageId && index.get(p.knot.messageId)! < index.get(p.originMessageId)!) p.knot.messageId = null;
+  }
+
   // strict about knots
   let knots = 0;
   for (const p of out) if (p.knot && ++knots > MAX_KNOTS) p.knot = null;
@@ -203,8 +248,34 @@ export function checkHarvest(answer: unknown, input: HarvestInput): Checked {
     if (!placed.has(p.temp)) { placed.add(p.temp); ordered.push(p); }
   };
   out.forEach((p) => place(p));
+
+  // 5. stages in the order they happened; a branch never appears before what it grows from
+  const first = new Map<number, number>();
+  for (const p of ordered) first.set(p.stage, Math.min(first.get(p.stage) ?? Infinity, index.get(p.originMessageId)!));
+  const rank = new Map([...first.entries()].sort((a, b) => a[1] - b[1] || a[0] - b[0]).map(([n], i) => [n, i + 1]));
+  const title = new Map(stages.map((s) => [s.n, s.title]));
+  const usedTitles = [...rank.entries()].sort((a, b) => a[1] - b[1]).map(([n, r]) => ({ n: r, title: title.get(n)! }));
+  const stageOfTemp = new Map<string, number>();
+  for (const p of ordered) {
+    const parentStage = stageOfTemp.get(p.parent) ?? 1;
+    p.stage = Math.max(rank.get(p.stage)!, parentStage, ...p.merges.map((m) => stageOfTemp.get(m.target) ?? 1));
+    stageOfTemp.set(p.temp, p.stage);
+  }
   const used = new Set(ordered.map((p) => p.stage));
-  return { proposals: ordered, stages: stages.filter((s) => used.has(s.n)), dropped };
+
+  return { proposals: ordered, stages: usedTitles.filter((s) => used.has(s.n)), dropped, root: readRoot(a["root"], input, byRef) };
+}
+
+/** The name the gardener gives a new garden's root; its words, if any, must belong to a person. */
+function readRoot(v: unknown, input: HarvestInput, byRef: Map<string, HarvestMessage>): RootName | null {
+  if (!input.nameRoot || !v || typeof v !== "object") return null;
+  const r = v as Any;
+  let label = str(r["label"]).replace(/^["“'「]+|["”'」]+$/g, "");
+  if ([...label].length > MAX_LABEL) label = shorten(label);
+  if (!label) return null;
+  const origin = byRef.get(str(r["origin"]));
+  const human = origin && origin.personId && origin.personIsHuman ? origin : null;
+  return { label, note: clip(str(r["note"]), 280), personId: human?.personId ?? null, originMessageId: human?.id ?? null };
 }
 
 /** The latest messages that fit the reading budget. */

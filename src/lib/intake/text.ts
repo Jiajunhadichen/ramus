@@ -55,6 +55,29 @@ export function waDateOrder(heads: WaHead[]): "DMY" | "MDY" | null {
   return heads.some((h) => h.aLen < 4) ? null : "DMY";
 }
 
+/**
+ * When every date could be read either way (03/04/26), the order the chat was written in decides:
+ * a chat runs forward in time, so the reading that never goes back wins. Null when both run forward.
+ */
+export function waOrderByTime(heads: WaHead[]): "DMY" | "MDY" | null {
+  const ambiguous = heads.filter((h) => h.aLen < 4);
+  if (ambiguous.length < 2) return null;
+  const backwards = (order: "DMY" | "MDY") => {
+    let n = 0, prev = -Infinity;
+    for (const h of ambiguous) {
+      const [d, mo] = order === "DMY" ? [h.a, h.b] : [h.b, h.a];
+      if (mo < 1 || mo > 12 || d < 1 || d > 31) return Infinity;
+      const y = h.cLen === 2 ? 2000 + h.c : h.c;
+      const day = Date.UTC(y, mo - 1, d);
+      if (day < prev) n++;
+      prev = day;
+    }
+    return n;
+  };
+  const dmy = backwards("DMY"), mdy = backwards("MDY");
+  return dmy < mdy ? "DMY" : mdy < dmy ? "MDY" : null;
+}
+
 export function waWhen(h: WaHead, order: "DMY" | "MDY", tz: string) {
   let y: number, mo: number, d: number;
   if (h.aLen === 4) { y = h.a; mo = h.b; d = h.c; }

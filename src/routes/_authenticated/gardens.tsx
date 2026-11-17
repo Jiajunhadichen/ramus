@@ -12,8 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useBringIn } from "@/hooks/use-bring-in";
-import { handOver, type HandOver } from "@/lib/intake/handover";
-import { BringInWindow } from "@/components/garden/BringInWindow";
+import { BringInWindow, type Incoming } from "@/components/garden/BringInWindow";
 
 const gardensQuery = queryOptions({
   queryKey: ["gardens"],
@@ -40,16 +39,10 @@ function GardensPage() {
   const navigate = useNavigate();
   const [newOpen, setNewOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  // words brought in from this page wait here until the person says which garden they belong to
-  const [pending, setPending] = useState<HandOver | null>(null);
-  const [newFor, setNewFor] = useState<HandOver | null>(null);
+  // words pasted or dropped on this page start a new tree; adding to an existing one happens in that garden
+  const [incoming, setIncoming] = useState<Incoming | null>(null);
   const [bringOpen, setBringOpen] = useState(false);
-  useBringIn((got) => setPending(got));
-  const own = data.filter((g) => !g.is_demo);
-  const sendTo = (gardenId: string, h: HandOver | null) => {
-    if (h) handOver(gardenId, h);
-    navigate({ to: "/g/$id/accession", params: { id: gardenId }, search: {} });
-  };
+  useBringIn((got) => { setIncoming(got); setBringOpen(true); });
   return (
     <main className="mx-auto max-w-[1180px] px-5 py-10">
       <div className="flex flex-wrap items-end gap-4">
@@ -59,11 +52,11 @@ function GardensPage() {
         </div>
         <div className="ml-auto flex gap-2">
           <Button variant="outline" onClick={() => setImportOpen(true)}>Import Stam JSON</Button>
-          <Button variant="outline" onClick={() => setBringOpen(true)}>Bring in a conversation</Button>
-          <Button onClick={() => { setNewFor(null); setNewOpen(true); }}>Start a garden</Button>
+          <Button variant="outline" onClick={() => setNewOpen(true)}>Start from a question</Button>
+          <Button onClick={() => setBringOpen(true)}>Grow a tree from conversations</Button>
         </div>
       </div>
-      {data.length === 0 && <Seed><Button onClick={() => setNewOpen(true)}>Start a garden</Button></Seed>}
+      {data.length === 0 && <Seed><Button onClick={() => setBringOpen(true)}>Grow a tree from conversations</Button></Seed>}
       <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {data.map((g) => (
           <Link key={g.id} to="/g/$id" params={{ id: g.id }} search={{ idea: undefined }}
@@ -77,39 +70,11 @@ function GardensPage() {
           </Link>
         ))}
       </div>
-      <BringInWindow open={bringOpen} onOpenChange={setBringOpen} onReceive={(got) => setPending(got)} />
-      <WhereDialog pending={pending} gardens={own} onClose={() => setPending(null)}
-        onPick={(gid) => { const h = pending; setPending(null); sendTo(gid, h); }}
-        onNew={() => { setNewFor(pending); setPending(null); setNewOpen(true); }} />
-      <NewGardenDialog open={newOpen} onOpenChange={setNewOpen} initialTitle={newFor?.files?.[0]?.name.replace(/\.[^.]+$/, "").replace(/^WhatsApp Chat( with| -)\s*/i, "") ?? ""}
-        then={newFor ? (gid) => { const h = newFor; setNewFor(null); sendTo(gid, h); } : undefined} />
+      <BringInWindow open={bringOpen} onOpenChange={setBringOpen} target={{ kind: "new" }} incoming={incoming} onIncomingTaken={() => setIncoming(null)}
+        onGrown={(gid) => navigate({ to: "/g/$id", params: { id: gid }, search: { idea: undefined } })} />
+      <NewGardenDialog open={newOpen} onOpenChange={setNewOpen} />
       <ImportDialog open={importOpen} onOpenChange={setImportOpen} />
     </main>
-  );
-}
-
-/** Words brought in from the gardens page: which garden do they belong to? */
-function WhereDialog({ pending, gardens, onClose, onPick, onNew }: {
-  pending: HandOver | null; gardens: { id: string; title: string; specimen_no: number }[];
-  onClose: () => void; onPick: (gardenId: string) => void; onNew: () => void;
-}) {
-  const what = pending?.files?.length ? pending.files.map((f) => f.name).join(", ") : pending?.text ? `${pending.text.split(/\r?\n/).filter((l) => l.trim()).length} pasted lines` : null;
-  return (
-    <Dialog open={pending !== null} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader><DialogTitle className="font-display">Which garden should it grow in?</DialogTitle></DialogHeader>
-        {what && <p className="hand text-[16px]">Received: {what}</p>}
-        {!gardens.length && <p className="text-[15px] text-muted-foreground">You have no garden of your own yet. Start one; what you brought in is prepared right after.</p>}
-        <div className="grid max-h-[50vh] gap-2 overflow-y-auto">
-          {gardens.map((g) => (
-            <button key={g.id} type="button" onClick={() => onPick(g.id)} className="rounded-md border border-rule bg-sheet px-3 py-2 text-left hover:border-ink">
-              <span className="smallcaps text-[13px] text-muted-foreground">Nº {String(g.specimen_no).padStart(3, "0")}</span> <span className="font-display">{g.title}</span>
-            </button>
-          ))}
-        </div>
-        <DialogFooter><Button onClick={onNew}>Start a new garden for it</Button></DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
