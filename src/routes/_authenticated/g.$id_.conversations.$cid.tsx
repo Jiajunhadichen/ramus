@@ -1,0 +1,53 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
+import { getConversation } from "@/lib/garden.functions";
+
+const convQuery = (gardenId: string, id: string) =>
+  queryOptions({ queryKey: ["conversation", gardenId, id], queryFn: () => getConversation({ data: { gardenId, id } }) });
+
+export const Route = createFileRoute("/_authenticated/g/$id_/conversations/$cid")({
+  head: () => ({
+    meta: [
+      { title: "Conversation — Ramus" },
+      { name: "description", content: "A recorded conversation and the ideas that grew from it." },
+      { property: "og:title", content: "Conversation — Ramus" },
+      { property: "og:description", content: "A recorded conversation and the ideas that grew from it." },
+    ],
+  }),
+  loader: ({ context, params }) => context.queryClient.ensureQueryData(convQuery(params.id, params.cid)),
+  component: ConversationPage,
+});
+
+function ConversationPage() {
+  const { id, cid } = Route.useParams();
+  const { data } = useSuspenseQuery(convQuery(id, cid));
+  const people = new Map(data.contributors.map((c) => [c.id, c]));
+  return (
+    <main className="mx-auto max-w-3xl px-5 py-8">
+      <Link to="/g/$id" params={{ id }} search={{ idea: undefined }} className="eyebrow hover:underline">← {data.garden.title}</Link>
+      <h1 className="mt-2 font-display text-3xl font-bold">{data.conversation.title}</h1>
+      <p className="eyebrow mt-1">{data.conversation.source}{data.conversation.happened_at ? ` · ${data.conversation.happened_at}` : ""} · recorded with everyone's consent</p>
+      <ol className="mt-6 grid gap-3">
+        {data.messages.map((m) => {
+          const who = m.contributor_id ? people.get(m.contributor_id) : null;
+          const born = data.ideas.filter((i) => i.message_id === m.id);
+          return (
+            <li key={m.id} id={m.id} className={"rounded-md border bg-sheet p-4 " + (born.length ? "border-ink" : "border-rule")}
+              style={{ borderLeftWidth: 4, borderLeftColor: who?.color ?? "var(--rule)" }}>
+              <p className="text-sm font-medium" style={{ color: who?.color }}>{who?.name ?? "Unattributed"}</p>
+              <p className="mt-1 whitespace-pre-wrap">{m.content}</p>
+              {born.length > 0 && (
+                <p className="mt-2 flex flex-wrap gap-2 text-sm">
+                  <span className="eyebrow">Gave birth to</span>
+                  {born.map((i) => (
+                    <Link key={i.key} to="/g/$id" params={{ id }} search={{ idea: i.key }} className="chip hover:bg-paper">{i.label}</Link>
+                  ))}
+                </p>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </main>
+  );
+}

@@ -1,0 +1,405 @@
+{
+  "title": "The origin of Ramus · 一场头脑风暴的进化树",
+  "collected": "斯德哥尔摩 · 2026-11-17 夜",
+  "focus": "humans",
+  "steps": {
+    "1": "ChatGPT 给出四个方向",
+    "2": "协作像生物进化",
+    "3": "AI 提速协作",
+    "4": "读完五篇材料",
+    "5": "是 prompt，还是协议",
+    "6": "像树一样生长",
+    "7": "网站、agent 还是 skill",
+    "8": "用 Lovable，起名字",
+    "9": "敲定花园，交给 Lovable",
+    "10": "个人版，还是人与人"
+  },
+  "nodes": [
+    {
+      "id": "root",
+      "label": "做什么项目",
+      "by": "你",
+      "step": 1,
+      "status": "growing",
+      "parents": [],
+      "note": "既能服务求职、又能探索独立产品的项目，从哪里开始？"
+    },
+    {
+      "id": "fitloop",
+      "label": "FitLoop 样衣协作",
+      "by": "ChatGPT",
+      "step": 1,
+      "status": "growing",
+      "parents": [
+        "root"
+      ],
+      "note": "帮小型服装品牌管理样衣修改，被排为首选方向。"
+    },
+    {
+      "id": "lesson",
+      "label": "LessonPulse",
+      "by": "ChatGPT",
+      "step": 1,
+      "status": "dormant",
+      "parents": [
+        "root"
+      ],
+      "note": "帮儿童编程机构管理课程进度。暂时停下，但还在树上。"
+    },
+    {
+      "id": "sustain",
+      "label": "SustainTrace",
+      "by": "ChatGPT",
+      "step": 1,
+      "status": "dormant",
+      "parents": [
+        "root"
+      ],
+      "note": "帮工业企业清理数据、追踪错误、生成报告。它的流程结构融进了业务流程引擎。"
+    },
+    {
+      "id": "azure",
+      "label": "AzureSpend Guard",
+      "by": "ChatGPT",
+      "step": 1,
+      "status": "dormant",
+      "parents": [
+        "root"
+      ],
+      "note": "把已有的 Azure 项目升级成费用分析产品。"
+    },
+    {
+      "id": "access",
+      "label": "AccessSafe",
+      "by": "你",
+      "step": 1,
+      "status": "dormant",
+      "parents": [
+        "root"
+      ],
+      "note": "已有的 Azure 权限项目：发现风险、提出申请、审核、执行。"
+    },
+    {
+      "id": "engine",
+      "label": "业务流程引擎",
+      "by": "ChatGPT",
+      "step": 1,
+      "status": "growing",
+      "knot": true,
+      "parents": [
+        "fitloop",
+        "sustain",
+        "access"
+      ],
+      "note": "发现这些项目共享同一个结构：反馈、修改、审核、确认。"
+    },
+    {
+      "id": "evo",
+      "label": "协作像生物进化",
+      "by": "你",
+      "step": 2,
+      "status": "growing",
+      "knot": true,
+      "parents": [
+        "engine"
+      ],
+      "note": "人的协作从无序中讨论、试错，最后长出秩序。"
+    },
+    {
+      "id": "bvsr",
+      "label": "变异 · 选择 · 保留",
+      "by": "Claude",
+      "step": 2,
+      "status": "growing",
+      "parents": [
+        "evo"
+      ],
+      "note": "Campbell 的盲目变异与选择性保留，Popper 的试错公式。"
+    },
+    {
+      "id": "retain",
+      "label": "保留才是核心",
+      "by": "Claude",
+      "step": 2,
+      "status": "growing",
+      "parents": [
+        "bvsr"
+      ],
+      "note": "Dawkins 的累积选择：秩序是一点点累积出来的，关键在于保留。"
+    },
+    {
+      "id": "aitool",
+      "label": "AI 提速协作",
+      "by": "你",
+      "step": 3,
+      "status": "growing",
+      "parents": [
+        "evo"
+      ],
+      "note": "一群人互相讨论的同时，每个人也在和 AI 说话。"
+    },
+    {
+      "id": "generic",
+      "label": "通用 AI 群聊",
+      "by": "Claude",
+      "step": 3,
+      "status": "dormant",
+      "parents": [
+        "aitool"
+      ],
+      "note": "巨头已经在做多人 AI 群聊，正面竞争没有胜算。"
+    },
+    {
+      "id": "private",
+      "label": "私人通道 + 汇总",
+      "by": "你",
+      "step": 3,
+      "status": "growing",
+      "parents": [
+        "aitool"
+      ],
+      "note": "像德尔菲法：每个人先独立和 AI 想清楚，再汇总给团队。"
+    },
+    {
+      "id": "thermo",
+      "label": "AI 当温度调节器",
+      "by": "Claude",
+      "step": 3,
+      "status": "growing",
+      "parents": [
+        "private"
+      ],
+      "note": "前期高温发散，后期降温收敛，全程保留。"
+    },
+    {
+      "id": "woz",
+      "label": "绿野仙踪测试",
+      "by": "Claude",
+      "step": 3,
+      "status": "growing",
+      "parents": [
+        "private"
+      ],
+      "note": "写代码之前，先由人假扮 AI，看这个结构有没有用。"
+    },
+    {
+      "id": "thesis",
+      "label": "论文：LLM 多准则决策",
+      "by": "你",
+      "step": 3,
+      "status": "growing",
+      "parents": [
+        "root"
+      ],
+      "note": "明年一月开始的毕业论文，可以成为产品的研究内核。"
+    },
+    {
+      "id": "visible",
+      "label": "让说不出的进步被看见",
+      "by": "你",
+      "step": 4,
+      "status": "growing",
+      "parents": [
+        "aitool"
+      ],
+      "note": "把团队协作中模糊、无法言说、突然出现的进步可视化。"
+    },
+    {
+      "id": "five",
+      "label": "五篇材料：咔哒与警告",
+      "by": "Claude",
+      "step": 4,
+      "status": "growing",
+      "parents": [
+        "visible",
+        "retain"
+      ],
+      "note": "Simon 的保险箱咔哒声；三条警告：不要收敛太快，不要暴露个人，不要强求共识。"
+    },
+    {
+      "id": "disagree",
+      "label": "分歧定位图",
+      "by": "Claude",
+      "step": 4,
+      "status": "growing",
+      "parents": [
+        "five",
+        "thesis"
+      ],
+      "note": "分歧到底出在事实、推断，还是价值权重？"
+    },
+    {
+      "id": "dual",
+      "label": "双层 AI + 想法图谱",
+      "by": "ChatGPT",
+      "step": 5,
+      "status": "growing",
+      "parents": [
+        "visible"
+      ],
+      "note": "个人 AI 与团队 AI 两层，中间是可追溯的想法网络。"
+    },
+    {
+      "id": "prompt",
+      "label": "科学的 prompt 方法",
+      "by": "你",
+      "step": 5,
+      "status": "growing",
+      "parents": [
+        "five"
+      ],
+      "note": "用哲学和多学科知识设计方法，任何大模型都能照着用。"
+    },
+    {
+      "id": "protocol",
+      "label": "协作协议",
+      "by": "Claude",
+      "step": 5,
+      "status": "growing",
+      "knot": true,
+      "parents": [
+        "prompt",
+        "thermo"
+      ],
+      "note": "prompt 只是其中一层，还需要记忆、权限、时序和界面。"
+    },
+    {
+      "id": "grail",
+      "label": "GRAIL 基线实验",
+      "by": "Claude",
+      "step": 5,
+      "status": "growing",
+      "parents": [
+        "protocol"
+      ],
+      "note": "在隐藏信息任务上，看能否超过 GPT-4o 主持人的决策准确率。"
+    },
+    {
+      "id": "tree",
+      "label": "想法进化树",
+      "by": "你",
+      "step": 6,
+      "status": "growing",
+      "knot": true,
+      "parents": [
+        "protocol",
+        "dual",
+        "retain"
+      ],
+      "note": "让想法像生物一样分叉、生长、休眠，也会融合。"
+    },
+    {
+      "id": "dag",
+      "label": "会融合的树（DAG）",
+      "by": "Claude",
+      "step": 6,
+      "status": "growing",
+      "parents": [
+        "tree"
+      ],
+      "note": "Y 染色体只分叉，想法会重组，所以底层是有向无环图。"
+    },
+    {
+      "id": "form",
+      "label": "网站 + agent + skill",
+      "by": "Claude",
+      "step": 7,
+      "status": "growing",
+      "parents": [
+        "tree"
+      ],
+      "note": "网站是花园，agent 是园丁，skill 是园艺手册，MCP 是花园的门。"
+    },
+    {
+      "id": "skill0",
+      "label": "第 0 阶段：skill",
+      "by": "Claude",
+      "step": 7,
+      "status": "growing",
+      "parents": [
+        "form"
+      ],
+      "note": "对话记录进去，想法图谱和这棵树出来。"
+    },
+    {
+      "id": "lovable",
+      "label": "用 Lovable 搭花园",
+      "by": "你",
+      "step": 8,
+      "status": "growing",
+      "parents": [
+        "form"
+      ],
+      "note": "登录、房间和数据库交给 Lovable，树单独做成组件。"
+    },
+    {
+      "id": "name",
+      "label": "Ramus 还是 Stam",
+      "by": "你",
+      "step": 8,
+      "status": "growing",
+      "parents": [
+        "form"
+      ],
+      "note": "Ramus 是枝，Stam 是干。正在二选一。"
+    },
+    {
+      "id": "garden",
+      "label": "花园结构敲定",
+      "by": "你",
+      "step": 9,
+      "status": "growing",
+      "knot": true,
+      "parents": [
+        "form"
+      ],
+      "note": "想法图谱是树，网站是花园，agent 是园丁，skill 是园艺手册。"
+    },
+    {
+      "id": "kit",
+      "label": "Lovable 提示词包",
+      "by": "Claude",
+      "step": 9,
+      "status": "growing",
+      "parents": [
+        "garden",
+        "lovable"
+      ],
+      "note": "把讨论、Simon 的思想和咔哒做成可以直接开工的提示词。"
+    },
+    {
+      "id": "personal",
+      "label": "个人思想花园",
+      "by": "ChatGPT",
+      "step": 10,
+      "status": "dormant",
+      "parents": [
+        "kit"
+      ],
+      "note": "第一个用户是自己：记录每天和 AI 一起思考的过程。最后没有走这条路，但它留在树上。"
+    },
+    {
+      "id": "humans",
+      "label": "相信人与人",
+      "by": "你",
+      "step": 10,
+      "status": "growing",
+      "knot": true,
+      "parents": [
+        "kit"
+      ],
+      "note": "不断出新、最后拍板的是人。Ramus 做人与人之间的协作，AI 只当园丁。"
+    },
+    {
+      "id": "tend",
+      "label": "园丁不播种",
+      "by": "Claude",
+      "step": 10,
+      "status": "growing",
+      "parents": [
+        "humans"
+      ],
+      "note": "AI 不提供想法，只记录、整理、提醒和提问；树上只有人有颜色。"
+    }
+  ]
+}

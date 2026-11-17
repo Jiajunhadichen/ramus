@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>想法进化树原型</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&family=Noto+Serif+SC:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* layout: a herbarium sheet. The specimen (tree) fills the left, field notes sit right, the data drawer lies below */
+  --paper: #E9EDE6;
+  --sheet: #F4F6F1;
+  --ink: #1C2520;
+  --muted: #5B685F;
+  --rule: #C5CEC3;
+  --you: #2A7652;
+  --claude: #98610F;
+  --gpt: #4A50A0;
+  --display: "Noto Serif SC", "Noto Serif CJK SC", "Songti SC", "STSong", serif;
+  --body: "Noto Sans SC", "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0F1511; --sheet: #151D18; --ink: #DCE4DD; --muted: #90A096; --rule: #29342D;
+    --you: #66C79A; --claude: #E4AE55; --gpt: #A3A8EF; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0F1511; --sheet: #151D18; --ink: #DCE4DD; --muted: #90A096; --rule: #29342D;
+  --you: #66C79A; --claude: #E4AE55; --gpt: #A3A8EF; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.7; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 32px 20px 56px; display: grid; gap: 28px; }
+header { display: grid; gap: 6px; max-width: 760px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .06em; color: var(--muted); margin: 0; }
+h1 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 4.2vw, 42px); line-height: 1.25; margin: 0; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 62ch; }
+.board { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+@media (max-width: 900px) { .board { grid-template-columns: 1fr; } }
+.specimen-sheet { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; display: grid; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 12px 16px; border-bottom: 1px solid var(--rule); }
+button { font: 500 14px/1 var(--body); color: var(--ink); background: transparent; border: 1px solid var(--ink); border-radius: 4px; padding: 9px 14px; cursor: pointer; }
+button:hover { background: var(--ink); color: var(--sheet); }
+button:focus-visible, input:focus-visible, textarea:focus-visible, .node:focus-visible { outline: 2px solid var(--you); outline-offset: 2px; }
+.controls input[type="range"] { flex: 1 1 200px; accent-color: var(--you); }
+.step-label { font-size: 14px; min-width: 15em; font-variant-numeric: tabular-nums; }
+.step-label b { font-family: var(--mono); font-weight: 500; }
+.canvas { position: relative; overflow-x: auto; }
+.canvas svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.specimen { position: absolute; left: 16px; top: 16px; width: 252px; background: var(--sheet); border: 1px solid var(--ink); padding: 10px 12px; font-size: 12px; line-height: 1.6; }
+.specimen p { margin: 0; }
+.specimen .sp-no { font-family: var(--mono); letter-spacing: .05em; border-bottom: 1px solid var(--rule); padding-bottom: 4px; margin-bottom: 4px; }
+.specimen .sp-title { font-family: var(--display); font-weight: 700; font-size: 15px; }
+.specimen .sp-count { font-family: var(--mono); color: var(--muted); margin-top: 4px; }
+@media (max-width: 640px) { .specimen { position: static; width: auto; margin: 0 16px 16px; } }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 20px; padding: 12px 16px; border-top: 1px solid var(--rule); font-size: 13px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend svg { flex: none; }
+.notes { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 18px 18px 20px; display: grid; gap: 10px; position: sticky; top: 16px; }
+.notes h2 { font-family: var(--display); font-weight: 700; font-size: 22px; line-height: 1.35; margin: 0; text-wrap: balance; }
+.notes p { margin: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 12px; line-height: 1; padding: 5px 8px; border-radius: 3px; border: 1px solid currentColor; }
+.notes dl { margin: 4px 0 0; display: grid; grid-template-columns: 3em 1fr; gap: 6px 8px; font-size: 14px; }
+.notes dt { color: var(--muted); }
+.notes dd { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 6px; }
+.link { border: 0; padding: 2px 0; font-weight: 400; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; }
+.link:hover { background: transparent; color: var(--you); }
+.none { color: var(--muted); }
+.drawer { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 18px; display: grid; gap: 12px; }
+.drawer h2 { font-family: var(--display); font-weight: 700; font-size: 20px; margin: 0; }
+.drawer ul { margin: 0; padding-left: 1.2em; color: var(--muted); font-size: 14px; max-width: 75ch; }
+.drawer code, .mono { font-family: var(--mono); font-size: 13px; }
+textarea { width: 100%; min-height: 260px; resize: vertical; font: 12px/1.55 var(--mono); color: var(--ink); background: var(--paper); border: 1px solid var(--rule); border-radius: 4px; padding: 12px; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.msg { font-size: 13px; color: var(--muted); }
+.msg.err { color: #B3261E; }
+:root[data-theme="dark"] .msg.err { color: #F2B8B5; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .msg.err { color: #F2B8B5; } }
+svg .lbl { font-family: var(--body); font-size: 13px; fill: var(--ink); paint-order: stroke; stroke: var(--sheet); stroke-width: 4px; stroke-linejoin: round; cursor: pointer; }
+svg .lbl.major { font-family: var(--display); font-weight: 700; font-size: 15px; }
+svg .lbl.dormant { fill: var(--muted); }
+svg .lbl.sel { text-decoration: underline; }
+svg .node { cursor: pointer; }
+svg .fade { transition: opacity .7s ease; }
+svg .off { opacity: 0 !important; pointer-events: none; }
+svg .leader { stroke: var(--muted); stroke-width: .6; stroke-dasharray: 2 2; }
+svg .ground { stroke: var(--ink); stroke-width: 1; }
+svg .selring { fill: none; stroke: var(--ink); stroke-width: 1.2; stroke-dasharray: 3 3; }
+@media (prefers-reduced-motion: no-preference) {
+  svg .pulse { transform-box: fill-box; transform-origin: center; animation: pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: .15; transform: scale(1); } 50% { opacity: .55; transform: scale(1.5); } }
+  svg .fresh-ring { transform-box: fill-box; transform-origin: center; animation: pop .9s ease-out 1; }
+  @keyframes pop { from { opacity: 0; transform: scale(.3); } to { opacity: 1; transform: scale(1); } }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Ramus / Stam · 原型 v0</p>
+    <h1 id="title">一场头脑风暴的进化树</h1>
+    <p class="lede">用今晚的对话当数据：从“做什么项目”出发，一步步长到“想法进化树”。拖动时间轴看它怎么长出来，点任意一个节点，看它从哪里来、又长出了什么。</p>
+  </header>
+
+  <div class="board">
+    <section class="specimen-sheet" aria-label="想法进化树">
+      <div class="controls">
+        <button id="play" type="button">播放生长</button>
+        <input id="step" type="range" min="1" max="8" value="8" aria-label="时间轴：第几步">
+        <span class="step-label" id="step-label" aria-live="polite"></span>
+      </div>
+      <div class="canvas">
+        <svg id="tree" viewBox="0 0 1100 900" role="img" aria-labelledby="tree-desc">
+          <desc id="tree-desc">想法进化树：每个节点是一个想法，分叉表示新思路，虚线表示两条思路融合，颜色表示提出者，褪色的枝表示停止生长但保留。</desc>
+          <g id="g-merge"></g>
+          <g id="g-branch"></g>
+          <g id="g-leader"></g>
+          <g id="g-node"></g>
+          <g id="g-label"></g>
+        </svg>
+        <div class="specimen" id="specimen"></div>
+      </div>
+      <div class="legend" id="legend"></div>
+    </section>
+
+    <aside class="notes" id="notes" aria-live="polite">
+      <p class="eyebrow" id="n-meta"></p>
+      <h2 id="n-title"></h2>
+      <div class="chips" id="n-chips"></div>
+      <p id="n-note"></p>
+      <dl>
+        <dt>来自</dt><dd id="n-from"></dd>
+        <dt>长出</dt><dd id="n-to"></dd>
+      </dl>
+    </aside>
+  </div>
+
+  <section class="drawer" aria-labelledby="drawer-title">
+    <h2 id="drawer-title">用你自己的数据</h2>
+    <ul>
+      <li><code>id</code>、<code>label</code>：节点的唯一编号和显示的名字。</li>
+      <li><code>parents</code>：第一个是主干上的父节点，其余是融合进来的思路；根节点留空。</li>
+      <li><code>by</code> 谁提出的，<code>step</code> 第几步长出来，<code>status</code> 填 <code>growing</code> 或 <code>dormant</code>，<code>knot</code> 表示团队确认过的树节，<code>note</code> 一句话说明。</li>
+      <li>以后 skill 从对话记录里抽出来的就是这份 JSON，这棵树会直接把它画出来。</li>
+    </ul>
+    <label for="json" class="msg">想法图谱 JSON</label>
+    <textarea id="json" spellcheck="false"></textarea>
+    <div class="row">
+      <button id="apply" type="button">用这份数据重画</button>
+      <button id="copy" type="button">复制 JSON</button>
+      <button id="reset" type="button">恢复示例</button>
+      <span class="msg" id="msg" role="status"></span>
+    </div>
+  </section>
+</div>
+
+<script>
+const SAMPLE = {
+  title: "一场头脑风暴的进化树",
+  collected: "斯德哥尔摩 · 2026-11-17 夜",
+  focus: "tree",
+  steps: {
+    "1": "ChatGPT 给出四个方向",
+    "2": "协作像生物进化",
+    "3": "AI 提速协作",
+    "4": "读完五篇材料",
+    "5": "是 prompt，还是协议",
+    "6": "像树一样生长",
+    "7": "网站、agent 还是 skill",
+    "8": "用 Lovable，起名字"
+  },
+  nodes: [
+    { id: "root", label: "做什么项目", by: "你", step: 1, status: "growing", parents: [], note: "既能服务求职、又能探索独立产品的项目，从哪里开始？" },
+    { id: "fitloop", label: "FitLoop 样衣协作", by: "ChatGPT", step: 1, status: "growing", parents: ["root"], note: "帮小型服装品牌管理样衣修改，被排为首选方向。" },
+    { id: "lesson", label: "LessonPulse", by: "ChatGPT", step: 1, status: "dormant", parents: ["root"], note: "帮儿童编程机构管理课程进度。暂时停下，但还在树上。" },
+    { id: "sustain", label: "SustainTrace", by: "ChatGPT", step: 1, status: "dormant", parents: ["root"], note: "帮工业企业清理数据、追踪错误、生成报告。它的流程结构融进了业务流程引擎。" },
+    { id: "azure", label: "AzureSpend Guard", by: "ChatGPT", step: 1, status: "dormant", parents: ["root"], note: "把已有的 Azure 项目升级成费用分析产品。" },
+    { id: "access", label: "AccessSafe", by: "你", step: 1, status: "dormant", parents: ["root"], note: "已有的 Azure 权限项目：发现风险、提出申请、审核、执行。" },
+    { id: "engine", label: "业务流程引擎", by: "ChatGPT", step: 1, status: "growing", knot: true, parents: ["fitloop", "sustain", "access"], note: "发现这些项目共享同一个结构：反馈、修改、审核、确认。" },
+    { id: "evo", label: "协作像生物进化", by: "你", step: 2, status: "growing", knot: true, parents: ["engine"], note: "人的协作从无序中讨论、试错，最后长出秩序。" },
+    { id: "bvsr", label: "变异 · 选择 · 保留", by: "Claude", step: 2, status: "growing", parents: ["evo"], note: "Campbell 的盲目变异与选择性保留，Popper 的试错公式。" },
+    { id: "retain", label: "保留才是核心", by: "Claude", step: 2, status: "growing", parents: ["bvsr"], note: "Dawkins 的累积选择：秩序是一点点累积出来的，关键在于保留。" },
+    { id: "aitool", label: "AI 提速协作", by: "你", step: 3, status: "growing", parents: ["evo"], note: "一群人互相讨论的同时，每个人也在和 AI 说话。" },
+    { id: "generic", label: "通用 AI 群聊", by: "Claude", step: 3, status: "dormant", parents: ["aitool"], note: "巨头已经在做多人 AI 群聊，正面竞争没有胜算。" },
+    { id: "private", label: "私人通道 + 汇总", by: "你", step: 3, status: "growing", parents: ["aitool"], note: "像德尔菲法：每个人先独立和 AI 想清楚，再汇总给团队。" },
+    { id: "thermo", label: "AI 当温度调节器", by: "Claude", step: 3, status: "growing", parents: ["private"], note: "前期高温发散，后期降温收敛，全程保留。" },
+    { id: "woz", label: "绿野仙踪测试", by: "Claude", step: 3, status: "growing", parents: ["private"], note: "写代码之前，先由人假扮 AI，看这个结构有没有用。" },
+    { id: "thesis", label: "论文：LLM 多准则决策", by: "你", step: 3, status: "growing", parents: ["root"], note: "明年一月开始的毕业论文，可以成为产品的研究内核。" },
+    { id: "visible", label: "让说不出的进步被看见", by: "你", step: 4, status: "growing", parents: ["aitool"], note: "把团队协作中模糊、无法言说、突然出现的进步可视化。" },
+    { id: "five", label: "五篇材料：咔哒与警告", by: "Claude", step: 4, status: "growing", parents: ["visible", "retain"], note: "Simon 的保险箱咔哒声；三条警告：不要收敛太快，不要暴露个人，不要强求共识。" },
+    { id: "disagree", label: "分歧定位图", by: "Claude", step: 4, status: "growing", parents: ["five", "thesis"], note: "分歧到底出在事实、推断，还是价值权重？" },
+    { id: "dual", label: "双层 AI + 想法图谱", by: "ChatGPT", step: 5, status: "growing", parents: ["visible"], note: "个人 AI 与团队 AI 两层，中间是可追溯的想法网络。" },
+    { id: "prompt", label: "科学的 prompt 方法", by: "你", step: 5, status: "growing", parents: ["five"], note: "用哲学和多学科知识设计方法，任何大模型都能照着用。" },
+    { id: "protocol", label: "协作协议", by: "Claude", step: 5, status: "growing", knot: true, parents: ["prompt", "thermo"], note: "prompt 只是其中一层，还需要记忆、权限、时序和界面。" },
+    { id: "grail", label: "GRAIL 基线实验", by: "Claude", step: 5, status: "growing", parents: ["protocol"], note: "在隐藏信息任务上，看能否超过 GPT-4o 主持人的决策准确率。" },
+    { id: "tree", label: "想法进化树", by: "你", step: 6, status: "growing", knot: true, parents: ["protocol", "dual", "retain"], note: "让想法像生物一样分叉、生长、休眠，也会融合。" },
+    { id: "dag", label: "会融合的树（DAG）", by: "Claude", step: 6, status: "growing", parents: ["tree"], note: "Y 染色体只分叉，想法会重组，所以底层是有向无环图。" },
+    { id: "form", label: "网站 + agent + skill", by: "Claude", step: 7, status: "growing", parents: ["tree"], note: "网站是花园，agent 是园丁，skill 是园艺手册，MCP 是花园的门。" },
+    { id: "skill0", label: "第 0 阶段：skill", by: "Claude", step: 7, status: "growing", parents: ["form"], note: "对话记录进去，想法图谱和这棵树出来。" },
+    { id: "lovable", label: "用 Lovable 搭花园", by: "你", step: 8, status: "growing", parents: ["form"], note: "登录、房间和数据库交给 Lovable，树单独做成组件。" },
+    { id: "name", label: "Ramus 还是 Stam", by: "你", step: 8, status: "growing", parents: ["form"], note: "Ramus 是枝，Stam 是干。正在二选一。" }
+  ]
+};
+
+const W = 1100, H = 900, CX = W / 2, CY = H - 74;
+const NS = "http://www.w3.org/2000/svg";
+const KNOWN = { "你": "var(--you)", "Claude": "var(--claude)", "ChatGPT": "var(--gpt)" };
+const EXTRA = ["#7E6BB0", "#3F8FA6", "#A0566E", "#6F7B3A"];
+let data, L, current, selected, timer = null;
+
+const $ = id => document.getElementById(id);
+const el = (tag, attrs = {}, parent) => {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+};
+
+function colorOf(by) {
+  if (KNOWN[by]) return KNOWN[by];
+  const names = [...new Set(data.nodes.map(n => n.by))].filter(b => !KNOWN[b]);
+  return EXTRA[names.indexOf(by) % EXTRA.length];
+}
+
+function normalize(obj) {
+  const nodes = Array.isArray(obj) ? obj : obj && obj.nodes;
+  if (!Array.isArray(nodes) || nodes.length === 0) throw new Error("需要一个 nodes 数组，里面至少有一个节点。");
+  const ids = new Set();
+  for (const n of nodes) {
+    if (!n || typeof n.id !== "string" || !n.id) throw new Error("每个节点都需要一个字符串 id。");
+    if (ids.has(n.id)) throw new Error("id 重复了：" + n.id);
+    ids.add(n.id);
+    if (typeof n.label !== "string" || !n.label) throw new Error("节点 " + n.id + " 缺少 label。");
+    if (!Array.isArray(n.parents)) throw new Error("节点 " + n.id + " 的 parents 必须是数组，根节点写 []。");
+  }
+  for (const n of nodes) for (const p of n.parents) if (!ids.has(p)) throw new Error("节点 " + n.id + " 的父节点 " + p + " 不存在。");
+  const roots = nodes.filter(n => n.parents.length === 0);
+  if (roots.length !== 1) throw new Error("需要恰好一个根节点（parents 为空），现在有 " + roots.length + " 个。");
+  const prim = new Map(nodes.map(n => [n.id, n.parents[0]]));
+  for (const n of nodes) {
+    const seen = new Set();
+    let cur = n.id;
+    while (cur) {
+      if (seen.has(cur)) throw new Error("主干父节点形成了循环，检查 " + n.id + " 的 parents。");
+      seen.add(cur);
+      cur = prim.get(cur);
+    }
+  }
+  const meta = Array.isArray(obj) ? {} : obj;
+  return {
+    title: meta.title || "想法进化树",
+    collected: meta.collected || "",
+    focus: ids.has(meta.focus) ? meta.focus : null,
+    steps: meta.steps || {},
+    nodes: nodes.map((n, i) => ({
+      id: n.id, label: n.label, parents: n.parents.slice(),
+      by: n.by || "未署名",
+      step: Number.isFinite(+n.step) && +n.step >= 1 ? Math.round(+n.step) : 1,
+      status: n.status === "dormant" ? "dormant" : "growing",
+      knot: !!n.knot, note: n.note || "", _i: i
+    }))
+  };
+}
+
+function computeLayout() {
+  const byId = new Map(data.nodes.map(n => [n.id, n]));
+  const kids = new Map(data.nodes.map(n => [n.id, []]));
+  let root;
+  data.nodes.forEach(n => { if (!n.parents.length) root = n; else kids.get(n.parents[0]).push(n); });
+  const leaves = n => (n.leaves = kids.get(n.id).length ? kids.get(n.id).reduce((s, c) => s + leaves(c), 0) : 1);
+  const desc = n => (n.desc = kids.get(n.id).reduce((s, c) => s + 1 + desc(c), 0));
+  leaves(root); desc(root);
+  let maxDepth = 1;
+  const depth = (n, d) => { n.depth = d; maxDepth = Math.max(maxDepth, d); kids.get(n.id).forEach(c => depth(c, d + 1)); };
+  depth(root, 0);
+  const arrange = (arr, d) => {
+    const s = [...arr].sort((a, b) => b.leaves - a.leaves || a._i - b._i);
+    const out = [];
+    s.forEach((c, i) => ((i + d) % 2 === 0 ? out.push(c) : out.unshift(c)));
+    return out;
+  };
+  const jitter = id => { let h = 7; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) % 9973; return h / 9973 - 0.5; };
+  const SPAN = 1.4;
+  const place = (n, a0, a1) => {
+    const width = a1 - a0;
+    n.a = n === root ? 0 : (a0 + a1) / 2 + jitter(n.id) * Math.min(0.06, width * 0.25);
+    let a = a0;
+    arrange(kids.get(n.id), n.depth).forEach((c, idx) => {
+      const w = width * c.leaves / n.leaves;
+      c.sib = idx;
+      place(c, a, a + w);
+      a += w;
+    });
+  };
+  place(root, -SPAN, SPAN);
+  const R = (CY - 64) / maxDepth;
+  data.nodes.forEach(n => {
+    let r = n.depth * R;
+    if (n !== root && !kids.get(n.id).length) {
+      const extra = Math.min(2.2, (maxDepth - n.depth) * 0.2);
+      r = (n.depth + extra + (n.sib % 2) * 0.45) * R;
+    }
+    n.r = r;
+    n.x = CX + r * Math.sin(n.a) * 0.9;
+    n.y = CY - r * (0.3 + 0.7 * Math.cos(n.a));
+  });
+  const xs = data.nodes.map(n => n.x);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const fit = Math.min(1, (CX - 190) / Math.max(1, CX - minX), (W - 210 - CX) / Math.max(1, maxX - CX));
+  data.nodes.forEach(n => { n.x = CX + (n.x - CX) * fit; });
+  return { byId, kids, root, R };
+}
+
+function unit(n) {
+  if (n === L.root) return { x: 0, y: -1 };
+  const dx = n.x - CX, dy = n.y - CY, d = Math.hypot(dx, dy) || 1;
+  const ux = dx / d * 0.6, uy = dy / d * 0.6 - 0.4, m = Math.hypot(ux, uy) || 1;
+  return { x: ux / m, y: uy / m };
+}
+function mergePath(a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+  let px = -dy / len, py = dx / len;
+  if (py > 0) { px = -px; py = -py; }
+  const bend = Math.min(50, len * 0.12);
+  const mx = (a.x + b.x) / 2 + px * bend, my = (a.y + b.y) / 2 + py * bend;
+  return "M" + a.x.toFixed(1) + " " + a.y.toFixed(1) + " Q" + mx.toFixed(1) + " " + my.toFixed(1) + " " + b.x.toFixed(1) + " " + b.y.toFixed(1);
+}
+function bez(p, t) {
+  const u = 1 - t;
+  return {
+    x: u * u * u * p[0].x + 3 * u * u * t * p[1].x + 3 * u * t * t * p[2].x + t * t * t * p[3].x,
+    y: u * u * u * p[0].y + 3 * u * u * t * p[1].y + 3 * u * t * t * p[2].y + t * t * t * p[3].y
+  };
+}
+function curve(a, b, k1, k2) {
+  const len = Math.hypot(b.x - a.x, b.y - a.y);
+  const ua = unit(a), ub = unit(b);
+  return [
+    { x: a.x, y: a.y },
+    { x: a.x + ua.x * len * k1, y: a.y + ua.y * len * k1 },
+    { x: b.x - ub.x * len * k2, y: b.y - ub.y * len * k2 },
+    { x: b.x, y: b.y }
+  ];
+}
+function taper(p, w0, w1) {
+  const N = 20, left = [], right = [];
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    const q = bez(p, t), a = bez(p, Math.max(0, t - 0.02)), b = bez(p, Math.min(1, t + 0.02));
+    const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
+    const half = (w0 + (w1 - w0) * t) / 2;
+    left.push((q.x - dy / d * half).toFixed(1) + " " + (q.y + dx / d * half).toFixed(1));
+    right.push((q.x + dy / d * half).toFixed(1) + " " + (q.y - dx / d * half).toFixed(1));
+  }
+  return "M" + left.join(" L") + " L" + right.reverse().join(" L") + "Z";
+}
+const thick = n => Math.min(13, 1.3 + 1.55 * Math.sqrt(n.desc + 1));
+
+function draw() {
+  ["g-merge", "g-branch", "g-leader", "g-node", "g-label"].forEach(id => ($(id).innerHTML = ""));
+  const gM = $("g-merge"), gB = $("g-branch"), gL = $("g-leader"), gN = $("g-node"), gT = $("g-label");
+  el("line", { x1: CX - 120, y1: CY + 1, x2: CX + 120, y2: CY + 1, class: "ground" }, gB);
+
+  data.nodes.forEach(n => {
+    if (!n.parents.length) return;
+    const p = L.byId.get(n.parents[0]);
+    const pts = curve(p, n, 0.5, 0.3);
+    const w1 = Math.max(1.1, thick(n) * 0.85);
+    const w0 = Math.min(thick(p), Math.max(w1 * 1.5, w1 + 1));
+    const path = el("path", { d: taper(pts, w0, w1), class: "fade", "data-id": n.id, "data-from": p.id }, gB);
+    path.style.fill = colorOf(n.by);
+    path.style.opacity = n.status === "dormant" ? 0.3 : 0.9;
+    n.parents.slice(1).forEach(mid => {
+      const m = L.byId.get(mid);
+      const mg = el("path", { d: mergePath(m, n), fill: "none", "stroke-width": 1.2, "stroke-dasharray": "4 5", "stroke-linecap": "round", class: "fade", "data-id": n.id, "data-from": m.id }, gM);
+      mg.style.stroke = colorOf(m.by);
+      mg.style.opacity = 0.6;
+    });
+  });
+
+  data.nodes.forEach(n => {
+    const c = colorOf(n.by);
+    const leaf = !L.kids.get(n.id).length && n !== L.root;
+    const g = el("g", { class: "node fade", "data-id": n.id, tabindex: 0, role: "button", "aria-label": n.label }, gN);
+    if (n.knot) {
+      const ring = el("circle", { cx: n.x, cy: n.y, r: 8.5, fill: "none", "stroke-width": 1.6 }, g);
+      ring.style.stroke = c;
+      const sheet = el("circle", { cx: n.x, cy: n.y, r: 6.2 }, g);
+      sheet.style.fill = "var(--sheet)";
+    }
+    if (n.status === "growing" && leaf) {
+      const halo = el("circle", { cx: n.x, cy: n.y, r: 9, class: "pulse" }, g);
+      halo.style.fill = c;
+    }
+    const dot = el("circle", { cx: n.x, cy: n.y, r: n === L.root ? 6 : leaf ? 4.6 : 4, "stroke-width": 1.6 }, g);
+    dot.style.stroke = c;
+    dot.style.fill = n.status === "dormant" ? "var(--sheet)" : c;
+    if (n.status === "dormant") g.style.opacity = 0.75;
+    el("circle", { cx: n.x, cy: n.y, r: 13, class: "selring", "data-sel": 1, style: "display:none" }, g);
+    el("circle", { cx: n.x, cy: n.y, r: 11, fill: "none", "stroke-width": 1.4, class: "fresh-ring", "data-fresh": 1, style: "display:none;stroke:" + c }, g);
+    g.addEventListener("click", () => select(n.id));
+    g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(n.id); } });
+  });
+
+  data.nodes.forEach(n => {
+    const isRoot = n === L.root;
+    const right = !isRoot && n.x >= CX;
+    const x = isRoot ? n.x : n.x + (right ? 13 : -13);
+    const y = isRoot ? n.y + 30 : n.y + 5;
+    const cls = "lbl fade" + (n.knot || isRoot ? " major" : "") + (n.status === "dormant" ? " dormant" : "");
+    const t = el("text", { x, y, class: cls, "text-anchor": isRoot ? "middle" : right ? "start" : "end", "data-id": n.id }, gT);
+    t.textContent = n.label;
+    t.addEventListener("click", () => select(n.id));
+    n.ly = y;
+    n.label0 = { x, y };
+    const ld = el("line", { x1: n.x, y1: n.y, x2: x, y2: y - 4, class: "leader fade", "data-id": n.id, style: "display:none" }, gL);
+    n.leaderEl = ld;
+    n.textEl = t;
+  });
+  relax();
+}
+
+function relax() {
+  const items = data.nodes.map(n => {
+    n.textEl.setAttribute("y", n.label0.y);
+    const b = n.textEl.getBBox();
+    return { n, x0: b.x - 3, x1: b.x + b.width + 3, h: b.height, top: b.y - 1, dy: 0 };
+  });
+  const dots = data.nodes.map(n => ({ x: n.x, y: n.y }));
+  for (let iter = 0; iter < 80; iter++) {
+    let moved = false;
+    for (let i = 0; i < items.length; i++) {
+      const a = items[i];
+      for (let j = i + 1; j < items.length; j++) {
+        const b = items[j];
+        if (a.x1 < b.x0 || b.x1 < a.x0) continue;
+        const at = a.top + a.dy, bt = b.top + b.dy;
+        const ov = Math.min(at + a.h, bt + b.h) - Math.max(at, bt);
+        if (ov > -2) {
+          const push = (ov + 2) / 2 + 0.5;
+          if (at <= bt) { a.dy -= push; b.dy += push; } else { a.dy += push; b.dy -= push; }
+          moved = true;
+        }
+      }
+      for (const d of dots) {
+        if (d.x < a.x0 || d.x > a.x1) continue;
+        const at = a.top + a.dy;
+        if (d.y > at - 5 && d.y < at + a.h + 5 && Math.abs(d.x - a.n.x) + Math.abs(d.y - a.n.y) > 1) {
+          a.dy += (d.y > at + a.h / 2) ? -1.5 : 1.5;
+          moved = true;
+        }
+      }
+    }
+    if (!moved) break;
+  }
+  items.forEach(it => {
+    const n = it.n;
+    const y = n.label0.y + it.dy;
+    n.textEl.setAttribute("y", y.toFixed(1));
+    if (Math.abs(it.dy) > 7) {
+      n.leaderEl.style.display = "";
+      n.leaderEl.setAttribute("x2", n.label0.x);
+      n.leaderEl.setAttribute("y2", (y - 4).toFixed(1));
+    } else n.leaderEl.style.display = "none";
+  });
+}
+
+function maxStep() { return Math.max(...data.nodes.map(n => n.step)); }
+
+function setStep(s, animate) {
+  const prev = current;
+  current = s;
+  $("step").value = s;
+  const name = data.steps[String(s)] || "";
+  $("step-label").innerHTML = "<b>第 " + s + " / " + maxStep() + " 步</b>" + (name ? "　" + name : "");
+  const vis = id => L.byId.get(id).step <= s;
+  document.querySelectorAll("#tree [data-id]").forEach(e => {
+    const ok = vis(e.dataset.id) && (!e.dataset.from || vis(e.dataset.from));
+    e.classList.toggle("off", !ok);
+  });
+  document.querySelectorAll("#g-node .node").forEach(g => {
+    const n = L.byId.get(g.dataset.id);
+    const fresh = animate && n.step === s && (prev === undefined || s > prev);
+    const r = g.querySelector("[data-fresh]");
+    r.style.display = fresh ? "" : "none";
+    if (fresh) { r.classList.remove("fresh-ring"); void r.getBBox(); r.classList.add("fresh-ring"); }
+  });
+  if (selected && !vis(selected)) {
+    const last = data.nodes.filter(n => n.step <= s).sort((a, b) => b.step - a.step || b._i - a._i)[0];
+    select(last.id);
+  }
+}
+
+function chip(text, color) {
+  const c = document.createElement("span");
+  c.className = "chip";
+  c.textContent = text;
+  if (color) c.style.color = color;
+  return c;
+}
+function linkList(ids, box) {
+  box.innerHTML = "";
+  if (!ids.length) { const s = document.createElement("span"); s.className = "none"; s.textContent = "无"; box.appendChild(s); return; }
+  ids.forEach(id => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "link"; b.textContent = L.byId.get(id).label;
+    b.addEventListener("click", () => { if (L.byId.get(id).step > current) setStep(maxStep(), false); select(id); });
+    box.appendChild(b);
+  });
+}
+function select(id) {
+  selected = id;
+  const n = L.byId.get(id);
+  document.querySelectorAll("#g-node .node").forEach(g => { g.querySelector("[data-sel]").style.display = g.dataset.id === id ? "" : "none"; });
+  document.querySelectorAll("#g-label .lbl").forEach(t => t.classList.toggle("sel", t.dataset.id === id));
+  const stepName = data.steps[String(n.step)];
+  $("n-meta").textContent = "第 " + n.step + " 步" + (stepName ? " · " + stepName : "");
+  $("n-title").textContent = n.label;
+  const chips = $("n-chips");
+  chips.innerHTML = "";
+  chips.appendChild(chip("提出者：" + n.by, colorOf(n.by)));
+  chips.appendChild(chip(n.status === "dormant" ? "停止生长，但保留" : "还在生长"));
+  if (n.knot) chips.appendChild(chip("树节：阶段性成果"));
+  if (n.parents.length > 1) chips.appendChild(chip("融合了 " + n.parents.length + " 条思路"));
+  $("n-note").textContent = n.note || "";
+  linkList(n.parents, $("n-from"));
+  const children = data.nodes.filter(c => c.parents.includes(id)).map(c => c.id);
+  linkList(children, $("n-to"));
+}
+
+function renderMeta() {
+  $("title").textContent = data.title;
+  const people = [...new Set(data.nodes.map(n => n.by))];
+  const merges = data.nodes.reduce((s, n) => s + Math.max(0, n.parents.length - 1), 0);
+  const dormant = data.nodes.filter(n => n.status === "dormant").length;
+  const knots = data.nodes.filter(n => n.knot).length;
+  const sp = $("specimen");
+  sp.innerHTML = "";
+  const line = (cls, txt) => { const p = document.createElement("p"); p.className = cls; p.textContent = txt; sp.appendChild(p); };
+  line("sp-no", "标本 Nº 001");
+  line("sp-title", data.title);
+  if (data.collected) line("", "采集：" + data.collected);
+  line("", "采集者：" + people.join("、"));
+  line("sp-count", "节点 " + data.nodes.length + " · 融合 " + merges + " · 休眠 " + dormant + " · 树节 " + knots);
+  const lg = $("legend");
+  lg.innerHTML = "";
+  people.forEach(p => {
+    const s = document.createElement("span");
+    s.innerHTML = '<svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="5" style="fill:' + colorOf(p) + '"/></svg>';
+    s.appendChild(document.createTextNode(p));
+    lg.appendChild(s);
+  });
+  const glyphs = [
+    ['<circle cx="9" cy="7" r="4.5" style="fill:var(--sheet);stroke:var(--muted)" stroke-width="1.5"/>', "停止生长，但保留"],
+    ['<line x1="1" y1="7" x2="17" y2="7" style="stroke:var(--muted)" stroke-width="1.4" stroke-dasharray="3 3"/>', "两条思路融合"],
+    ['<circle cx="9" cy="7" r="6" style="fill:none;stroke:var(--muted)" stroke-width="1.5"/><circle cx="9" cy="7" r="2.6" style="fill:var(--muted)"/>', "树节：团队确认过的阶段性成果"],
+    ['<path d="M1 10 L17 5 L17 8 L1 11Z" style="fill:var(--muted)"/>', "枝越粗，后来越多的想法建立在它上面"]
+  ];
+  glyphs.forEach(([g, t]) => {
+    const s = document.createElement("span");
+    s.innerHTML = '<svg width="18" height="14" aria-hidden="true">' + g + "</svg>";
+    s.appendChild(document.createTextNode(t));
+    lg.appendChild(s);
+  });
+}
+
+function load(obj, keepText) {
+  stop();
+  selected = null;
+  data = normalize(obj);
+  L = computeLayout();
+  draw();
+  renderMeta();
+  const ms = maxStep();
+  $("step").max = ms;
+  current = undefined;
+  setStep(ms, false);
+  const focus = data.focus || data.nodes.slice().sort((a, b) => b.step - a.step || b._i - a._i)[0].id;
+  select(focus);
+  if (!keepText) $("json").value = JSON.stringify(obj, null, 2);
+}
+
+function stop() {
+  if (timer) { clearInterval(timer); timer = null; }
+  $("play").textContent = "播放生长";
+}
+$("play").addEventListener("click", () => {
+  if (timer) { stop(); return; }
+  const ms = maxStep();
+  let s = current >= ms ? 1 : current + 1;
+  setStep(s, true);
+  $("play").textContent = "暂停";
+  timer = setInterval(() => {
+    if (current >= ms) { stop(); return; }
+    setStep(current + 1, true);
+  }, 1300);
+});
+$("step").addEventListener("input", e => { stop(); setStep(+e.target.value, true); });
+
+const msg = (text, err) => { const m = $("msg"); m.textContent = text; m.classList.toggle("err", !!err); };
+$("json").addEventListener("input", () => msg(""));
+$("apply").addEventListener("click", () => {
+  const raw = $("json").value.trim();
+  if (!raw) { msg("先粘贴一份 JSON。", true); return; }
+  let obj;
+  try { obj = JSON.parse(raw); } catch (e) { msg("JSON 格式有误：" + e.message, true); return; }
+  try { normalize(obj); } catch (e) { msg(e.message, true); return; }
+  load(obj, true);
+  msg("已重画：" + data.nodes.length + " 个节点。");
+});
+$("copy").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText($("json").value); msg("已复制到剪贴板。"); }
+  catch (e) { $("json").select(); msg("浏览器不允许自动复制，已选中全文，请按 Ctrl+C 或 ⌘C。", true); }
+});
+$("reset").addEventListener("click", () => { load(SAMPLE, false); msg("已恢复示例数据。"); });
+
+load(SAMPLE, false);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => relax());
+</script>
+</body>
+</html>
