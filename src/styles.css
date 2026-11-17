@@ -256,3 +256,7 @@
 .stam-tree .poster-title { font-family: var(--font-display); font-size: 40px; fill: var(--ink); }
 .stam-tree .poster-line { font-family: var(--font-sans); font-style: italic; font-size: 18px; fill: var(--muted-ink); }
 .stam-tree .poster-mark { font-family: var(--font-sans); font-style: italic; font-size: 13px; fill: var(--sepia); opacity: .85; }
+
+/* Present: the tree fits the column height, never pushing the footer off screen */
+.present-tree > div { height: 100%; }
+.present-tree svg.stam-tree { height: 100%; width: 100%; }

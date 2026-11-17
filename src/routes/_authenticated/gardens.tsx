@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "sonner";
 import { useBringIn } from "@/hooks/use-bring-in";
 import { BringInWindow, type Incoming } from "@/components/garden/BringInWindow";
+import { CollectorStamp } from "@/components/garden/AccessionStamp";
 
 const gardensQuery = queryOptions({
   queryKey: ["gardens"],
@@ -55,6 +56,7 @@ function GardensPage() {
           <p className="eyebrow">Herbarium</p>
           <h1 className="font-display text-title leading-[1.1]">My gardens</h1>
         </div>
+        <FirstVisitStamp />
         <div className="ml-auto flex gap-2">
           <Button variant="outline" onClick={() => setImportOpen(true)}>Import a Ramus file</Button>
           <Button variant="outline" onClick={() => setNewOpen(true)}>Start from a question</Button>
@@ -165,7 +167,7 @@ function GardenCard({ g }: { g: GardenRow }) {
     try {
       await trashFn({ data: { gardenId: g.id, trash: true } });
       await qc.invalidateQueries({ queryKey: ["gardens"] });
-      toast(`“${g.title}” moved to the trash.`, { action: { label: "Undo", onClick: async () => { await trashFn({ data: { gardenId: g.id, trash: false } }); await qc.invalidateQueries({ queryKey: ["gardens"] }); } } });
+      toast(`“${g.title}” went back to seed.`, { action: { label: "Undo", onClick: async () => { await trashFn({ data: { gardenId: g.id, trash: false } }); await qc.invalidateQueries({ queryKey: ["gardens"] }); } } });
     } catch (e) { toast.error((e as Error).message); }
   }
   const tree = useMemo(() => g.tree.map((n) => ({ ...n, by: "" })) as TreeNode[], [g.tree]);
@@ -186,7 +188,7 @@ function GardenCard({ g }: { g: GardenRow }) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onSelect={() => setRenaming(true)}>Rename…</DropdownMenuItem>
-          {g.mine && <DropdownMenuItem onSelect={() => void moveToTrash()}>Move to trash</DropdownMenuItem>}
+          {g.mine && <DropdownMenuItem onSelect={() => void moveToTrash()}>Back to seed</DropdownMenuItem>}
         </DropdownMenuContent>
       </DropdownMenu>
       <RenameDialog g={g} open={renaming} onOpenChange={setRenaming} />
@@ -225,7 +227,7 @@ function Trash({ gardens }: { gardens: GardenRow[] }) {
   const [doomed, setDoomed] = useState<GardenRow | null>(null);
   const [busy, setBusy] = useState(false);
   async function restore(g: GardenRow) {
-    try { await trashFn({ data: { gardenId: g.id, trash: false } }); await qc.invalidateQueries({ queryKey: ["gardens"] }); toast.success(`“${g.title}” is back.`); }
+    try { await trashFn({ data: { gardenId: g.id, trash: false } }); await qc.invalidateQueries({ queryKey: ["gardens"] }); toast.success(`“${g.title}” is planted again.`); }
     catch (e) { toast.error((e as Error).message); }
   }
   async function deleteForever(g: GardenRow) {
@@ -241,9 +243,9 @@ function Trash({ gardens }: { gardens: GardenRow[] }) {
     finally { setBusy(false); }
   }
   return (
-    <section aria-label="Trash" className="mt-12 border-t border-rule pt-4">
+    <section aria-label="Seeds" className="mt-12 border-t border-rule pt-4">
       <button type="button" className="text-ui text-muted-foreground hover:text-foreground" aria-expanded={open} onClick={() => setOpen(!open)}>
-        Trash ({gardens.length}) {open ? "▴" : "▾"}
+        Seeds ({gardens.length}) {open ? "▴" : "▾"}
       </button>
       {open && (
         <ul className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -251,9 +253,9 @@ function Trash({ gardens }: { gardens: GardenRow[] }) {
             <li key={g.id} className="grid gap-1 border border-ink/70 bg-sheet p-6 opacity-70">
               <p className="smallcaps text-note text-muted-foreground">N° {String(g.specimen_no).padStart(3, "0")}</p>
               <p className="font-display text-head leading-tight">{g.title}</p>
-              <p className="text-note text-muted-foreground">In the trash since {new Date(g.deleted_at!).toLocaleDateString()}</p>
+              <p className="text-note text-muted-foreground">A seed since {new Date(g.deleted_at!).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p>
               <div className="mt-3 flex items-center gap-2">
-                <Button size="sm" variant="outline" onClick={() => void restore(g)}>Restore</Button>
+                <Button size="sm" variant="outline" onClick={() => void restore(g)}>Plant again</Button>
                 <button type="button" className="ml-auto text-ui text-destructive underline-offset-4 hover:underline" onClick={() => setDoomed(g)}>Delete forever</button>
               </div>
             </li>
@@ -264,7 +266,7 @@ function Trash({ gardens }: { gardens: GardenRow[] }) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display">Delete “{doomed?.title}” forever?</AlertDialogTitle>
-            <AlertDialogDescription>The tree, its notes and its conversations will be gone for everyone, and cannot be restored.</AlertDialogDescription>
+            <AlertDialogDescription>Its tree, notes and conversations will be gone and cannot be planted again.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel autoFocus disabled={busy}>Cancel</AlertDialogCancel>
@@ -279,4 +281,24 @@ function Trash({ gardens }: { gardens: GardenRow[] }) {
 /** A stats line that wraps only at the " · " separators. */
 function Stats({ parts }: { parts: [number, string][] }) {
   return <>{parts.map(([n, w], i) => <span key={w}>{i > 0 && " · "}<span className="whitespace-nowrap">{n} {w}</span></span>)}</>;
+}
+
+/** On a new collector's first visit, the accession stamp is pressed once beside the title. */
+function FirstVisitStamp() {
+  const [since, setSince] = useState<string | null>(null);
+  useEffect(() => {
+    void supabase.auth.getUser().then(({ data }) => {
+      const u = data.user;
+      if (!u) return;
+      const key = `ramus-collector-stamp:${u.id}`;
+      try {
+        if (localStorage.getItem(key)) return;
+        localStorage.setItem(key, "1");
+      } catch { return; }
+      // only for someone who joined in the last day
+      if (Date.now() - new Date(u.created_at).getTime() > 86_400_000) return;
+      setSince(new Date(u.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }));
+    });
+  }, []);
+  return since ? <CollectorStamp since={since} /> : null;
 }

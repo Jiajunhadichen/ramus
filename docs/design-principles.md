@@ -182,3 +182,10 @@ Still in force from v1.5.1: pen wobble, left-handed hatching, uneven merge dashe
 - People = distinct people or AIs who planted at least one idea in the tree.
 - Field notes can be hidden; labels appear by zoom (all from 2.5×) and selection, staying 13–18px on screen; overlaps hide the lower priority (selected, root, outcome, knot, main lineage, more descendants, others).
 - Downloads are posters: paper, 6% margin, title and one line top-left, whole tree, specimen label bottom-right, "grown with Ramus" bottom-left; PNG longer side ≥ 3000px.
+
+## v2.8 part 4 — Present, English, seeds, sign-in, people
+- A. Present never scrolls as a whole: rows auto/1fr/auto, the text column scrolls inside itself, ← → stay put; at most 3 entries per step.
+- B. The interface is English everywhere; Chinese stays only in epigraphs. The historical demo is always read in English from docs/sample-garden.en.json at display time (“你” reads “Founder”); stored records and the Ramus file keep the original. No language toggles.
+- C. A garden goes “Back to seed”; the section is “Seeds (n)”, “A seed since …”, “Plant again”; “Delete forever” stays plain and destructive.
+- D. Sign in / Start a garden sit on the paper as a ledger entry beside a quiet tree: small-caps labels, one-rule inputs, one filled button, a quiet switch link, “Check your email” after sign-up; a new collector's first visit presses “Collector since …” once.
+- E. People = distinct planters of ideas in the tree.

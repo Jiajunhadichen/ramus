@@ -7,7 +7,7 @@ import { grewFrom, systema, type SysNode } from "@/lib/stam/systema";
 import { StoryEntry } from "./Systema";
 
 const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV", "XVI", "XVII", "XVIII", "XIX", "XX"];
-const MAX_ENTRIES = 4;
+const MAX_ENTRIES = 3;
 
 type Node = TreeNode & SysNode & { note?: string | null };
 type Slide = { kind: "question" } | { kind: "step"; step: number; n: number } | { kind: "end" };
@@ -80,14 +80,14 @@ export function Present({ title, nodes, steps = {}, level = "form", main: suppli
 
   return (
     <div ref={box} role="dialog" aria-modal="true" aria-label={`Presenting ${title}`}
-      className="fixed inset-0 z-[60] grid grid-rows-[auto_1fr_auto] overflow-auto bg-background text-foreground">
+      className="fixed inset-0 z-[60] grid h-svh grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-background text-foreground">
       <header className="flex items-baseline gap-4 px-8 pt-5">
         <p className="eyebrow"><Upright>{title}</Upright></p>
         <Button variant="ghost" size="sm" className="ml-auto" onClick={onClose}>Leave</Button>
       </header>
 
       {slide.kind === "question" ? (
-        <main className="grid place-content-center gap-5 px-8 text-center">
+        <main className="grid min-h-0 place-content-center gap-5 overflow-y-auto px-8 text-center">
           <p className="eyebrow">The question</p>
           {root && <h2 className="font-display text-title leading-tight sm:text-cover"><Upright>{root.label}</Upright></h2>}
           {root?.note && <p className="mx-auto max-w-[48ch] text-head text-muted-foreground"><Upright>{root.note}</Upright></p>}
@@ -98,12 +98,13 @@ export function Present({ title, nodes, steps = {}, level = "form", main: suppli
           </p>
         </main>
       ) : (
-        <main className="grid items-center gap-8 px-8 py-4 lg:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="min-w-0">
+        <main className="grid min-h-0 gap-8 px-8 py-4 lg:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="present-tree h-full min-h-0 min-w-0">
             <StamTree nodes={nodes} step={treeStep} selected={null} level={level} main={main} notes={notes}
               freshStep={slide.kind === "step" ? slide.step : null} freshKey={at} ariaLabel={title} specimen={specimen ?? null} />
           </div>
-          <aside className="grid content-center gap-4" aria-live="polite">
+          <div className="min-h-0 overflow-y-auto">
+          <aside className="grid min-h-full content-center gap-4 py-2" aria-live="polite">
             {slide.kind === "step" ? (() => {
               const ch = s.chapters[slide.n]!;
               const entries = ch.entries.filter((e) => e.id !== root?.id);
@@ -140,10 +141,11 @@ export function Present({ title, nodes, steps = {}, level = "form", main: suppli
               </>
             )}
           </aside>
+          </div>
         </main>
       )}
 
-      <footer className="flex items-center gap-4 px-8 pb-5">
+      <footer className="flex items-center gap-4 px-8 pb-5 pt-2">
         <Button variant="outline" size="sm" onClick={() => go(-1)} disabled={at === 0} aria-label="Back">←</Button>
         <ol className="flex flex-1 flex-wrap items-center justify-center gap-2" aria-label="Steps">
           {slides.map((sl, i) => (

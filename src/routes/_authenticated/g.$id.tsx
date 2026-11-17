@@ -15,7 +15,7 @@ import { stepDate, toIdeas, toStam } from "@/components/garden/model";
 import { maxStep, selectionAt } from "@/lib/stam/layout";
 import { Button } from "@/components/ui/button";
 import { mainLineage } from "@/lib/stam/reading";
-import { DEMO_LABELS } from "@/lib/stam/demo-labels";
+import { DEMO_COLLECTED, DEMO_LABELS, DEMO_NOTES, DEMO_PEOPLE, DEMO_STEPS } from "@/lib/stam/demo-labels";
 import { Upright } from "@/components/epigraph/Epigraph";
 import { Systema } from "@/components/garden/Systema";
 import { Present } from "@/components/garden/Present";
@@ -52,9 +52,10 @@ function GardenPage() {
   const search = Route.useSearch();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { data } = useSuspenseQuery(gardenQuery(id));
-  const [language, setLanguage] = useState<"zh" | "en">("zh");
-  const ideas = useMemo(() => toIdeas(data).map((n) => ({ ...n, label: data.garden.is_demo && language === "en" ? DEMO_LABELS[n.id] ?? n.label : n.label })), [data, language]);
+  const { data: stored } = useSuspenseQuery(gardenQuery(id));
+  // the historical demo is read in English; the stored records (and the Ramus file export) stay the original
+  const data = useMemo(() => (stored.garden.is_demo ? inEnglish(stored) : stored), [stored]);
+  const ideas = useMemo(() => toIdeas(data), [data]);
   // Field notes can be put away; the choice stays on this device
   const [notesHidden, setNotesHidden] = useState(false);
   useEffect(() => { try { setNotesHidden(localStorage.getItem("ramus-notes-hidden") === "1"); } catch { /* storage unavailable */ } }, []);
@@ -131,7 +132,7 @@ function GardenPage() {
   const refresh = () => qc.invalidateQueries({ queryKey: ["garden", id] });
 
   function exportJson() {
-    const blob = new Blob([JSON.stringify(toStam(data, toIdeas(data)), null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(toStam(stored, toIdeas(stored)), null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `${data.garden.title.replace(/[^\p{L}\p{N}]+/gu, "-").slice(0, 60) || "garden"}.stam.json`;
@@ -211,7 +212,6 @@ function GardenPage() {
             </div>
             {view === "tree" && <DownloadTree size="default" poster={() => ({ nodes: ideas, title: data.garden.title, line: (outcomes[0] ?? root)?.label ?? null, selected, main, notes: returnNotes, specimen })} />}
             {notesHidden && <button type="button" className="text-ui text-muted-foreground hover:text-foreground" onClick={() => hideNotes(false)}>Notes</button>}
-            {data.garden.is_demo && <div role="radiogroup" aria-label="Idea language" className="flex text-ui">{(["zh", "en"] as const).map((lang) => <Button key={lang} size="sm" variant="ghost" role="radio" aria-checked={language === lang} className={language === lang ? "text-foreground underline underline-offset-4" : "text-muted-foreground"} onClick={() => setLanguage(lang)}>{lang === "zh" ? "中文" : "EN"}</Button>)}</div>}
             <span className="text-ui" aria-live="polite">
               <span className="smallcaps">Step {r.step} of {max}</span>
               {stepInfo?.title ? <span className="ml-2">{stepInfo.title}</span> : null}
@@ -257,4 +257,15 @@ function GardenPage() {
       )}
     </main>
   );
+}
+
+/** Display-time English for the demo garden: labels, notes, step titles, people, the specimen line. */
+function inEnglish<D extends { garden: any; ideas: any[]; steps: any[]; contributors: any[] }>(d: D): D {
+  return {
+    ...d,
+    garden: { ...d.garden, collected: d.garden.collected ? DEMO_COLLECTED : d.garden.collected },
+    ideas: d.ideas.map((i) => ({ ...i, label: DEMO_LABELS[i.key] ?? i.label, note: DEMO_NOTES[i.key] ?? i.note })),
+    steps: d.steps.map((st) => ({ ...st, title: DEMO_STEPS[st.step] ?? st.title })),
+    contributors: d.contributors.map((c) => ({ ...c, name: DEMO_PEOPLE[c.name] ?? c.name })),
+  };
 }

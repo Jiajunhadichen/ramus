@@ -19,3 +19,15 @@ export function AccessionStamp({ no, line, small = false }: { no: number; line: 
     </svg>
   );
 }
+
+/** Pressed once beside My gardens on a new collector's first visit. */
+export function CollectorStamp({ since }: { since: string }) {
+  const w = 260, h = 64;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} className="accession-stamp pressed max-w-full" role="img" aria-label={`Collector since ${since}`}>
+      <ellipse cx={w / 2} cy={h / 2} rx={w / 2 - 3} ry={h / 2 - 3} fill="none" stroke="currentColor" strokeWidth="1.2" />
+      <ellipse cx={w / 2 + 1} cy={h / 2 - 1} rx={w / 2 - 8} ry={h / 2 - 8} fill="none" stroke="currentColor" strokeWidth=".6" />
+      <text x={w / 2} y={h / 2 + 5} textAnchor="middle" className="sp-stamp" style={{ fontSize: 15 }} fill="currentColor">Collector since {since}</text>
+    </svg>
+  );
+}

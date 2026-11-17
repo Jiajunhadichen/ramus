@@ -7,6 +7,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
 import { Epigraph } from "@/components/epigraph/Epigraph";
 import { stamToTree } from "@/lib/stam/toTree";
+import { demoInEnglish } from "@/lib/stam/demo-labels";
 import { maxStep } from "@/lib/stam/layout";
 import type { StamGarden } from "@/lib/stam/types";
 
@@ -37,7 +38,7 @@ export function pickNotes(nodes: TreeNode[]): MarginNote[] {
 }
 
 function Landing() {
-  const nodes: TreeNode[] = useMemo(() => stamToTree(sample as StamGarden), []);
+  const nodes: TreeNode[] = useMemo(() => stamToTree(sample as StamGarden).map(demoInEnglish), []);
   const all = useMemo(() => pickNotes(nodes), [nodes]);
   const max = maxStep(nodes);
   const r = useReplay(max, { autoplay: true, interval: 600 });
@@ -69,7 +70,7 @@ function Landing() {
         <h1 className="font-display text-title font-normal leading-[1.1] xl:text-cover">Ideas grow <em>between</em> people.</h1>
         <p className="font-display text-head leading-snug xl:text-head">Ramus remembers who planted every branch, and what grew from it.</p>
         <Epigraph n={2} />
-        <div><Button asChild><Link to="/gardens">Start a garden</Link></Button></div>
+        <div><Button asChild><Link to="/auth" search={{ mode: "up" }}>Start a garden</Link></Button></div>
       </section>
     </main>
     </>

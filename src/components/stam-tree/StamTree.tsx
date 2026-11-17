@@ -35,6 +35,8 @@ type Props = {
   labels?: "level" | "zoom";
   /** A miniature: no labels, legend, specimen or interaction. */
   thumbnail?: boolean;
+  /** Size of the miniature (thumbnail only). */
+  thumbClass?: string;
   /** Composed as a poster for export: title, one line, the whole tree, specimen label bottom-right, mark bottom-left. */
   poster?: { title: string; line?: string | null } | null;
 };
@@ -85,7 +87,7 @@ function useMeasure(labels: { label: string; major: boolean; dormant?: boolean }
 }
 
 export function StamTree(props: Props) {
-  return props.thumbnail ? <ThumbTree nodes={props.nodes} ariaLabel={props.ariaLabel} /> : <FullTree {...props} />;
+  return props.thumbnail ? <ThumbTree nodes={props.nodes} ariaLabel={props.ariaLabel} className={props.thumbClass ?? "h-40"} /> : <FullTree {...props} />;
 }
 
 function FullTree({ nodes, step, selected, onSelect, freshStep = null, freshKey = 0, ariaLabel = "Idea tree", specimen = null, interactive = false, notes = [], level = "record", main: suppliedMain, labels = "level", poster = null }: Props) {
@@ -453,14 +455,14 @@ function PosterFrame({ title, line }: { title: string; line?: string | null }) {
 }
 
 /** A miniature of the tree for a garden's plate: branches and buds in their people's colours, nothing else. */
-function ThumbTree({ nodes, ariaLabel = "Idea tree" }: { nodes: TreeNode[]; ariaLabel?: string | undefined }) {
+function ThumbTree({ nodes, ariaLabel = "Idea tree", className }: { nodes: TreeNode[]; ariaLabel?: string | undefined; className: string }) {
   const L = useMemo(() => computeLayout(nodes), [nodes]);
   if (!L.nodes.length) return null;
   const xs = L.nodes.map((n) => n.x), ys = L.nodes.map((n) => n.y);
   const pad = 24;
   const x0 = Math.min(...xs, CX - 120) - pad, x1 = Math.max(...xs, CX + 120) + pad, y0 = Math.min(...ys) - pad, y1 = CY + 6;
   return (
-    <svg viewBox={`${x0} ${y0} ${x1 - x0} ${y1 - y0}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label={ariaLabel} className="stam-thumb block h-40 w-full">
+    <svg viewBox={`${x0} ${y0} ${x1 - x0} ${y1 - y0}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label={ariaLabel} className={"stam-thumb block w-full " + className}>
       <line x1={CX - 120} y1={CY + 1} x2={CX + 120} y2={CY + 1} strokeWidth={2} style={{ stroke: "var(--rule)" }} />
       {L.nodes.flatMap((n) => n.parents.slice(1).map((mid) => {
         const m = L.byId.get(mid);
