@@ -19,7 +19,11 @@ type Props = {
   specimen?: SpecimenInfo | null;
   /** Pan, zoom and the Fit button. */
   interactive?: boolean;
+  /** Margin notes in the naturalist's hand, pinned to an idea or a merge. */
+  notes?: MarginNote[];
 };
+
+export type MarginNote = { text: string; id: string; from?: string };
 
 const CARD: Rect = { x: 16, y: 16, w: 290, h: 128 };
 type View = { k: number; x: number; y: number };
@@ -57,7 +61,7 @@ function useMeasure(labels: { label: string; major: boolean }[]) {
   return widths;
 }
 
-export function StamTree({ nodes, step, selected, onSelect, freshStep = null, freshKey = 0, ariaLabel = "Idea tree", specimen = null, interactive = false }: Props) {
+export function StamTree({ nodes, step, selected, onSelect, freshStep = null, freshKey = 0, ariaLabel = "Idea tree", specimen = null, interactive = false, notes = [] }: Props) {
   const widths = useMeasure(useMemo(() => nodes.map((n) => ({ label: n.label, major: !!n.knot || !n.parents.length })), [nodes]));
   const L = useMemo(() => computeLayout(nodes, {
     obstacle: specimen ? CARD : null,
@@ -139,11 +143,13 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
   const onUp = (e: React.PointerEvent) => { ptrs.current.delete(e.pointerId); };
   const click = (id: string | null) => { if (drag.current.moved) return; onSelect?.(id); };
 
+  const notePos = useMemo(() => placeNotes(notes, L), [notes, L]);
+  const inks = useMemo(() => [...new Set(nodes.map((n) => n.color))], [nodes]);
   const fresh = (id: string) => freshStep != null && L.byId.get(id)?.step === freshStep;
   const hot = new Set([hover, selected].filter(Boolean) as string[]);
   const merges = L.nodes.flatMap((n) => n.parents.slice(1).map((mid) => ({ n, m: L.byId.get(mid) })).filter((x) => x.m));
   const mergeEl = (n: (typeof L.nodes)[number], m: NonNullable<(typeof merges)[number]["m"]>, front: boolean) => (
-    <path key={`m-${m.id}-${n.id}`} d={mergePath(m, n)} fill="none" strokeWidth={front ? 1.6 : 1.2} strokeDasharray="4 5" strokeLinecap="round"
+    <path key={`m-${m.id}-${n.id}`} d={mergePath(m, n)} fill="none" strokeWidth={front ? 1.6 : 1.2} strokeDasharray="5 4 3 5 6 4 4 5" strokeLinecap="round"
       className={"merge " + cls(n.id, m.id) + (front ? " front" : "")} style={{ stroke: (m as TreeNode).color }}
       {...tipProps(REASONS.merge)} />
   );
@@ -154,10 +160,26 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
         className={"stam-tree block h-auto w-full select-none" + (interactive ? " touch-none" : "")}
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
         <desc>Each dot is an idea. Branches show what grew from what, dashed lines show ideas recombining, colors show who said it, hollow tips are resting.</desc>
+        <defs>
+          <filter id="pen" x="-5%" y="-5%" width="110%" height="110%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3" result="n" />
+            <feDisplacementMap in="SourceGraphic" in2="n" scale="1.2" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+          <pattern id="gen-rules" width="8" height="40" patternUnits="userSpaceOnUse">
+            <circle cx="1" cy="39.5" r="0.7" style={{ fill: "var(--rule)" }} />
+          </pattern>
+          {inks.map((c, i) => (
+            <pattern key={c} id={`hatch-${i}`} width="4" height="4" patternUnits="userSpaceOnUse">
+              {/* left-handed hatching: top-left to bottom-right */}
+              <path d="M-1 -1 L5 5 M-1 3 L1 5 M3 -1 L5 1" strokeWidth="0.6" style={{ stroke: `color-mix(in oklab, ${c} 60%, black)`, opacity: 0.35 }} />
+            </pattern>
+          ))}
+        </defs>
+        <rect x={0} y={0} width={W} height={H} fill="url(#gen-rules)" pointerEvents="none" />
         <rect x={-W} y={-H} width={W * 3} height={H * 3} fill="transparent" onClick={() => click(null)} />
         <g transform={`translate(${view.x.toFixed(1)} ${view.y.toFixed(1)}) scale(${view.k.toFixed(3)})`}>
           <g>{merges.map(({ n, m }) => (hot.has(n.id) || hot.has(m!.id) ? null : mergeEl(n, m!, false)))}</g>
-          <g>
+          <g filter="url(#pen)">
             <line x1={CX - 120} y1={CY + 1} x2={CX + 120} y2={CY + 1} className="ground" />
             {L.nodes.map((n) => {
               if (!n.parents.length) return null;
@@ -178,6 +200,10 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
                   )}
                   <path d={taper(c, w0, w1)} mask={grow ? `url(#${mid})` : undefined} className={"branch " + cls(n.id, p.id)}
                     style={{ fill: n.color, opacity: n.status === "dormant" ? 0.3 : 0.9 }} />
+                  {w0 > 6 && (
+                    <path d={taper(c, w0, w1)} mask={grow ? `url(#${mid})` : undefined} className={"hatch " + cls(n.id, p.id)}
+                      fill={`url(#hatch-${inks.indexOf(n.color)})`} pointerEvents="none" />
+                  )}
                 </g>
               );
             })}
@@ -201,7 +227,8 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
                   <circle cx={n.x} cy={n.y} r={14} fill="transparent" />
                   {n.knot && (
                     <g key={fresh(n.id) ? `k-${freshKey}` : "k"} className={fresh(n.id) ? "knot-tighten" : undefined}>
-                      <circle cx={n.x} cy={n.y} r={8.5} fill="none" strokeWidth={1.6} style={{ stroke: c }} />
+                      <circle cx={n.x} cy={n.y} r={8.5} fill="none" strokeWidth={1.4} style={{ stroke: c }} />
+                      <circle cx={n.x + 0.7} cy={n.y - 0.5} r={8.9} fill="none" strokeWidth={0.8} style={{ stroke: c, opacity: 0.7 }} />
                       <circle cx={n.x} cy={n.y} r={6.2} style={{ fill: "var(--sheet)" }} />
                     </g>
                   )}
@@ -209,7 +236,7 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
                   <circle cx={n.x} cy={n.y} r={n.isRoot ? 6 : n.isLeaf ? 4.6 : 4} strokeWidth={1.6}
                     strokeDasharray={n.confirmed === false ? "2 2" : undefined}
                     style={{ stroke: c, fill: resting || n.confirmed === false ? "var(--sheet)" : c }} />
-                  <circle cx={n.x} cy={n.y} r={13} className="selring" style={{ display: selected === n.id ? undefined : "none" }} />
+                  <circle cx={n.x} cy={n.y} r={16} className="selring" style={{ display: selected === n.id ? undefined : "none" }} />
                 </g>
               );
             })}
@@ -223,6 +250,7 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
               </text>
             ))}
           </g>
+          <g>{notes.map((nt, i) => <Note key={nt.text} note={nt} pos={notePos[i]} />)}</g>
         </g>
         {specimen && <SpecimenLabel {...specimen} nodes={nodes} />}
       </svg>
@@ -245,9 +273,15 @@ function SpecimenLabel({ no, title, collected, collectors, nodes }: SpecimenInfo
   return (
     <g className="specimen" aria-label="Specimen label">
       <rect x={x} y={y} width={w} height={h} style={{ fill: "var(--sheet)", stroke: "var(--ink)" }} strokeWidth={1} />
+      <g className="stamp" transform={`rotate(-4 ${x + w - 66} ${y + 52})`}>
+        <ellipse cx={x + w - 66} cy={y + 52} rx={52} ry={19} fill="none" strokeWidth={1} />
+        <ellipse cx={x + w - 66} cy={y + 52} rx={48} ry={15.5} fill="none" strokeWidth={0.5} />
+        <text x={x + w - 66} y={y + 50} textAnchor="middle" className="sp-stamp">Ramus</text>
+        <text x={x + w - 66} y={y + 60} textAnchor="middle" className="sp-stamp small">herbarium of ideas</text>
+      </g>
       <text x={x + 14} y={y + 24} className="sp-mono">标本 Nº {String(no).padStart(3, "0")}</text>
       <line x1={x + 14} x2={x + w - 14} y1={y + 33} y2={y + 33} style={{ stroke: "var(--rule)" }} />
-      <text x={x + 14} y={y + 56} className="sp-title">{clip(title, 26)}</text>
+      <text x={x + 14} y={y + 56} className="sp-title">{clip(title, 17)}</text>
       {collected && <text x={x + 14} y={y + 78} className="sp-body">Collected: {clip(collected, 30)}</text>}
       <text x={x + 14} y={y + (collected ? 98 : 78)} className="sp-body">Collectors: {clip(collectors.join(", "), 28)}</text>
       <text x={x + 14} y={y + h - 10} className="sp-mono muted">
@@ -289,5 +323,44 @@ export function Legend({ people }: { people: { name: string; color: string }[] }
         <span key={t} title={why} className="inline-flex items-center gap-1.5"><svg width="18" height="14" aria-hidden="true">{g}</svg>{t}</span>
       ))}
     </div>
+  );
+}
+
+type NotePos = { p: { x: number; y: number }; x: number; y: number; side: number };
+/** Place margin notes where the paper is freest, keeping clear of labels, nodes and earlier notes. */
+function placeNotes(notes: MarginNote[], L: ReturnType<typeof computeLayout>): (NotePos | null)[] {
+  const occupied: { x: number; y: number }[] = L.nodes.flatMap((n) => {
+    const x0 = n.box?.x0 ?? n.label0.x - 30, w = n.box ? n.box.x1 - n.box.x0 : 60;
+    return [{ x: n.x, y: n.y }, ...Array.from({ length: Math.ceil(w / 16) + 1 }, (_, k) => ({ x: x0 + k * 16, y: n.ly - 5 }))];
+  });
+  return notes.map((note) => {
+    const a = L.byId.get(note.id);
+    if (!a) return null;
+    const b = note.from ? L.byId.get(note.from) : null;
+    const p = b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : { x: a.x, y: a.y };
+    const w = note.text.length * 6.8;
+    let best: NotePos & { s: number } = { p, x: p.x + 80, y: p.y - 50, s: -Infinity, side: 1 };
+    for (const dx of [-170, -120, -80, 80, 120, 170]) for (const dy of [-90, -60, -30, 30, 60]) {
+      const tx = p.x + dx, ty = p.y + dy, x0 = dx > 0 ? tx : tx - w;
+      if (x0 < 8 || x0 + w > W - 8 || ty < 160 || ty > H - 20) continue;
+      const pts = Array.from({ length: Math.ceil(w / 14) + 1 }, (_, k) => ({ x: x0 + k * 14, y: ty - 5 }));
+      const s = Math.min(...pts.flatMap((q) => occupied.map((o) => Math.hypot((o.x - q.x) / 1.5, o.y - q.y))));
+      if (s > best.s) best = { p, x: tx, y: ty, s, side: dx > 0 ? 1 : -1 };
+    }
+    const x0 = best.side > 0 ? best.x : best.x - w;
+    for (let k = 0; k * 10 <= w; k++) occupied.push({ x: x0 + k * 10, y: best.y - 5 });
+    return best;
+  });
+}
+
+function Note({ note, pos }: { note: MarginNote; pos: NotePos | null | undefined }) {
+  if (!pos) return null;
+  const { p, x, y, side } = pos;
+  return (
+    <g className="note">
+      <path d={`M${p.x} ${p.y} Q${(p.x + x) / 2} ${y + 6} ${x - side * 4} ${y - 4}`} className="note-leader" fill="none" />
+      <circle cx={p.x} cy={p.y} r={1.6} className="note-dot" />
+      <text x={x} y={y} textAnchor={side > 0 ? "start" : "end"} className="note-text">{note.text}</text>
+    </g>
   );
 }

@@ -40,7 +40,8 @@ use the editor.
 ## Aesthetics (v1.5) — full text in docs/design-principles.md
 - docs/tree-prototype.html is the aesthetic reference; light paper is the default theme, Night is an opt-in .dark class stored in localStorage (never follow the OS setting).
 - Color only means people; states are shown by form (hollow = resting, double ring = knot, dashed = merge/unconfirmed), never by new UI colors.
-- Type voices: serif for ideas/titles, sans for interface, mono for specimen metadata.
+- Type (v1.5.1 notebook): EB Garamond (+Noto Serif SC) for headings, body and tree labels; IM Fell English Italic in --sepia only for margin notes/questions/quotes (`hand` utility); IBM Plex Mono for records. No East Asian decorative motifs, no fake parchment.
+- Tree is drawn, not rendered: #pen displacement filter, left-handed hatch patterns on branches wider than 6px, uneven merge dashes, offset double knot rings; margin notes are the StamTree `notes` prop.
 - Motion is growth only (branch draw, knot tighten, tip pulse); everything is disabled under prefers-reduced-motion.
 - Labels never collide: computeLayout takes measured widths and an obstacle rect (specimen card) and scores candidates against labels, nodes and sampled branch/merge points; keep src/lib/stam/focus.test.ts passing.
 - Concept tooltip lines live in REASONS (src/lib/stam/focus.ts); empty states use <Seed/>; garden vocabulary only, never "generate"/magic/sparkles.

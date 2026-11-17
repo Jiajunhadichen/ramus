@@ -52,3 +52,11 @@ Acceptance criteria
 - Hovering a knot shows the Simon line; hovering a resting branch shows the Dawkins line.
 - /principles lists all 13 principles with their thinkers and reads like a printed essay.
 - With reduced motion on, nothing animates.
+# v1.5.1 — the naturalist's notebook (supersedes older type and color rules above)
+A Western naturalist working on paper (Leonardo's notebooks, Darwin's 1837 "I think" sketch), always legible and in color. Nothing East Asian decorative (no seals, brush scripts, painting motifs); no fake parchment, stains or heavy texture.
+1. Three hands. Printed: headings and body in EB Garamond, Chinese in Noto Serif SC; small caps for specimen/section labels. Naturalist's hand: margin notes, the gardener's questions and quotes in IM Fell English Italic, sepia #6B4A2E. Records: numbers, dates, step counters, counts in IBM Plex Mono. Tree labels: EB Garamond / Noto Serif SC at 14px, never handwriting fonts.
+2. Inks for people, in order (day / night): Verdigris #3B7A57 / #7CC59C; Prussian blue #2F4F7F / #93AEDD; Burnt sienna #8F5A2A / #D9A06A; Madder rose #9A3A55 / #E28DA3; Viridian #2E6E73 / #7EC1C6. Paper #E9EDE6, sheet #F4F6F1, text ink #1C2520. Sepia is only for margin notes, never data.
+3. Drawn, not rendered: pen-wobble displacement filter (scale ~1.2) on branches, fills at 90%; branches thicker than 6px get left-handed hatching (top-left to bottom-right, darker same ink, ~35%); merge lines are uneven pen dashes; knot rings are two offset circles; faint paper grain (~3%) on the page; dotted generation rules every 40px on the tree sheet only; the selected idea gets a faint dashed construction circle.
+4. Margin notes: on the landing page the tree grows from a seed once (~0.6s per step), then three sepia notes appear with pen leaders (knot, resting branch, merge), then it rests; "Grow again" replays. Reduced motion shows everything at once. The tree is the largest element (~60% width, ~85vh).
+5. Specimen card carries an oval accession stamp, "Ramus · herbarium of ideas" in small caps, rotated -4°, 70% opacity.
+6. Theme toggle reads "Day · Night" in mono, the active word in ink.

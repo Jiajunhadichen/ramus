@@ -60,7 +60,7 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
             {evidence.map((e) => (
               <li key={e.id} className="grid gap-0.5" data-role={e.role}>
                 <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">{ROLE_LABEL[e.role as EvidenceRole] ?? e.role}</span>
-                <blockquote className="font-display">“{e.content}”</blockquote>
+                <blockquote className="hand">“{e.content}”</blockquote>
                 <span className="text-xs">
                   <span style={{ color: e.speaker?.color }}>{e.speaker?.name ?? "Unattributed"}</span>
                   {" · "}{formatTime(e.sentAt, e.precision)}
