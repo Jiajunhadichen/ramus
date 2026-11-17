@@ -1,0 +1,3 @@
+[{"uuid":"k1","name":"Gardens","created_at":"2026-11-17T10:00:00Z","chat_messages":[
+{"uuid":"a","sender":"human","text":"Hello Claude","created_at":"2026-11-17T10:00:01Z"},
+{"uuid":"b","sender":"assistant","text":"Hello.","created_at":"2026-11-17T10:00:05Z"}]}]

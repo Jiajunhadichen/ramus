@@ -1,0 +1,222 @@
+import { deepMap, readJson, type JsonSource } from "./json";
+import { GENERIC, OFTEN_NOT_PEOPLE, lineLabels, parseLines, parseNotes, parseTranscript, parseVtt, parseWhatsApp, speakerSet, transcriptShape, waDateOrder, waHeader, waWhen, type Unit } from "./text";
+import { PARSER_VERSION, type Draft, type DraftMessage, type Format, type Hidden, type PrepareContext, type PrepareInput, type PrepareOptions, type Question, type Segment, type SpeakerInfo, type Voice } from "./types";
+import { findPrivate, hash, localStringToUtc, maskText, toLines } from "./util";
+
+export * from "./types";
+const TEXT_FORMATS: Format[] = ["whatsapp", "vtt", "srt", "transcript", "lines", "notes"];
+const SIX_HOURS = 6 * 3600 * 1000;
+
+function tryJson(input: PrepareInput): unknown | undefined {
+  if (input.files?.some((f) => /\.json$/i.test(f.name))) return null;
+  const t = input.text.trim();
+  if (input.kind !== "json" && !/^[[{]/.test(t)) return undefined;
+  try { return JSON.parse(t); } catch { return undefined; }
+}
+
+export function detect(raw: string): { format: Format; confidence: number }[] {
+  const lines = toLines(raw).filter((l) => l.text.trim());
+  const n = Math.max(1, lines.length);
+  const wa = lines.filter((l) => waHeader(l.text)).length;
+  const timings = lines.filter((l) => /-->/.test(l.text)).length;
+  const tr = transcriptShape(raw);
+  const labels = [...lineLabels(raw).entries()].filter(([, c]) => c >= 2).reduce((a, [, c]) => a + c, 0);
+  const out: { format: Format; confidence: number }[] = [
+    { format: "whatsapp", confidence: wa >= 2 ? Math.min(0.98, 0.4 + wa / n) : wa ? 0.2 : 0 },
+    { format: "vtt", confidence: /^\ufeff?WEBVTT/.test(raw.trimStart()) ? 0.99 : 0 },
+    { format: "srt", confidence: !/^\ufeff?WEBVTT/.test(raw.trimStart()) && timings && /\d,\d{3}\s*-->/.test(raw) ? 0.95 : 0 },
+    { format: "transcript", confidence: tr ? Math.min(0.9, 0.5 + tr.count / n) : 0 },
+    { format: "lines", confidence: labels ? Math.min(0.85, 0.3 + labels / n / 2) : 0 },
+    { format: "notes", confidence: 0.1 },
+  ];
+  return out.filter((x) => x.confidence > 0).sort((a, b) => b.confidence - a.confidence);
+}
+
+function localDate(isoStr: string, tz: string) {
+  try { return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(isoStr)); }
+  catch { return isoStr.slice(0, 10); }
+}
+
+function suggestVoice(label: string, format: Format, ctx: PrepareContext): { voice: Voice; remembered: boolean } {
+  const k = label.toLowerCase();
+  const me: Voice = ctx.importerContributorId ? { type: "person", id: ctx.importerContributorId } : { type: "new", name: ctx.importerName || "Me" };
+  if (format === "notes" || ((format === "chatgpt" || format === "claude") && (k === "user" || k === "human"))) return { voice: me, remembered: false };
+  if ((format === "chatgpt" || format === "claude") && k === "assistant") {
+    const name = format === "chatgpt" ? "ChatGPT" : "Claude";
+    const hit = ctx.contributors.find((c) => c.name === name);
+    return { voice: hit ? { type: "person", id: hit.id } : { type: "new", name, kind: "historical_ai" }, remembered: false };
+  }
+  const alias = ctx.aliases.find((a) => a.alias.toLowerCase() === k);
+  if (alias && ctx.contributors.some((c) => c.id === alias.contributor_id)) return { voice: { type: "person", id: alias.contributor_id }, remembered: true };
+  const hit = ctx.contributors.find((c) => c.name.toLowerCase() === k);
+  if (hit) return { voice: { type: "person", id: hit.id }, remembered: false };
+  if (GENERIC.test(label)) return { voice: { type: "anon" }, remembered: false };
+  return { voice: { type: "new", name: label }, remembered: false };
+}
+
+/** Prepare a received original. Same input + options → same draft, in the browser and on the server. */
+export function prepare(input: PrepareInput, options: PrepareOptions, ctx: PrepareContext): Draft {
+  const tz = options.timeZone || "UTC";
+  const masked = { phone: 0, email: 0 };
+  const recordingIso = localStringToUtc(options.recordingStart, tz);
+  const date = options.conversationDate && /^\d{4}-\d{2}-\d{2}$/.test(options.conversationDate) ? options.conversationDate : null;
+  const questions: Question[] = [];
+  let units: Unit[] = [];
+  let raw = input.text;
+  let sendable = input.text;
+  let format: Format;
+  let readAs: Draft["readAs"];
+  let received: Draft["received"] = null;
+  let conversations: Draft["conversations"] = [];
+  let otherBranches = 0;
+  let title: string | null = input.fileName ? input.fileName.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || null : null;
+  let privacy = [] as ReturnType<typeof findPrivate>;
+
+  const parsed = tryJson(input);
+  const src: JsonSource | null = parsed !== undefined ? readJson(parsed, input.files) : null;
+  if (src) {
+    format = src.format;
+    readAs = [{ format, confidence: 0.99 }];
+    conversations = src.conversations;
+    const ids = options.conversations ?? (conversations.length === 1 ? [conversations[0]!.id] : []);
+    if (conversations.length > 1 && !ids.length) questions.push({ kind: "pick-conversations", unsure: 1, text: `This export holds ${conversations.length} conversations. Pick the ones to bring in.` });
+    let chosen = src.pick(ids);
+    const plainJson = JSON.stringify(chosen);
+    sendable = plainJson;
+    privacy = findPrivate(plainJson);
+    if (options.mask) {
+      chosen = deepMap(chosen, (s) => { const r = maskText(s, options.mask!); masked.phone += r.phone; masked.email += r.email; return r.text; }) as unknown[];
+      privacy = findPrivate(JSON.stringify(chosen));
+    }
+    raw = JSON.stringify(chosen, null, 2);
+    const b = src.build(chosen);
+    units = b.units; otherBranches = b.otherBranches; received = b.received; title = b.title ?? title;
+  } else {
+    privacy = findPrivate(raw);
+    if (options.mask) { const r = maskText(raw, options.mask); raw = r.text; masked.phone = r.phone; masked.email = r.email; privacy = findPrivate(raw); }
+    readAs = detect(raw);
+    format = options.readAs && TEXT_FORMATS.includes(options.readAs) ? options.readAs : (readAs[0]?.format ?? "notes");
+    if (format === "whatsapp") {
+      const heads = toLines(raw).map((l) => waHeader(l.text)).filter((h) => h !== null);
+      const found = waDateOrder(heads);
+      const order = found ?? options.dateOrder ?? "DMY";
+      if (!found && heads[0]) {
+        const h = heads[0];
+        const show = (o: "DMY" | "MDY") => { const w = waWhen(h, o, tz); return new Date(Date.UTC(w.y, w.mo - 1, w.d)).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }); };
+        questions.push({ kind: "date-order", unsure: 0.9, text: `Is “${h.headerText}” day first or month first?`, sample: { DMY: show("DMY"), MDY: show("MDY") } });
+      }
+      units = parseWhatsApp(raw, order, tz);
+    } else if (format === "vtt" || format === "srt") {
+      units = parseVtt(raw, recordingIso);
+      if (!recordingIso) questions.push({ kind: "recording-start", unsure: 0.5, text: "When did the recording start? Without it, times stay as offsets into the recording." });
+    } else if (format === "transcript") {
+      const t = parseTranscript(raw, tz, date, recordingIso);
+      units = t.units;
+      if (t.offsetMode && !recordingIso) questions.push({ kind: "recording-start", unsure: 0.5, text: "When did the recording start? Without it, times stay as offsets into the recording." });
+      if (t.clockOnly && !date) questions.push({ kind: "conversation-date", unsure: 0.5, text: "The lines carry clock times but no date. On which day was this? Without it, times stay unknown." });
+    } else if (format === "lines") {
+      const known = new Set([...ctx.contributors.map((c) => c.name.toLowerCase()), ...ctx.aliases.map((a) => a.alias.toLowerCase())]);
+      const s = speakerSet(raw, known, options.arePeople ?? [], options.notAPerson ?? []);
+      for (const d of s.doubtful) questions.push({ kind: "not-a-person", unsure: 0.7, text: `Is “${d}” a person?`, label: d });
+      units = parseLines(raw, s.speakers, tz, date);
+      if (!date && units.some((u) => u.clock)) questions.push({ kind: "conversation-date", unsure: 0.5, text: "The lines carry clock times but no date. On which day was this? Without it, times stay unknown." });
+    } else {
+      units = parseNotes(raw);
+    }
+    if (!title) title = toLines(raw).map((l) => l.text.trim()).find(Boolean)?.slice(0, 60) ?? null;
+  }
+  if (privacy.length) questions.push({ kind: "privacy", unsure: 0.4, text: `${privacy.length} phone number${privacy.length === 1 ? "" : "s"} or email address${privacy.length === 1 ? "" : "es"} found.`, matches: privacy });
+
+  // external ids, stable and unique inside the batch
+  const seen = new Map<string, number>();
+  const recording = format === "vtt" || format === "srt" || units.some((u) => u.offsetMs != null);
+  const withIds = units.map((u) => {
+    let id = u.externalId ?? `h${hash(`${recording ? (u.offsetMs ?? "") : (u.sentAt ?? "")}|${u.speakerLabel ?? ""}|${u.content}`)}`;
+    const n = (seen.get(id) ?? 0) + 1;
+    seen.set(id, n);
+    if (n > 1) id = `${id}#${n}`;
+    return { ...u, externalId: id };
+  });
+
+  // segments: gaps over six hours (or a new day for day-only data)
+  const segments: Segment[] = [];
+  let seg = 0, prev: string | null = null;
+  const messages: DraftMessage[] = withIds.map((u) => {
+    if (u.sentAt && prev) {
+      const gap = u.precision === "day" ? localDate(u.sentAt, tz) !== localDate(prev, tz) : Date.parse(u.sentAt) - Date.parse(prev) > SIX_HOURS;
+      if (gap) seg++;
+    }
+    if (u.sentAt) prev = u.sentAt;
+    const s = segments[seg] ?? (segments[seg] = { index: seg, from: null, to: null, count: 0 });
+    s.count++;
+    if (u.sentAt) { s.from ??= u.sentAt; s.to = u.sentAt; }
+    return { ...u, segment: seg };
+  });
+  const chosenSegs = options.segments ? new Set(options.segments) : null;
+  const kept = chosenSegs && segments.length > 1 ? messages.filter((m) => chosenSegs.has(m.segment)) : messages;
+  if (segments.length > 1) questions.push({ kind: "segments", unsure: 0.6, text: `This chat falls into ${segments.length} sittings, separated by long pauses. Choose which to bring in.` });
+
+  // voices
+  const byLabel = new Map<string, DraftMessage[]>();
+  for (const m of messages) {
+    const key = m.speakerLabel ?? (format === "notes" ? "" : null);
+    if (key === null) continue;
+    byLabel.set(key, [...(byLabel.get(key) ?? []), m]);
+  }
+  const speakers: SpeakerInfo[] = [...byLabel.entries()].map(([label, ms]) => {
+    const s = suggestVoice(label, format, ctx);
+    return { label, count: ms.length, samples: ms.filter((m) => !m.hidden).slice(0, 2).map((m) => m.content.slice(0, 120)), suggested: s.voice, remembered: s.remembered };
+  });
+  for (const s of speakers) {
+    if (options.voices?.[s.label] || s.remembered || s.suggested.type === "person") continue;
+    const generic = GENERIC.test(s.label) || /^U[A-Z0-9]{6,}$/.test(s.label);
+    questions.push({ kind: "unknown-voice", unsure: generic ? 0.8 : 0.3, text: generic ? `Who is “${s.label}”?` : `“${s.label}” is not yet in this garden. Add as a new person?`, label: s.label });
+  }
+
+  const setAside = { system: 0, media: 0, deleted: 0, empty: 0 } as Record<Hidden, number>;
+  for (const m of kept) if (m.hidden) setAside[m.hidden]++;
+  const times = kept.map((m) => m.sentAt).filter((t): t is string => !!t).sort();
+  questions.sort((a, b) => b.unsure - a.unsure);
+  return {
+    format, readAs, raw, sendable, messages, kept, speakers, segments, conversations, received, questions,
+    title, happened: times[0] ? localDate(times[0], tz) : date,
+    report: {
+      parser: PARSER_VERSION, format, messages: messages.length, kept: kept.length, setAside, voices: speakers.length,
+      firstAt: times[0] ?? null, lastAt: times[times.length - 1] ?? null, otherBranches,
+      excludedSegments: chosenSegs ? segments.filter((s) => !chosenSegs.has(s.index)) : [], masked, timeZone: tz,
+    },
+  };
+}
+
+export const NOT_PEOPLE = OFTEN_NOT_PEOPLE;
+
+/** Final voice per label: what the person chose, else the suggestion. Anonymous voices become Voice A, B, … */
+export function resolveVoices(draft: Draft, options: PrepareOptions): Map<string, Voice & { anonName?: string }> {
+  const out = new Map<string, Voice & { anonName?: string }>();
+  let anon = 0;
+  for (const s of draft.speakers) {
+    const v = options.voices?.[s.label] ?? s.suggested;
+    out.set(s.label, v.type === "anon" ? { ...v, anonName: `Voice ${String.fromCharCode(65 + anon++)}` } : v);
+  }
+  return out;
+}
+
+/** Labels worth remembering as aliases: real names only. */
+export const isRealName = (label: string, format: Format) =>
+  !!label.trim() && !GENERIC.test(label.trim()) && format !== "notes" && !/^U[A-Z0-9]{6,}$/.test(label);
+
+/** Invariants 1–3, checked on the server before writing. Returns plain-language problems. */
+export function checkDraft(draft: Draft): string[] {
+  const problems: string[] = [];
+  const raw = draft.raw;
+  for (const m of draft.messages) {
+    if (m.sentAt && m.timeSource === "none") problems.push("A message has a time the source does not state.");
+    if (!m.sentAt && m.timeSource !== "none") problems.push("A message claims a time source without a time.");
+    if (m.rawStart != null && m.rawEnd != null && (m.rawStart < 0 || m.rawEnd > raw.length || m.rawStart > m.rawEnd)) problems.push("A message points outside its original.");
+    if (m.bodyStart != null && m.rawEnd != null) {
+      const ws = (s: string) => s.replace(/[\u200e\u200f\u202f\u00a0\ufeff]/g, " ").replace(/\s+/g, " ").trim();
+      if (ws(m.content) !== ws(raw.slice(m.bodyStart, m.rawEnd))) problems.push("A message's words differ from the original.");
+    }
+  }
+  return [...new Set(problems)];
+}

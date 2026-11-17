@@ -43,6 +43,13 @@
       "when": 1794883220758,
       "tag": "0005_idea_outcomes",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794925480549,
+      "tag": "0006_accession_intake",
+      "breakpoints": true
     }
   ]
 }

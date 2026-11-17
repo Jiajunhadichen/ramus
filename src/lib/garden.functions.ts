@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { validateGarden, formatError, MAX_LABEL } from "./stam/validate";
 import type { StamGarden, ValidationError } from "./stam/types";
-import { splitConversation } from "./stam/split";
+import { prepare, checkDraft, resolveVoices, isRealName, type PrepareInput, type PrepareOptions, type Format } from "./intake";
 import { nextColor } from "./stam/palette";
 import sample from "../../docs/sample-garden.json";
 
@@ -158,7 +158,8 @@ export const getConversation = createServerFn({ method: "GET" })
     const { supabase } = context;
     const conversation = check(await supabase.from("conversations").select("*").eq("id", data.id).eq("garden_id", data.gardenId).maybeSingle());
     if (!conversation) fail("This conversation does not exist or you cannot see it.");
-    const messages = check(await supabase.from("messages").select("id,sequence,content,contributor_id,sent_at,time_precision,imported_at,parent_message_id").eq("conversation_id", data.id).order("sequence"));
+    const messages = check(await supabase.from("messages").select("id,sequence,content,contributor_id,sent_at,time_precision,time_source,imported_at,parent_message_id,batch_id,raw_start,raw_end,speaker_label,offset_ms,hidden_reason").eq("conversation_id", data.id).order("sequence"));
+    const batches = check(await supabase.from("intake_batches").select("id,accession_no,created_at,source_format,raw_text,parser_version,report").eq("conversation_id", data.id).order("accession_no"));
     const contributors = check(await supabase.from("contributors").select("id,name,color").eq("garden_id", data.gardenId));
     const ids = messages.map((m) => m.id);
     const ev = ids.length ? check(await supabase.from("idea_evidence").select("message_id,role,idea_id").in("message_id", ids)) : [];
@@ -166,7 +167,7 @@ export const getConversation = createServerFn({ method: "GET" })
     const ib = new Map(ideaRows.map((i) => [i.id, i]));
     const ideas = ev.filter((e) => ib.has(e.idea_id)).map((e) => ({ message_id: e.message_id, role: e.role, key: ib.get(e.idea_id)!.key, label: ib.get(e.idea_id)!.label }));
     const garden = check(await supabase.from("gardens").select("id,title").eq("id", data.gardenId).single());
-    return { conversation, messages, contributors, ideas, garden };
+    return { conversation, messages, contributors, ideas, garden, batches };
   });
 
 // ---------- writes (each validates, then writes and logs an event) ----------
@@ -284,28 +285,6 @@ export const editIdea = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-export const addConversation = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d: { gardenId: string; title: string; date: string | null; source: "meeting" | "chat" | "notes" | "other"; text: string; consent: boolean; speakers: Record<string, string>; originalFile?: string | null | undefined }) => d)
-  .handler(async ({ data, context }) => {
-    if (data.consent !== true) fail("Confirm that everyone in this conversation agreed to have it recorded here.");
-    if (!data.title.trim()) fail("Give the conversation a title.");
-    if (!data.text.trim()) fail("Paste the conversation text.");
-    const parts = splitConversation(data.text);
-    const map = new Map<string, string>();
-    for (const [speaker, target] of Object.entries(data.speakers)) {
-      map.set(speaker, target.startsWith("new:") ? await ensurePerson(context, data.gardenId, target.slice(4) || speaker) : target);
-    }
-    const conv = check(await context.supabase.from("conversations").insert({
-      garden_id: data.gardenId, title: data.title.trim(), happened_at: data.date || null, source: data.source, raw_text: data.text, consent_confirmed: true, created_by: context.userId, source_format: "paste", original_file: data.originalFile || null,
-    }).select("id").single());
-    if (parts.length) check(await context.supabase.from("messages").insert(parts.map((p, i) => ({
-      garden_id: data.gardenId, conversation_id: conv.id, position: i, sequence: i, sent_at: null, time_precision: "unknown", time_source: "none", content: p.content, contributor_id: p.speaker ? map.get(p.speaker) ?? null : null,
-    }))));
-    await logEvent(context, data.gardenId, "conversation_added", null, { conversation_id: conv.id, messages: parts.length });
-    return { id: conv.id };
-  });
-
 export const addEvidence = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { gardenId: string; key: string; messageId: string; role: "origin" | "restated" | "supports" | "challenges"; note?: string | undefined }) => d)
@@ -344,4 +323,103 @@ export const setOutcome = createServerFn({ method: "POST" })
     const idea = graph.byKey.get(data.key) ?? fail("That idea is not in this garden.");
     check(await context.supabase.rpc("set_idea_outcome", { _garden: data.gardenId, _idea: idea.dbId, _outcome: data.outcome }));
     return { ok: true };
+  });
+
+// ---------- accession (intake) ----------
+const MAX_BYTES = 5 * 1024 * 1024;
+const MAX_MESSAGES = 20000;
+const SOURCE_OF: Record<Format, "meeting" | "chat" | "notes" | "other"> = {
+  whatsapp: "chat", slack: "chat", chatgpt: "chat", claude: "chat", lines: "chat", transcript: "meeting", vtt: "meeting", srt: "meeting", notes: "notes",
+};
+
+async function intakeContext(supabase: DB, gardenId: string, userId: string) {
+  const contributors = check(await supabase.from("contributors").select("id,name,kind,user_id").eq("garden_id", gardenId));
+  const aliases = check(await supabase.from("speaker_aliases").select("alias,contributor_id").eq("garden_id", gardenId));
+  const me = contributors.find((c) => c.user_id === userId);
+  return { contributors, aliases, importerContributorId: me?.id ?? null };
+}
+
+export const getAccessionContext = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { gardenId: string }) => d)
+  .handler(async ({ data, context }) => {
+    const garden = check(await context.supabase.from("gardens").select("id,title").eq("id", data.gardenId).maybeSingle());
+    if (!garden) fail("This garden does not exist or you cannot see it.");
+    const ctx = await intakeContext(context.supabase, data.gardenId, context.userId);
+    const conversations = check(await context.supabase.from("conversations").select("id,title").eq("garden_id", data.gardenId).order("created_at"));
+    const email = (context.claims as { email?: string } | undefined)?.email;
+    return { garden, ...ctx, importerName: email ? email.split("@")[0] : "Me", conversations };
+  });
+
+/** Which existing conversations already keep some of these messages. */
+export const checkOverlap = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { gardenId: string; externalIds: string[] }) => {
+    if (!Array.isArray(d.externalIds) || d.externalIds.length > MAX_MESSAGES) fail("Too many messages.");
+    return d;
+  })
+  .handler(async ({ data, context }) => {
+    const counts = new Map<string, number>();
+    for (let i = 0; i < data.externalIds.length; i += 300) {
+      const rows = check(await context.supabase.from("messages").select("conversation_id").eq("garden_id", data.gardenId).in("external_id", data.externalIds.slice(i, i + 300)));
+      for (const r of rows) counts.set(r.conversation_id, (counts.get(r.conversation_id) ?? 0) + 1);
+    }
+    return [...counts.entries()].map(([conversationId, kept]) => ({ conversationId, kept })).sort((a, b) => b.kept - a.kept);
+  });
+
+export const receiveBatch = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { gardenId: string; conversationId: string | null; newConversation: { title: string; happenedAt: string | null } | null; input: PrepareInput; options: PrepareOptions; consent: boolean; originalFilePath: string | null }) => {
+    if (d.consent !== true) fail("Confirm that everyone in this conversation agreed to have it recorded here.");
+    const size = new TextEncoder().encode(d.input?.text ?? "").length + (d.input?.files ?? []).reduce((a, f) => a + f.text.length, 0);
+    if (size > MAX_BYTES) fail("The original is larger than 5 MB.");
+    if (!d.conversationId && !d.newConversation?.title?.trim()) fail("Give the conversation a title.");
+    return d;
+  })
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    if (!check(await supabase.rpc("can_write_garden", { _garden: data.gardenId }))) fail("You cannot write to this garden.");
+    const ctx = await intakeContext(supabase, data.gardenId, userId);
+    // never trust prepared messages from the browser: prepare again from the original and the choices
+    const draft = prepare(data.input, data.options, ctx);
+    if (draft.kept.length > MAX_MESSAGES) fail("The original holds more than 20,000 messages.");
+    if (!draft.kept.length) fail("Nothing to keep: no messages were found in the original.");
+    const problems = checkDraft(draft);
+    if (problems.length) fail(problems.join("\n"));
+    if (data.options.mask && data.originalFilePath) fail("A masked original cannot keep its unmasked file.");
+    if (data.originalFilePath && !data.originalFilePath.startsWith(data.gardenId + "/")) fail("The original file is not in this garden.");
+
+    const voices = resolveVoices(draft, data.options);
+    const ids = new Set(ctx.contributors.map((c) => c.id));
+    const taken = new Set(ctx.contributors.map((c) => c.name));
+    const people: { ref: string; name: string; kind: string }[] = [];
+    const refOf = new Map<string, string | null>();
+    let letter = 0;
+    for (const [label, v] of voices) {
+      if (v.type === "person") { if (!ids.has(v.id)) fail("A chosen person is not in this garden."); refOf.set(label, v.id); }
+      else if (v.type === "none") refOf.set(label, null);
+      else {
+        let name = v.type === "new" ? v.name.trim() : "";
+        if (v.type === "anon") { do name = `Voice ${String.fromCharCode(65 + letter++)}`; while (taken.has(name)); taken.add(name); }
+        if (!name) fail(`Give a name for “${label}”.`);
+        const ref = `new:${name}`;
+        if (!people.some((p) => p.ref === ref)) people.push({ ref, name, kind: v.type === "new" && v.kind === "historical_ai" ? "historical_ai" : "person" });
+        refOf.set(label, ref);
+      }
+    }
+    const aliases = [...voices.entries()].filter(([label, v]) => (v.type === "person" || v.type === "new") && isRealName(label, draft.format) && !["chatgpt", "claude"].includes(draft.format))
+      .map(([label]) => ({ alias: label, person: refOf.get(label) }));
+    const messages = draft.kept.map((m) => ({
+      person: refOf.get(m.speakerLabel ?? (draft.format === "notes" ? "" : "\u0000")) ?? null,
+      content: m.content, sent_at: m.sentAt, precision: m.precision, time_source: m.timeSource, external_id: m.externalId, parent_external_id: m.parentExternalId,
+      raw_start: m.rawStart, raw_end: m.rawEnd, speaker_label: m.speakerLabel, offset_ms: m.offsetMs, hidden: m.hidden,
+    }));
+    const r = check(await supabase.rpc("receive_batch", {
+      _garden: data.gardenId,
+      _conversation: data.conversationId as string,
+      _new_conversation: data.newConversation ? { title: data.newConversation.title.trim(), happened_at: data.newConversation.happenedAt || "", source: SOURCE_OF[draft.format] } : {},
+      _batch: { raw_text: draft.raw, source_format: draft.format, original_file: data.originalFilePath ?? "", parser_version: draft.report.parser, options: { ...data.options }, report: draft.report },
+      _people: people, _aliases: aliases, _messages: messages,
+    })) as { conversation_id: string; accession_no: number; added: number; already_kept: number };
+    return { conversationId: r.conversation_id, accessionNo: r.accession_no, added: r.added, alreadyKept: r.already_kept, format: draft.format, voices: draft.speakers.length, messages: draft.kept.length };
   });

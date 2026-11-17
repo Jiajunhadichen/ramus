@@ -441,53 +441,138 @@ export type Database = {
           },
         ]
       }
+      intake_batches: {
+        Row: {
+          accession_no: number
+          conversation_id: string
+          created_at: string
+          created_by: string | null
+          garden_id: string
+          id: string
+          options: Json
+          original_file: string | null
+          parser_version: string
+          raw_text: string
+          report: Json
+          source_format: string
+        }
+        Insert: {
+          accession_no: number
+          conversation_id: string
+          created_at?: string
+          created_by?: string | null
+          garden_id: string
+          id?: string
+          options?: Json
+          original_file?: string | null
+          parser_version: string
+          raw_text: string
+          report?: Json
+          source_format: string
+        }
+        Update: {
+          accession_no?: number
+          conversation_id?: string
+          created_at?: string
+          created_by?: string | null
+          garden_id?: string
+          id?: string
+          options?: Json
+          original_file?: string | null
+          parser_version?: string
+          raw_text?: string
+          report?: Json
+          source_format?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intake_batches_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intake_batches_garden_id_fkey"
+            columns: ["garden_id"]
+            isOneToOne: false
+            referencedRelation: "gardens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
+          batch_id: string | null
           content: string
           contributor_id: string | null
           conversation_id: string
           external_id: string | null
           garden_id: string
+          hidden_reason: string | null
           id: string
           imported_at: string
+          offset_ms: number | null
           parent_message_id: string | null
           position: number
+          raw_end: number | null
+          raw_start: number | null
           sent_at: string | null
           sequence: number
+          speaker_label: string | null
           time_precision: string
           time_source: string
         }
         Insert: {
+          batch_id?: string | null
           content: string
           contributor_id?: string | null
           conversation_id: string
           external_id?: string | null
           garden_id: string
+          hidden_reason?: string | null
           id?: string
           imported_at?: string
+          offset_ms?: number | null
           parent_message_id?: string | null
           position: number
+          raw_end?: number | null
+          raw_start?: number | null
           sent_at?: string | null
           sequence?: number
+          speaker_label?: string | null
           time_precision?: string
           time_source?: string
         }
         Update: {
+          batch_id?: string | null
           content?: string
           contributor_id?: string | null
           conversation_id?: string
           external_id?: string | null
           garden_id?: string
+          hidden_reason?: string | null
           id?: string
           imported_at?: string
+          offset_ms?: number | null
           parent_message_id?: string | null
           position?: number
+          raw_end?: number | null
+          raw_start?: number | null
           sent_at?: string | null
           sequence?: number
+          speaker_label?: string | null
           time_precision?: string
           time_source?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "messages_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "intake_batches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "messages_contributor_id_fkey"
             columns: ["contributor_id"]
@@ -514,6 +599,48 @@ export type Database = {
             columns: ["parent_message_id"]
             isOneToOne: false
             referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      speaker_aliases: {
+        Row: {
+          alias: string
+          contributor_id: string
+          created_at: string
+          created_by: string | null
+          garden_id: string
+          id: string
+        }
+        Insert: {
+          alias: string
+          contributor_id: string
+          created_at?: string
+          created_by?: string | null
+          garden_id: string
+          id?: string
+        }
+        Update: {
+          alias?: string
+          contributor_id?: string
+          created_at?: string
+          created_by?: string | null
+          garden_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "speaker_aliases_contributor_id_fkey"
+            columns: ["contributor_id"]
+            isOneToOne: false
+            referencedRelation: "contributors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "speaker_aliases_garden_id_fkey"
+            columns: ["garden_id"]
+            isOneToOne: false
+            referencedRelation: "gardens"
             referencedColumns: ["id"]
           },
         ]
@@ -693,6 +820,18 @@ export type Database = {
     Functions: {
       can_write_garden: { Args: { _garden: string }; Returns: boolean }
       is_garden_member: { Args: { _garden: string }; Returns: boolean }
+      receive_batch: {
+        Args: {
+          _aliases: Json
+          _batch: Json
+          _conversation: string
+          _garden: string
+          _messages: Json
+          _new_conversation: Json
+          _people: Json
+        }
+        Returns: Json
+      }
       record_action: {
         Args: {
           _audit_type: string

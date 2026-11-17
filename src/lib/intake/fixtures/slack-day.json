@@ -1,0 +1,3 @@
+[{"type":"message","subtype":"channel_join","ts":"1763380000.000100","user":"U01ABCDEF","text":"<@U01ABCDEF> has joined the channel"},
+{"type":"message","ts":"1763380100.000200","user":"U01ABCDEF","user_profile":{"real_name":"Ana Lind"},"text":"Root message","thread_ts":"1763380100.000200"},
+{"type":"message","ts":"1763380200.000300","user":"U02XYZXYZ","text":"Reply in thread","thread_ts":"1763380100.000200"}]

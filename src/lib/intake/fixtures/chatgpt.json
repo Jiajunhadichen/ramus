@@ -1,0 +1,8 @@
+[{"id":"c1","title":"Trees","create_time":1763380000,"current_node":"m3","mapping":{
+"root":{"id":"root","message":null,"parent":null,"children":["m0"]},
+"m0":{"id":"m0","parent":"root","children":["m1"],"message":{"id":"m0","author":{"role":"system"},"create_time":null,"content":{"content_type":"text","parts":[""]}}},
+"m1":{"id":"m1","parent":"m0","children":["m2","m2b"],"message":{"id":"m1","author":{"role":"user"},"create_time":1763380001.5,"content":{"content_type":"text","parts":["Why do trees branch?"]}}},
+"m2b":{"id":"m2b","parent":"m1","children":[],"message":{"id":"m2b","author":{"role":"assistant"},"create_time":1763380002,"content":{"content_type":"text","parts":["An older answer."]}}},
+"m2":{"id":"m2","parent":"m1","children":["m3"],"message":{"id":"m2","author":{"role":"assistant"},"create_time":1763380003,"content":{"content_type":"text","parts":["To reach light."]}}},
+"m3":{"id":"m3","parent":"m2","children":[],"message":{"id":"m3","author":{"role":"user"},"create_time":1763380010,"content":{"content_type":"text","parts":["Thanks!"]}}}}},
+{"id":"c2","title":"Other","create_time":1763390000,"current_node":"x1","mapping":{"x1":{"id":"x1","parent":null,"children":[],"message":{"id":"x1","author":{"role":"user"},"create_time":1763390001,"content":{"content_type":"text","parts":["private stuff"]}}}}}]
