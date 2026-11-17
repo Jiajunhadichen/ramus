@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { checkOverlap, getAccessionContext, receiveBatch } from "@/lib/garden.functions";
 import { prepare, resolveVoices, FORMAT_LABEL, type Draft, type Format, type PrepareInput, type PrepareOptions, type Voice } from "@/lib/intake";
 import { takeHandOver } from "@/lib/intake/handover";
+import { ACCEPT, openFiles, type IncomingFile } from "@/lib/intake/files";
+import { WordsGuide } from "@/components/garden/WordsGuide";
 import { HIDDEN_NOTE, browserDateOrder, formatOffset, formatWhen, lineOwners } from "@/lib/intake/display";
 import { toLines } from "@/lib/intake/util";
 import { PERSON_COLORS } from "@/lib/stam/palette";
@@ -31,28 +33,33 @@ export const Route = createFileRoute("/_authenticated/g/$id_/accession")({
       { property: "og:description", content: "Keep the original. Prepare the structure. Never change the words." },
     ],
   }),
+  validateSearch: (s: Record<string, unknown>): { into?: string } => (typeof s["into"] === "string" && s["into"] ? { into: s["into"] } : {}),
   loader: ({ context, params }) => context.queryClient.ensureQueryData(ctxQuery(params.id)),
   component: AccessionPage,
 });
 
-type Received = { input: PrepareInput; file: File | null; name: string | null };
+type Received = { input: PrepareInput; file: File | null; name: string | null; from: string | null };
 const selectCls = "h-9 rounded-md border border-input bg-sheet px-2 text-sm";
 const SELF = new Set<Format>(["chatgpt", "claude", "notes"]);
 
-async function readFiles(files: File[]): Promise<{ received: Received | null; rest: File[] }> {
-  if (!files.length) return { received: null, rest: [] };
-  const json = files.filter((f) => /\.json$/i.test(f.name));
-  if (json.length > 1 && json.length === files.length) {
-    const list = await Promise.all(json.map(async (f) => ({ name: (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name, text: await f.text() })));
-    return { received: { input: { kind: "json", text: "", files: list, fileName: list[0]!.name }, file: null, name: list[0]!.name }, rest: [] };
-  }
-  const [f, ...rest] = files;
-  const text = await f!.text();
-  return { received: { input: { kind: /\.json$/i.test(f!.name) ? "json" : "text", text, fileName: f!.name }, file: f!, name: f!.name }, rest };
+/** Open received files (zip, docx, text, json); the original kept is what the opener chose, never a whole export. */
+async function readFiles(files: File[]): Promise<{ received: Received | null; rest: File[]; refusal: string | null }> {
+  if (!files.length) return { received: null, rest: [], refusal: null };
+  const incoming: IncomingFile[] = await Promise.all(files.map(async (f) => ({
+    name: (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name, type: f.type, bytes: new Uint8Array(await f.arrayBuffer()),
+  })));
+  const o = openFiles(incoming);
+  if (!o) return { received: null, rest: [], refusal: null };
+  // several .json files are read together (Slack); otherwise the first file is opened and the others wait
+  const rest = o.ok && o.input.files ? [] : files.slice(1);
+  if (!o.ok) return { received: null, rest, refusal: o.reason };
+  const keep = o.keep ? new File([new Uint8Array(o.keep.bytes)], o.keep.name, { type: o.keep.type }) : null;
+  return { received: { input: o.input, file: keep, name: files[0]!.name, from: o.from }, rest, refusal: null };
 }
 
 function AccessionPage() {
   const { id } = Route.useParams();
+  const { into } = Route.useSearch();
   const qc = useQueryClient();
   const { data: ctx } = useSuspenseQuery(ctxQuery(id));
   const keep = useServerFn(receiveBatch);
@@ -67,7 +74,8 @@ function AccessionPage() {
   const [busy, setBusy] = useState(false);
   const [lit, setLit] = useState<number | null>(null);
   const [overlap, setOverlap] = useState<{ conversationId: string; kept: number }[]>([]);
-  const [target, setTarget] = useState<string | "new">("new");
+  const [target, setTarget] = useState<string | "new">(into ?? "new");
+  const [refusal, setRefusal] = useState<string | null>(null);
   const [kept, setKept] = useState<null | { no: number; line: string; conversationId: string; added: number; already: number }>(null);
   const touched = useRef({ title: false, happened: false });
 
@@ -75,24 +83,23 @@ function AccessionPage() {
   useEffect(() => {
     setOptions((o) => ({ timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", dateOrder: browserDateOrder(), ...o }));
     const h = takeHandOver(id);
-    if (h?.text) receiveText(h.text);
-    else if (h?.files?.length) {
-      const fs = h.files.map((f) => new File([f.text], f.name));
-      void readFiles(fs).then(({ received, rest }) => { setReceived(received); setQueue(rest); });
-    }
+    if (h?.files?.length) void receiveFiles(h.files);
+    else if (h?.text) receiveText(h.text);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   function reset() {
     setOptions((o) => ({ timeZone: o.timeZone, dateOrder: o.dateOrder }));
     touched.current = { title: false, happened: false };
-    setConsent(false); setKept(null); setOverlap([]); setTarget("new");
+    setConsent(false); setKept(null); setOverlap([]); setTarget(into ?? "new"); setRefusal(null);
   }
-  function receiveText(t: string) { reset(); setPaste(t); setReceived(t.trim() ? { input: { kind: "text", text: t }, file: null, name: null } : null); }
+  function receiveText(t: string) { reset(); setPaste(t); setReceived(t.trim() ? { input: { kind: "text", text: t }, file: null, name: null, from: null } : null); }
   async function receiveFiles(list: FileList | File[]) {
     reset();
-    const { received, rest } = await readFiles([...list]);
-    setReceived(received); setQueue(rest); setPaste("");
+    try {
+      const { received, rest, refusal } = await readFiles([...list]);
+      setReceived(received); setQueue(rest); setPaste(""); setRefusal(refusal);
+    } catch (e) { setReceived(null); setRefusal(`This file could not be opened: ${(e as Error).message}`); }
   }
 
   const pctx = useMemo(() => ({ contributors: ctx.contributors, aliases: ctx.aliases, importerContributorId: ctx.importerContributorId, importerName: ctx.importerName }), [ctx]);
@@ -110,7 +117,7 @@ function AccessionPage() {
     const t = setTimeout(() => {
       overlapFn({ data: { gardenId: id, externalIds: draft.kept.map((m) => m.externalId) } }).then((o) => {
         setOverlap(o);
-        setTarget(o[0] ? o[0].conversationId : "new");
+        if (!into) setTarget(o[0] ? o[0].conversationId : "new");
       }).catch(() => setOverlap([]));
     }, 400);
     return () => clearTimeout(t);
@@ -172,14 +179,15 @@ function AccessionPage() {
         <div className="flex flex-wrap justify-center gap-4">
           <Link to="/g/$id/conversations/$cid" params={{ id, cid: kept.conversationId }} className="underline underline-offset-4">Read the conversation</Link>
           <Link to="/g/$id" params={{ id }} search={{ idea: undefined }} className="underline underline-offset-4">Back to the garden</Link>
-          {queue.length > 0 && <button type="button" className="underline underline-offset-4" onClick={() => { const [n, ...rest] = queue; reset(); setQueue(rest); void readFiles([n!]).then((x) => setReceived(x.received)); }}>Bring in the next file: {queue[0]!.name}</button>}
+          {queue.length > 0 && <button type="button" className="underline underline-offset-4" onClick={() => { const [n, ...rest] = queue; reset(); setQueue(rest); void readFiles([n!]).then((x) => { setReceived(x.received); setRefusal(x.refusal); }); }}>Bring in the next file: {queue[0]!.name}</button>}
         </div>
       </main>
     );
   }
 
-  const over = overlap[0];
+  const over = overlap.find((o) => o.conversationId === into) ?? overlap[0];
   const overTitle = over ? ctx.conversations.find((c) => c.id === over.conversationId)?.title : null;
+  const intoTitle = into ? ctx.conversations.find((c) => c.id === into)?.title ?? null : null;
   const remaining = over ? draft!.kept.length - over.kept : 0;
 
   return (
@@ -200,12 +208,15 @@ function AccessionPage() {
             readOnly={!!received?.file || !!received?.input.files}
             onChange={(e) => receiveText(e.target.value)} />
           <div className="flex flex-wrap items-center gap-3">
-            <label className="cursor-pointer text-sm underline underline-offset-4">Choose files<input type="file" multiple accept=".txt,.vtt,.srt,.json,text/plain,application/json" className="sr-only" onChange={(e) => e.target.files && void receiveFiles(e.target.files)} /></label>
-            {received && <button type="button" className="text-sm underline underline-offset-4" onClick={() => { reset(); setReceived(null); setPaste(""); setQueue([]); }}>Start over</button>}
+            <label className="cursor-pointer text-sm underline underline-offset-4">Choose files<input type="file" multiple accept={ACCEPT} className="sr-only" onChange={(e) => { if (e.target.files) void receiveFiles(e.target.files); e.target.value = ""; }} /></label>
+            {(received || refusal) && <button type="button" className="text-sm underline underline-offset-4" onClick={() => { reset(); setReceived(null); setPaste(""); setQueue([]); }}>Start over</button>}
             {queue.length > 0 && <span className="text-sm text-muted-foreground">Next after this: {queue.map((f) => f.name).join(", ")}</span>}
           </div>
         </div>
-        <p className="smallcaps text-[13px] text-muted-foreground">Accepted: WhatsApp export · Teams, Zoom & Meet .vtt · .srt · transcripts · copied chats · name lines · notes · ChatGPT & Claude conversations.json · Slack day files</p>
+        {received?.from && <p className="hand text-[16px]">Opened: {received.from}</p>}
+        {refusal && <p role="alert" className="rounded-md border border-rule bg-sheet px-3 py-2 text-[15px]">{refusal}</p>}
+        <p className="smallcaps text-[13px] text-muted-foreground">Accepted: pasted text · .zip exports (WhatsApp, ChatGPT, Claude, Slack) · .docx · .vtt · .srt · .txt · .md · .json</p>
+        {!draft && <WordsGuide />}
       </section>
 
       {draft && (
@@ -223,6 +234,13 @@ function AccessionPage() {
               <span>· {Object.values(draft.report.setAside).reduce((a, b) => a + b, 0)} lines set aside</span>
               {draft.report.otherBranches > 0 && <span>· {draft.report.otherBranches} other branches kept in the original</span>}
               <span>· times read as {options.timeZone}</span>
+              {draft.report.recordingStated && (
+                <span className="flex items-baseline gap-1">· recording started
+                  <input type="datetime-local" step={1} aria-label="Recording started at" className="border-0 border-b border-dotted border-ink bg-transparent text-[15px]"
+                    value={draft.report.recordingStated} onChange={(e) => setOptions((o) => ({ ...o, recordingStart: e.target.value || null }))} />
+                  <span className="hand">as the transcript states</span>
+                </span>
+              )}
             </div>
             <div className="rule-dotted mt-3 pt-2 text-sm text-muted-foreground">Parser {draft.report.parser}{draft.report.masked.phone + draft.report.masked.email > 0 ? ` · masked ${draft.report.masked.phone} phone, ${draft.report.masked.email} email` : ""}</div>
           </div>
@@ -269,19 +287,18 @@ function AccessionPage() {
           )}
 
           <div className="grid gap-3 rounded-md border border-rule bg-sheet p-4">
-            {over && overTitle && (
+            {(intoTitle || (over && overTitle)) && (
               <div className="grid gap-1 text-[15px]">
-                <label className="flex items-center gap-2"><input type="radio" name="target" checked={target === over.conversationId} onChange={() => setTarget(over.conversationId)} />Add to “{overTitle}”: {remaining} new, {over.kept} already kept</label>
+                {intoTitle && into && <label className="flex items-center gap-2"><input type="radio" name="target" checked={target === into} onChange={() => setTarget(into)} />Add to “{intoTitle}”{over?.conversationId === into ? `: ${remaining} new, ${over.kept} already kept` : ""}</label>}
+                {over && overTitle && over.conversationId !== into && <label className="flex items-center gap-2"><input type="radio" name="target" checked={target === over.conversationId} onChange={() => setTarget(over.conversationId)} />Add to “{overTitle}”: {remaining} new, {over.kept} already kept</label>}
                 <label className="flex items-center gap-2"><input type="radio" name="target" checked={target === "new"} onChange={() => setTarget("new")} />Keep as a new conversation</label>
               </div>
             )}
-            {target === "new" && (
-              <div className="grid gap-2 md:grid-cols-[1fr_auto_auto]">
-                <div className="grid gap-1.5"><Label htmlFor="a-t">Title</Label><Input id="a-t" value={fields.title} onChange={(e) => { touched.current.title = true; setFields({ ...fields, title: e.target.value }); }} /></div>
-                <div className="grid gap-1.5"><Label htmlFor="a-h">Happened</Label><Input id="a-h" type="date" value={fields.happened} onChange={(e) => { touched.current.happened = true; setFields({ ...fields, happened: e.target.value }); }} /></div>
-                <div className="grid gap-1.5"><Label htmlFor="a-z">Timezone</Label><Input id="a-z" list="tzs" value={options.timeZone ?? ""} onChange={(e) => setOptions((o) => ({ ...o, timeZone: e.target.value }))} /></div>
-              </div>
-            )}
+            <div className="grid gap-2 md:grid-cols-[1fr_auto_auto]">
+              {target === "new" && <div className="grid gap-1.5"><Label htmlFor="a-t">Title</Label><Input id="a-t" value={fields.title} onChange={(e) => { touched.current.title = true; setFields({ ...fields, title: e.target.value }); }} /></div>}
+              {target === "new" && <div className="grid gap-1.5"><Label htmlFor="a-h">Happened</Label><Input id="a-h" type="date" value={fields.happened} onChange={(e) => { touched.current.happened = true; setFields({ ...fields, happened: e.target.value }); }} /></div>}
+              <div className="grid gap-1.5"><Label htmlFor="a-z">Timezone</Label><Input id="a-z" list="tzs" value={options.timeZone ?? ""} onChange={(e) => setOptions((o) => ({ ...o, timeZone: e.target.value }))} /></div>
+            </div>
             <datalist id="tzs">{(typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : []).map((z) => <option key={z} value={z} />)}</datalist>
             <label className="flex items-start gap-2 text-sm">
               <Checkbox checked={consent} onCheckedChange={(v) => setConsent(v === true)} className="mt-0.5" aria-label="Consent" />

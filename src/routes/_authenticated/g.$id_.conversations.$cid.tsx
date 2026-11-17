@@ -51,7 +51,7 @@ function ConversationPage() {
       )}
       <div className="mt-4 flex flex-wrap items-center gap-4 text-sm">
         <label className="flex items-center gap-2"><Switch checked={showAside} onCheckedChange={setShowAside} aria-label="Show set-aside lines" />Show set-aside lines{asideCount ? ` (${asideCount})` : ""}</label>
-        <Link to="/g/$id/accession" params={{ id }} className="underline underline-offset-4">Bring in more</Link>
+        <Link to="/g/$id/accession" params={{ id }} search={{ into: cid }} className="underline underline-offset-4">Bring in more</Link>
       </div>
       <ol className="mt-6 grid gap-3">
         {groupMessages(visible).map((group) => {

@@ -170,15 +170,56 @@ const SHAPES = {
   "name-date-time": new RegExp(String.raw`^\s*${NM}\s+(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})\s+${CLK}\s*$`),
   "name-time": new RegExp(String.raw`^\s*${NM}\s+${CLK}\s*$`),
   "time-name": new RegExp(String.raw`^\s*\[(?:(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})\s+)?${CLK}\]\s+${NM}\s*$`),
+  /** Zoom saved captions: "[Ana Lind] 14:02:31" */
+  "bracket-name-time": new RegExp(String.raw`^\s*\[${NM}\]\s+${CLK}\s*$`),
+  /** Zoom meeting chat: "14:02:31 From Ana Lind to Everyone:" */
+  "zoom-chat": new RegExp(String.raw`^\s*${CLK}\s+From\s+${NM}\s+to\s+[^:\n]{1,40}:\s*$`),
 } as const;
 type Shape = keyof typeof SHAPES;
 
 function headOf(text: string, shape: Shape) {
   const m = plain(text).match(SHAPES[shape]);
   if (!m) return null;
-  if (shape === "time-name") return { name: m[5]!.trim(), clock: m[4]!, date: m[1] ? ([+m[1], +m[2]!, +m[3]!] as const) : null };
-  if (shape === "name-time") return { name: m[1]!.trim(), clock: m[2]!, date: null };
-  return { name: m[1]!.trim(), clock: m[5]!, date: [+m[2]!, +m[3]!, +m[4]!] as const };
+  const h = shape === "time-name" ? { name: m[5]!.trim(), clock: m[4]!, date: m[1] ? ([+m[1], +m[2]!, +m[3]!] as const) : null }
+    : shape === "name-time" || shape === "bracket-name-time" ? { name: m[1]!.trim(), clock: m[2]!, date: null }
+    : shape === "zoom-chat" ? { name: m[2]!.trim(), clock: m[1]!, date: null }
+    : { name: m[1]!.trim(), clock: m[5]!, date: [+m[2]!, +m[3]!, +m[4]!] as const };
+  // "November 17, 2026, 1:02PM" heads a Teams transcript; it is a date, not a person speaking at 1:02
+  if (/\d{4}/.test(h.name) || /,\s*$/.test(h.name)) return null;
+  return h;
+}
+
+const MONTHS: Record<string, number> = {
+  jan: 1, january: 1, januari: 1, feb: 2, february: 2, februari: 2, mar: 3, march: 3, mars: 3, apr: 4, april: 4,
+  may: 5, maj: 5, jun: 6, june: 6, juni: 6, jul: 7, july: 7, juli: 7, aug: 8, august: 8, augusti: 8,
+  sep: 9, sept: 9, september: 9, oct: 10, october: 10, okt: 10, oktober: 10, nov: 11, november: 11, dec: 12, december: 12,
+};
+const two = (n: number) => String(n).padStart(2, "0");
+/**
+ * The recording start a transcript states in its first lines (Teams .docx: "November 17, 2026, 1:02PM"),
+ * as local wall time "YYYY-MM-DDTHH:MM:SS". Only lines before the first speaker count.
+ */
+export function statedRecordingStart(raw: string): string | null {
+  const lines = toLines(raw).slice(0, 6).map((l) => plain(l.text).trim());
+  const time = String.raw`(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?\s*([AaPp])?\.?\s*[Mm]?\.?`;
+  const mdy = new RegExp(String.raw`^([A-Za-zÅÄÖåäö]+)\.?\s+(\d{1,2}),?\s+(\d{4}),?\s+(?:at\s+)?${time}$`);
+  const dmy = new RegExp(String.raw`^(\d{1,2})\.?\s+([A-Za-zÅÄÖåäö]+)\.?\s+(\d{4}),?\s+(?:kl\.?\s+|at\s+)?${time}$`);
+  const iso = new RegExp(String.raw`^(\d{4})-(\d{2})-(\d{2})[ T,]+${time}$`);
+  for (const l of lines) {
+    let y = 0, mo = 0, d = 0, rest: (string | undefined)[] = [];
+    let m = l.match(mdy);
+    if (m && MONTHS[m[1]!.toLowerCase()]) { mo = MONTHS[m[1]!.toLowerCase()]!; d = +m[2]!; y = +m[3]!; rest = m.slice(4); }
+    else if ((m = l.match(dmy)) && MONTHS[m[2]!.toLowerCase()]) { d = +m[1]!; mo = MONTHS[m[2]!.toLowerCase()]!; y = +m[3]!; rest = m.slice(4); }
+    else if ((m = l.match(iso))) { y = +m[1]!; mo = +m[2]!; d = +m[3]!; rest = m.slice(4); }
+    else continue;
+    let h = +rest[0]!;
+    const ap = rest[3]?.toLowerCase();
+    if (ap === "p" && h < 12) h += 12;
+    if (ap === "a" && h === 12) h = 0;
+    if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23) continue;
+    return `${y}-${two(mo)}-${two(d)}T${two(h)}:${two(+rest[1]!)}:${two(+(rest[2] ?? 0))}`;
+  }
+  return null;
 }
 
 export function transcriptShape(raw: string): { shape: Shape; count: number } | null {
@@ -208,11 +249,13 @@ export function parseTranscript(raw: string, tz: string, conversationDate: strin
   const firstClock = heads.find(Boolean)?.clock ?? "";
   const offsetMode = sh.shape !== "name-date-time" && !heads.find(Boolean)?.date && /^0{1,2}:/.test(firstClock) && !/[AaPp]\.?\s*[Mm]/.test(firstClock);
   const out: Unit[] = [];
-  let cur: { from: number; label: string | null; base: Omit<Unit, "content" | "rawStart" | "rawEnd" | "bodyStart" | "hidden">; bodyFrom: number } | null = null;
+  // lines before the first speaker are the transcript's own heading (title, date, length): set aside, never dropped
+  let cur: { from: number; label: string | null; base: Omit<Unit, "content" | "rawStart" | "rawEnd" | "bodyStart" | "hidden">; bodyFrom: number; heading?: boolean } | null = null;
   const flush = (to: number) => {
     if (!cur) return;
     const bs = cur.bodyFrom < lines.length ? lines[cur.bodyFrom]!.start : raw.length;
-    out.push(cur.bodyFrom > to ? { ...cur.base, content: "", rawStart: lines[cur.from]!.start, rawEnd: lines[cur.from]!.end, bodyStart: lines[cur.from]!.end, hidden: "empty" } : close(raw, lines, cur.from, to, bs, cur.base));
+    const u = cur.bodyFrom > to ? { ...cur.base, content: "", rawStart: lines[cur.from]!.start, rawEnd: lines[cur.from]!.end, bodyStart: lines[cur.from]!.end, hidden: "empty" as const } : close(raw, lines, cur.from, to, bs, cur.base);
+    out.push(cur.heading && !u.hidden ? { ...u, hidden: "system" } : u);
     cur = null;
   };
   const dateParts = conversationDate?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -241,7 +284,7 @@ export function parseTranscript(raw: string, tz: string, conversationDate: strin
       out.push({ speakerLabel: null, ...noTime, content: tidy(l.text), rawStart: l.start, rawEnd: l.end, bodyStart: l.start, hidden: SYSTEM_LINE.test(c) ? "system" : "deleted" });
       return;
     }
-    if (!cur && !blank(l)) cur = { from: i, label: null, base: { speakerLabel: null, ...noTime }, bodyFrom: i };
+    if (!cur && !blank(l)) cur = { from: i, label: null, base: { speakerLabel: null, ...noTime }, bodyFrom: i, heading: !out.some((u) => u.speakerLabel) };
   });
   flush(lines.length - 1);
   return { units: out, offsetMode, clockOnly: !offsetMode && heads.some((h) => h && !h.date) };
@@ -289,6 +332,11 @@ export function parseLines(raw: string, speakers: Set<string>, tz: string, conve
   const flush = (to: number) => { if (cur) out.push(close(raw, lines, cur.from, to, cur.bodyStart, cur.base)); cur = null; };
   lines.forEach((l, i) => {
     const x = lineLabel(l.text);
+    if (/^\s*\d{1,2}:\d{2}:\d{2}\s*$/.test(l.text) && speakers.size) {
+      flush(i - 1);
+      out.push({ speakerLabel: null, ...noTime, content: l.text.trim(), rawStart: l.start, rawEnd: l.end, bodyStart: l.start, hidden: "system" });
+      return;
+    }
     if (x && speakers.has(x.label)) {
       flush(i - 1);
       let base: Omit<Unit, "content" | "rawStart" | "rawEnd" | "bodyStart" | "hidden"> = { speakerLabel: x.label, ...noTime, clock: x.clock };

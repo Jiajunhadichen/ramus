@@ -9,6 +9,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useReplay } from "@/components/stam-tree/useReplay";
 import { FieldNotes } from "@/components/garden/FieldNotes";
 import { handOver } from "@/lib/intake/handover";
+import { useBringIn } from "@/hooks/use-bring-in";
 import { stepDate, toIdeas, toStam } from "@/components/garden/model";
 import { maxStep, selectionAt } from "@/lib/stam/layout";
 import { Button } from "@/components/ui/button";
@@ -60,26 +61,9 @@ function GardenPage() {
   const changeLevel = (next: ReadingLevel) => { setLevel(next); localStorage.setItem(preferenceKey, next); };
   const max = maxStep(ideas);
   const r = useReplay(max);
-  const bringIn = () => navigate({ to: "/g/$id/accession", params: { id } });
-  // Pasting 2+ lines (no field focused) or dropping a file opens the Accession page with it.
-  useEffect(() => {
-    const free = () => { const a = document.activeElement as HTMLElement | null; return !a || !(a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)); };
-    const onPaste = (e: ClipboardEvent) => {
-      const t = e.clipboardData?.getData("text/plain") ?? "";
-      if (!free() || t.split(/\r?\n/).filter((l) => l.trim()).length < 2) return;
-      e.preventDefault(); handOver(id, { text: t }); bringIn();
-    };
-    const onOver = (e: DragEvent) => { if (e.dataTransfer?.types.includes("Files")) e.preventDefault(); };
-    const onDrop = async (e: DragEvent) => {
-      const files = [...(e.dataTransfer?.files ?? [])];
-      if (!files.length) return;
-      e.preventDefault();
-      handOver(id, { files: await Promise.all(files.map(async (f) => ({ name: f.name, text: await f.text() }))) }); bringIn();
-    };
-    window.addEventListener("paste", onPaste); window.addEventListener("dragover", onOver); window.addEventListener("drop", onDrop);
-    return () => { window.removeEventListener("paste", onPaste); window.removeEventListener("dragover", onOver); window.removeEventListener("drop", onDrop); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  const bringIn = () => navigate({ to: "/g/$id/accession", params: { id }, search: {} });
+  // Pasting a discussion (no field focused) or dropping files anywhere on the garden opens the Accession page with it.
+  useBringIn((got) => { handOver(id, got); bringIn(); });
   const [view, setView] = useState<"tree" | "systema">("tree");
   const [mode, setMode] = useState<"steps" | "events">("steps");
   const events = useMemo(() => replayOrder((data.thoughts ?? []) as Thought[]), [data.thoughts]);
@@ -167,6 +151,15 @@ function GardenPage() {
           <Button variant="outline" size="sm" onClick={exportJson}>Export Stam JSON</Button>
         </div>
       </header>
+      {data.conversations.length === 0 && (
+        <section aria-label="Bring in the first conversation" className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-md border border-dashed border-ink/40 bg-sheet px-4 py-3">
+          <div className="grid gap-0.5">
+            <p className="font-display text-lg">Nothing has been said here yet.</p>
+            <p className="text-[15px] text-muted-foreground">Bring in what your group already said: a chat, a meeting transcript, notes. Paste it anywhere on this page, drop a file, or</p>
+          </div>
+          <Button size="sm" onClick={bringIn}>Bring in the first conversation</Button>
+        </section>
+      )}
       <div className="grid gap-6 border-y border-rule py-5 sm:grid-cols-2">
         <section className="min-w-0" aria-label="The question">
           <p className="eyebrow">The question</p>

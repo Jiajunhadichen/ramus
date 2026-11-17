@@ -77,16 +77,24 @@ export function readJson(value: unknown, files?: { name: string; text: string }[
   const rows = days.flatMap((d) => (Array.isArray(d.rows) ? d.rows : []));
   if (rows.length && rows.every((r: Any) => r && typeof r === "object" && typeof r.ts === "string")) {
     const label = (r: Any) => r.user_profile?.real_name || r.user_profile?.display_name || r.user || r.username || null;
-    const channel = days[0]?.name.split("/").slice(-2, -1)[0] ?? null;
+    // a workspace export holds several channels (channel/2026-11-17.json); each channel is one choice
+    const channelOf = (name: string) => name.split("/").slice(-2, -1)[0] ?? "";
+    const byTs = (a: Any, b: Any) => Number(a.ts) - Number(b.ts);
+    const channels = [...new Set(days.map((d) => channelOf(d.name)))];
+    const rowsOf = (ch: string) => days.filter((d) => channelOf(d.name) === ch).flatMap((d) => (Array.isArray(d.rows) ? d.rows : []));
+    const single = channels.length <= 1;
     return {
       format: "slack",
-      conversations: [{ id: "slack", title: channel ? `#${channel}` : "Slack", date: iso(Number(rows[0].ts)), count: rows.length }],
-      pick: () => [...rows].sort((a: Any, b: Any) => Number(a.ts) - Number(b.ts)),
+      conversations: single
+        ? [{ id: "slack", title: channels[0] ? `#${channels[0]}` : "Slack", date: iso(Number(rows[0].ts)), count: rows.length }]
+        : channels.map((ch) => { const r = rowsOf(ch).sort(byTs); return { id: `slack:${ch}`, title: `#${ch}`, date: iso(Number(r[0]?.ts)), count: r.length }; }),
+      pick: (ids) => (single ? [...rows] : ids.flatMap((id) => rowsOf(id.replace(/^slack:/, "")))).sort(byTs),
       build: (chosen) => {
         const received = chosen.map((r: Any) => ({ role: String(label(r) ?? "unknown"), text: String(r.text ?? "") }));
         const units = chosen.map((r: Any) => unit(label(r), String(r.text ?? ""), iso(Number(r.ts)), r.ts, r.thread_ts && r.thread_ts !== r.ts ? r.thread_ts : null,
           r.subtype && r.subtype !== "thread_broadcast" && r.subtype !== "bot_message" ? "system" : String(r.text ?? "").trim() ? null : "empty"));
-        return { units, otherBranches: 0, received, title: channel ? `#${channel}` : null };
+        const title = single && channels[0] ? `#${channels[0]}` : null;
+        return { units, otherBranches: 0, received, title };
       },
     };
   }

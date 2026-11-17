@@ -2,7 +2,7 @@ import { Seed } from "@/components/stam-tree/StamTree";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { queryOptions, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createGarden, ensureDemoGarden, importGarden, listGardens } from "@/lib/garden.functions";
 import type { ValidationError } from "@/lib/stam/types";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { useBringIn } from "@/hooks/use-bring-in";
+import { handOver, type HandOver } from "@/lib/intake/handover";
 
 const gardensQuery = queryOptions({
   queryKey: ["gardens"],
@@ -34,8 +36,18 @@ export const Route = createFileRoute("/_authenticated/gardens")({
 
 function GardensPage() {
   const { data } = useSuspenseQuery(gardensQuery);
+  const navigate = useNavigate();
   const [newOpen, setNewOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  // words brought in from this page wait here until the person says which garden they belong to
+  const [pending, setPending] = useState<HandOver | null>(null);
+  const [newFor, setNewFor] = useState<HandOver | null>(null);
+  useBringIn((got) => setPending(got));
+  const own = data.filter((g) => !g.is_demo);
+  const sendTo = (gardenId: string, h: HandOver | null) => {
+    if (h) handOver(gardenId, h);
+    navigate({ to: "/g/$id/accession", params: { id: gardenId }, search: {} });
+  };
   return (
     <main className="mx-auto max-w-[1180px] px-5 py-10">
       <div className="flex flex-wrap items-end gap-4">
@@ -45,7 +57,8 @@ function GardensPage() {
         </div>
         <div className="ml-auto flex gap-2">
           <Button variant="outline" onClick={() => setImportOpen(true)}>Import Stam JSON</Button>
-          <Button onClick={() => setNewOpen(true)}>Start a garden</Button>
+          <Button variant="outline" onClick={() => setPending({})}>Bring in a conversation</Button>
+          <Button onClick={() => { setNewFor(null); setNewOpen(true); }}>Start a garden</Button>
         </div>
       </div>
       {data.length === 0 && <Seed><Button onClick={() => setNewOpen(true)}>Start a garden</Button></Seed>}
@@ -62,30 +75,64 @@ function GardensPage() {
           </Link>
         ))}
       </div>
-      <NewGardenDialog open={newOpen} onOpenChange={setNewOpen} />
+      <p className="mt-6 text-sm text-muted-foreground">Have a chat, a transcript or notes already? Paste it anywhere on this page or drop the file here.</p>
+      <WhereDialog pending={pending} gardens={own} onClose={() => setPending(null)}
+        onPick={(gid) => { const h = pending; setPending(null); sendTo(gid, h); }}
+        onNew={() => { setNewFor(pending); setPending(null); setNewOpen(true); }} />
+      <NewGardenDialog open={newOpen} onOpenChange={setNewOpen} initialTitle={newFor?.files?.[0]?.name.replace(/\.[^.]+$/, "").replace(/^WhatsApp Chat( with| -)\s*/i, "") ?? ""}
+        then={newFor ? (gid) => { const h = newFor; setNewFor(null); sendTo(gid, h); } : undefined} />
       <ImportDialog open={importOpen} onOpenChange={setImportOpen} />
     </main>
   );
 }
 
-function NewGardenDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+/** Words brought in from the gardens page: which garden do they belong to? */
+function WhereDialog({ pending, gardens, onClose, onPick, onNew }: {
+  pending: HandOver | null; gardens: { id: string; title: string; specimen_no: number }[];
+  onClose: () => void; onPick: (gardenId: string) => void; onNew: () => void;
+}) {
+  const what = pending?.files?.length ? pending.files.map((f) => f.name).join(", ") : pending?.text ? `${pending.text.split(/\r?\n/).filter((l) => l.trim()).length} pasted lines` : null;
+  return (
+    <Dialog open={pending !== null} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader><DialogTitle className="font-display">Which garden should it grow in?</DialogTitle></DialogHeader>
+        {what && <p className="hand text-[16px]">Received: {what}</p>}
+        {!gardens.length && <p className="text-[15px] text-muted-foreground">You have no garden of your own yet. Start one; what you brought in is prepared right after.</p>}
+        <div className="grid max-h-[50vh] gap-2 overflow-y-auto">
+          {gardens.map((g) => (
+            <button key={g.id} type="button" onClick={() => onPick(g.id)} className="rounded-md border border-rule bg-sheet px-3 py-2 text-left hover:border-ink">
+              <span className="smallcaps text-[13px] text-muted-foreground">Nº {String(g.specimen_no).padStart(3, "0")}</span> <span className="font-display">{g.title}</span>
+            </button>
+          ))}
+        </div>
+        <DialogFooter><Button onClick={onNew}>Start a new garden for it</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function NewGardenDialog({ open, onOpenChange, initialTitle = "", then }: { open: boolean; onOpenChange: (o: boolean) => void; initialTitle?: string; then?: ((gardenId: string) => void) | undefined }) {
   const create = useServerFn(createGarden);
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [f, setF] = useState({ title: "", rootLabel: "", rootNote: "", person: "" });
+  useEffect(() => { if (open) setF((x) => ({ ...x, title: x.title || initialTitle })); }, [open, initialTitle]);
   const [busy, setBusy] = useState(false);
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setBusy(true);
     try {
       const r = await create({ data: f });
       await qc.invalidateQueries({ queryKey: ["gardens"] });
-      navigate({ to: "/g/$id", params: { id: r.gardenId }, search: { idea: undefined } });
+      onOpenChange(false);
+      if (then) then(r.gardenId);
+      else navigate({ to: "/g/$id", params: { id: r.gardenId }, search: { idea: undefined } });
     } catch (err) { toast.error((err as Error).message); } finally { setBusy(false); }
   }
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader><DialogTitle className="font-display">Start a garden</DialogTitle></DialogHeader>
+        {then && <p className="hand text-[16px]">After planting, you will prepare what you brought in.</p>}
         <form onSubmit={submit} className="grid gap-3">
           <div className="grid gap-1.5"><Label>Garden name</Label><Input required value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} /></div>
           <div className="grid gap-1.5"><Label>The first question or idea (root)</Label><Input required maxLength={24} value={f.rootLabel} onChange={(e) => setF({ ...f, rootLabel: e.target.value })} /><span className="text-xs text-muted-foreground">{[...f.rootLabel].length}/24</span></div>

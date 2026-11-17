@@ -1,5 +1,5 @@
 import { deepMap, readJson, type JsonSource } from "./json";
-import { GENERIC, OFTEN_NOT_PEOPLE, lineLabels, parseLines, parseNotes, parseTranscript, parseVtt, parseWhatsApp, speakerSet, transcriptShape, waDateOrder, waHeader, waWhen, type Unit } from "./text";
+import { GENERIC, OFTEN_NOT_PEOPLE, lineLabels, parseLines, parseNotes, parseTranscript, parseVtt, parseWhatsApp, speakerSet, statedRecordingStart, transcriptShape, waDateOrder, waHeader, waWhen, type Unit } from "./text";
 import { PARSER_VERSION, type Draft, type DraftMessage, type Format, type Hidden, type PrepareContext, type PrepareInput, type PrepareOptions, type Question, type Segment, type SpeakerInfo, type Voice } from "./types";
 import { findPrivate, hash, localStringToUtc, maskText, toLines, validTimeZone } from "./util";
 
@@ -68,6 +68,7 @@ export function prepare(input: PrepareInput, options: PrepareOptions, ctx: Prepa
   const questions: Question[] = [];
   if (options.timeZone && tz !== options.timeZone) questions.push({ kind: "timezone", unsure: 0.95, text: `“${options.timeZone}” is not a timezone Ramus knows, so times are read as UTC. Choose a timezone such as Europe/Stockholm.` });
   let units: Unit[] = [];
+  let recordingStated: string | null = null;
   let raw = input.text;
   let sendable = input.text;
   let format: Format;
@@ -96,7 +97,8 @@ export function prepare(input: PrepareInput, options: PrepareOptions, ctx: Prepa
     }
     raw = JSON.stringify(chosen, null, 2);
     const b = src.build(chosen);
-    units = b.units; otherBranches = b.otherBranches; received = b.received; title = b.title ?? title;
+    units = b.units; otherBranches = b.otherBranches; received = b.received;
+    title = b.title ?? (ids.length === 1 ? conversations.find((c) => c.id === ids[0])?.title ?? title : title);
   } else {
     privacy = findPrivate(raw);
     if (options.mask) { const r = maskText(raw, options.mask); raw = r.text; masked.phone = r.phone; masked.email = r.email; privacy = findPrivate(raw); }
@@ -116,9 +118,12 @@ export function prepare(input: PrepareInput, options: PrepareOptions, ctx: Prepa
       units = parseVtt(raw, recordingIso);
       if (!recordingIso) questions.push({ kind: "recording-start", unsure: 0.5, text: "When did the recording start? Without it, times stay as offsets into the recording." });
     } else if (format === "transcript") {
-      const t = parseTranscript(raw, tz, date, recordingIso);
+      // a start the transcript states itself (Teams .docx) is used unless the person gives another
+      const stated = options.recordingStart ? null : localStringToUtc(statedRecordingStart(raw), tz);
+      const t = parseTranscript(raw, tz, date, recordingIso ?? stated);
       units = t.units;
-      if (t.offsetMode && !recordingIso) questions.push({ kind: "recording-start", unsure: 0.5, text: "When did the recording start? Without it, times stay as offsets into the recording." });
+      if (stated && t.offsetMode) recordingStated = statedRecordingStart(raw);
+      if (t.offsetMode && !recordingIso && !stated) questions.push({ kind: "recording-start", unsure: 0.5, text: "When did the recording start? Without it, times stay as offsets into the recording." });
       if (t.clockOnly && !date) questions.push({ kind: "conversation-date", unsure: 0.5, text: "The lines carry clock times but no date. On which day was this? Without it, times stay unknown." });
     } else if (format === "lines") {
       const known = new Set([...ctx.contributors.map((c) => c.name.toLowerCase()), ...ctx.aliases.map((a) => a.alias.toLowerCase())]);
@@ -193,7 +198,7 @@ export function prepare(input: PrepareInput, options: PrepareOptions, ctx: Prepa
     report: {
       parser: PARSER_VERSION, format, messages: messages.length, kept: kept.length, setAside, voices: speakers.length,
       firstAt: times[0] ?? null, lastAt: times[times.length - 1] ?? null, otherBranches,
-      excludedSegments: chosenSegs ? segments.filter((s) => !chosenSegs.has(s.index)) : [], masked, timeZone: tz,
+      excludedSegments: chosenSegs ? segments.filter((s) => !chosenSegs.has(s.index)) : [], masked, timeZone: tz, recordingStated,
     },
   };
 }

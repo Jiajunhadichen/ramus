@@ -62,4 +62,7 @@ use the editor.
 - src/lib/intake is pure and deterministic (no network, no AI, no clock): prepare(input, options, context) returns a Draft. Every format has fixtures and the invariant tests in intake.test.ts (coverage, words unchanged, no invented times, determinism, stable ids, real-name aliases). Add a fixture and a test with every parser change.
 - receiveBatch re-runs prepare() on the server from the original and the options, checks the invariants with checkDraft, then writes through the receive_batch RPC in one transaction. Why: the browser preview is a convenience, never the source of truth.
 - Large originals are never loaded with a conversation; getBatchOriginal fetches one when someone opens it.
+- Files are opened by openFiles (src/lib/intake/files.ts, fflate, pure): it picks the words out of .zip and .docx exports and returns the original to keep (never media, never a whole AI export). Tests build real zips; jsdom's TextEncoder arrays come from another realm, so tests create bytes with Buffer.
+- Every page that brings words in uses useBringIn (src/hooks/use-bring-in.ts) for paste and drop, and hands them over with handOver (files in memory, text in sessionStorage, never the URL). /g/$id/accession?into=<conversation> adds to a chosen conversation.
+- Export steps per app live in SOURCES (src/components/garden/WordsGuide.tsx); keep them short and check them when an app changes its menus.
 

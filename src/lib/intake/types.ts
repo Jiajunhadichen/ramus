@@ -111,4 +111,6 @@ export type Report = {
   excludedSegments: Segment[];
   masked: { phone: number; email: number };
   timeZone: string;
+  /** a recording start the transcript states itself, as local wall time; null when none or the person gave one */
+  recordingStated: string | null;
 };
