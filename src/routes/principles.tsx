@@ -5,9 +5,9 @@ export const Route = createFileRoute("/principles")({
   head: () => ({
     meta: [
       { title: "Principles — Ramus" },
-      { name: "description", content: "The thirteen principles behind Ramus, from Dawkins, Simon, March, Argyris, Star & Griesemer, Stasser & Titus, Doshi & Hauser and Bohm." },
+      { name: "description", content: "The fourteen principles behind Ramus, from Dawkins, Simon, March, Argyris, Star & Griesemer, Stasser & Titus, Doshi & Hauser and Bohm." },
       { property: "og:title", content: "Principles — Ramus" },
-      { property: "og:description", content: "The thirteen principles behind Ramus and the thinkers they come from." },
+      { property: "og:description", content: "The fourteen principles behind Ramus and the thinkers they come from." },
       { property: "og:type", content: "article" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -18,7 +18,7 @@ export const Route = createFileRoute("/principles")({
 const DAWKINS = "Richard Dawkins, The Blind Watchmaker (1986), ch. 3";
 const SIMON = "Herbert A. Simon, “The Architecture of Complexity” (1962)";
 
-const PRINCIPLES: { title: string; text: string; source: string }[] = [
+export const PRINCIPLES: { title: string; text: string; source: string }[] = [
   { title: "Retention is the heart", source: DAWKINS,
     text: "Cumulative selection only works when each small gain is kept and built upon. So Ramus never throws an idea away. To remove an idea is to let it rest: it stays on the tree, hollow and quiet, ready to be revived, and every change is written down." },
   { title: "Make the click audible", source: SIMON,
@@ -45,6 +45,7 @@ const PRINCIPLES: { title: string; text: string; source: string }[] = [
     text: "Doshi and Hauser found that ideas written with generative AI grow more alike across people. Human differences are what make thinking together worth it, so every idea on the tree has a human author. The gardener records, structures, reminds and asks, and has no branch color of its own." },
   { title: "Every voice counts", source: "Garold Stasser & William Titus (1985), on hidden profiles in group discussion",
     text: "Stasser and Titus showed that groups tend to discuss what everyone already knows, while the piece only one member holds goes unsaid. Ramus helps people think on their own first, then share, and it shows the ideas only one person raised." },
+  { title: "Show what matters first", source: SIMON, text: "A complex system is understood through its levels. Ramus keeps every idea, but the tree is read from the outside in: first the question and where it has reached, then the main line of growth, then every branch and every word. Levels change what is emphasised, never what exists." },
 ];
 
 const GROUPS: { name: string; pair?: number; titles: string[] }[] = [
@@ -55,21 +56,20 @@ const GROUPS: { name: string; pair?: number; titles: string[] }[] = [
 const grouped = [...GROUPS, { name: "Reading the tree", titles: PRINCIPLES.map((p) => p.title).filter((t) => !GROUPS.some((g) => g.titles.includes(t))) }];
 
 function Principles() {
-  let i = 0;
   return (
     <main className="mx-auto max-w-[760px] px-6 py-16">
       <p className="eyebrow"><Link to="/" className="hover:underline">Ramus</Link> · Principles</p>
       <h1 className="mt-3 font-display text-[40px] leading-[1.1]">Why the garden grows this way</h1>
       <Epigraph n={3} className="mt-8" />
-      <p className="essay mt-8 text-muted-foreground">Thirteen rules shape every part of Ramus. Each one comes from a thinker who studied how ideas, systems or groups grow. They are written here as plainly as we can.</p>
+      <p className="essay mt-8 text-muted-foreground">Fourteen rules shape every part of Ramus. Each one comes from a thinker who studied how ideas, systems or groups grow. They are written here as plainly as we can.</p>
       {grouped.map((g) => (
         <section key={g.name} className="mt-14">
           <h2 className="smallcaps border-b border-rule pb-2 text-[18px]">{g.name}</h2>
           {g.pair && <Epigraph n={g.pair} className="mt-5" />}
           <ol className="mt-8 grid gap-10">
-            {g.titles.map((t) => PRINCIPLES.find((p) => p.title === t)!).map((p) => (
+            {g.titles.map((t) => PRINCIPLES.find((p) => p.title === t)).filter((p): p is (typeof PRINCIPLES)[number] => !!p).map((p) => (
               <li key={p.title} className="essay">
-                <h3 className="font-display text-[24px] leading-tight"><span className="smallcaps mr-3 text-[15px] text-muted-foreground">{String(++i).padStart(2, "0")}</span>{p.title}</h3>
+                <h3 className="font-display text-[24px] leading-tight"><span className="smallcaps mr-3 text-[15px] text-muted-foreground">{String(PRINCIPLES.indexOf(p) + 1).padStart(2, "0")}</span>{p.title}</h3>
                 <p className="mt-2">{p.text}</p>
                 <p className="smallcaps mt-2 text-[13px] text-muted-foreground">{p.source}</p>
               </li>

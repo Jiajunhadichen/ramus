@@ -17,12 +17,12 @@ export function SiteHeader() {
   }
   return (
     <header className="border-b border-rule bg-sheet">
-      <div className="mx-auto flex max-w-[1400px] items-center gap-6 px-5 py-3">
+      <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-3 px-5 py-3 sm:gap-6">
         <Link to="/" className="font-display text-xl">Ramus</Link>
         {email && <Link to="/gardens" className="text-sm hover:underline" activeProps={{ className: "underline" }}>My gardens</Link>}
         <div className="ml-auto flex items-center gap-3 text-sm">
           <NightToggle />
-          {email ? (<><span className="smallcaps text-[13px] text-muted-foreground">{email}</span><Button variant="outline" size="sm" onClick={signOut}>Sign out</Button></>)
+          {email ? (<><span className="smallcaps hidden max-w-[240px] truncate text-[13px] text-muted-foreground md:inline">{email}</span><Button variant="outline" size="sm" onClick={signOut}>Sign out</Button></>)
             : <Button asChild variant="outline" size="sm"><Link to="/auth">Sign in</Link></Button>}
         </div>
       </div>

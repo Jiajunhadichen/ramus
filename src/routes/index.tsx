@@ -56,7 +56,7 @@ function Landing() {
     <main className="relative mx-auto grid max-w-[1440px] items-center gap-6 px-5 pb-8 pt-2 lg:grid-cols-[minmax(0,60fr)_minmax(0,40fr)]">
       <div className="absolute right-5 top-3 z-10"><NightToggle /></div>
       <figure className="mx-auto w-full" style={{ maxWidth: "calc(85vh * 1100 / 900)" }} aria-label="The demo garden, growing from a seed">
-        <StamTree nodes={nodes} step={r.step} selected={null} freshStep={r.fresh.step} freshKey={r.fresh.key}
+        <StamTree level="form" nodes={nodes} step={r.step} selected={null} freshStep={r.fresh.step} freshKey={r.fresh.key}
           notes={all.slice(0, shown)} ariaLabel="The origin of Ramus, growing from a seed" />
         <figcaption className="mt-1 flex flex-wrap items-baseline justify-center gap-x-4">
           <span className="eyebrow">Step {r.step} of {max} · The origin of Ramus</span>

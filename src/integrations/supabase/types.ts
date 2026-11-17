@@ -346,6 +346,7 @@ export type Database = {
           garden_id: string
           id: string
           is_knot: boolean
+          is_outcome: boolean
           key: string
           label: string
           message_id: string | null
@@ -369,6 +370,7 @@ export type Database = {
           garden_id: string
           id?: string
           is_knot?: boolean
+          is_outcome?: boolean
           key: string
           label: string
           message_id?: string | null
@@ -392,6 +394,7 @@ export type Database = {
           garden_id?: string
           id?: string
           is_knot?: boolean
+          is_outcome?: boolean
           key?: string
           label?: string
           message_id?: string | null
@@ -706,6 +709,10 @@ export type Database = {
       }
       seed_thought_events: {
         Args: { _by: string; _garden: string }
+        Returns: undefined
+      }
+      set_idea_outcome: {
+        Args: { _garden: string; _idea: string; _outcome: boolean }
         Returns: undefined
       }
     }

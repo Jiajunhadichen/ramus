@@ -10,7 +10,7 @@ function lineageOf<T extends { id: string; parents: string[] }>(idea: T, byKey: 
   return out;
 }
 import { toast } from "sonner";
-import { addEvidence, editIdea, graftMerge, growBranch, reopenKnot, reviewThought, setKnot, setStatus } from "@/lib/garden.functions";
+import { addEvidence, editIdea, graftMerge, growBranch, reopenKnot, reviewThought, setKnot, setStatus, setOutcome } from "@/lib/garden.functions";
 import { lifeOf, SETTLED_KINDS, thoughtPhrase, type Thought } from "@/lib/stam/thoughts";
 import { MAX_LABEL } from "@/lib/stam/validate";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ const selectCls = "h-9 w-full rounded-md border border-input bg-sheet px-2 text-
 export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged }: Props) {
   const [dialog, setDialog] = useState<null | "grow" | "graft" | "knot" | "reopen" | "edit" | "evidence">(null);
   const status = useServerFn(setStatus);
+  const outcomeFn = useServerFn(setOutcome);
   const knotFn = useServerFn(setKnot);
   const reopenFn = useServerFn(reopenKnot);
   const stepTitle = data.steps.find((s: any) => s.step === idea.step);
@@ -80,6 +81,7 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
         <span className="chip" style={{ color: idea.color }}>{idea.by}</span>
         <span className="chip">{idea.status === "dormant" ? "Resting, but kept" : "Growing"}</span>
         {idea.knot && <span className="chip">Knot</span>}
+        {idea.outcome && <span className="smallcaps">Outcome</span>}
         {idea.parents.length > 1 && <span className="chip">Merged {idea.parents.length} lines</span>}
       </div>
       {idea.note && <p className="whitespace-pre-wrap">{idea.note}</p>}
@@ -158,6 +160,7 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
       </section>
 
       <div className="mt-2 grid grid-cols-2 gap-2 border-t border-rule pt-3">
+        <Button size="sm" variant="outline" className="col-span-2" onClick={() => run(() => outcomeFn({ data: { gardenId: data.garden.id, key: idea.id, outcome: !idea.outcome } }), idea.outcome ? "Outcome unmarked." : "Outcome marked.")}>{idea.outcome ? "Unmark" : "Mark as outcome"}</Button>
         <Button size="sm" onClick={() => setDialog("grow")}>Grow a branch</Button>
         <Button size="sm" variant="outline" onClick={() => setDialog("graft")} disabled={!idea.parents.length}>Graft a merge</Button>
         {idea.status === "growing"

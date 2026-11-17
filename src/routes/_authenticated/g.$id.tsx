@@ -12,6 +12,10 @@ import { AddConversationDialog } from "@/components/garden/AddConversationDialog
 import { stepDate, toIdeas, toStam } from "@/components/garden/model";
 import { maxStep, selectionAt } from "@/lib/stam/layout";
 import { Button } from "@/components/ui/button";
+import { ReadingSwitch } from "@/components/garden/ReadingSwitch";
+import { mainLineage, type ReadingLevel } from "@/lib/stam/reading";
+import { DEMO_LABELS } from "@/lib/stam/demo-labels";
+import { Upright } from "@/components/epigraph/Epigraph";
 import { Systema } from "@/components/garden/Systema";
 
 export const gardenQuery = (id: string) => queryOptions({ queryKey: ["garden", id], queryFn: () => getGarden({ data: { id } }) });
@@ -22,6 +26,8 @@ export const Route = createFileRoute("/_authenticated/g/$id")({
     meta: [
       { title: "Garden — Ramus" },
       { name: "description", content: "A living tree of a group's ideas: who said what, what grew from it." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { property: "og:title", content: "Garden — Ramus" },
       { property: "og:description", content: "A living tree of a group's ideas: who said what, what grew from it." },
     ],
@@ -43,7 +49,15 @@ function GardenPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { data } = useSuspenseQuery(gardenQuery(id));
-  const ideas = useMemo(() => toIdeas(data), [data]);
+  const [language, setLanguage] = useState<"zh" | "en">("zh");
+  const ideas = useMemo(() => toIdeas(data).map((n) => ({ ...n, label: data.garden.is_demo && language === "en" ? DEMO_LABELS[n.id] ?? n.label : n.label })), [data, language]);
+  const [level, setLevel] = useState<ReadingLevel>("form");
+  const preferenceKey = `ramus-reading:${data.viewerId}:${id}`;
+  useEffect(() => {
+    const saved = localStorage.getItem(preferenceKey);
+    setLevel(saved === "lineage" || saved === "record" ? saved : "form");
+  }, [preferenceKey]);
+  const changeLevel = (next: ReadingLevel) => { setLevel(next); localStorage.setItem(preferenceKey, next); };
   const max = maxStep(ideas);
   const r = useReplay(max);
   const [convOpen, setConvOpen] = useState(false);
@@ -80,11 +94,13 @@ function GardenPage() {
   const evNames = { idea: (x: string | null) => (x ? byDb.get(x)?.label ?? null : null), person: (x: string | null) => (x ? (data.contributors as any[]).find((c) => c.id === x)?.name ?? null : null) };
 
   const focusKey = data.ideas.find((i: any) => i.id === data.garden.focus_idea_id)?.key;
-  const newest = [...ideas].sort((a, b) => b.step - a.step || ideas.indexOf(b) - ideas.indexOf(a))[0]?.id;
-  const [selected, setSelected] = useState<string | null>(search.idea ?? focusKey ?? newest ?? null);
+  const main = useMemo(() => mainLineage(ideas, focusKey), [ideas, focusKey]);
+  const root = ideas.find((i) => !i.parents.length);
+  const outcomes = ideas.filter((i) => i.outcome);
+  const [selected, setSelected] = useState<string | null>(search.idea ?? null);
   useEffect(() => { if (search.idea) { setSelected(search.idea); r.setStep(max); } /* eslint-disable-next-line */ }, [search.idea]);
   // replay keeps the selection, or moves it to a visible idea
-  useEffect(() => { setSelected((s) => selectionAt(ideas, r.step, s)); }, [r.step, ideas]);
+  useEffect(() => { setSelected((s) => s ? selectionAt(ideas, r.step, s) : null); }, [r.step, ideas]);
 
   const idea = ideas.find((i) => i.id === selected) ?? ideas[0];
   const collectedOn = data.garden.collected ?? stepDate(data, ideas, 1);
@@ -103,7 +119,7 @@ function GardenPage() {
   const refresh = () => qc.invalidateQueries({ queryKey: ["garden", id] });
 
   function exportJson() {
-    const blob = new Blob([JSON.stringify(toStam(data, ideas), null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(toStam(data, toIdeas(data)), null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `${data.garden.title.replace(/[^\p{L}\p{N}]+/gu, "-").slice(0, 60) || "garden"}.stam.json`;
@@ -118,7 +134,7 @@ function GardenPage() {
         <div className="grid gap-1.5">
           <p className="eyebrow"><Link to="/gardens" className="hover:underline">My gardens</Link> · Specimen Nº {String(data.garden.specimen_no).padStart(3, "0")}</p>
           <h1 className="font-display text-[40px] leading-[1.1]">{data.garden.title}</h1>
-          <p className="text-muted-foreground">{ideas.length} ideas from {people.length} {people.length === 1 ? "person" : "people"}, grown over {max} {max === 1 ? "step" : "steps"}.</p>
+
         </div>
         <div className="ml-auto flex flex-wrap gap-2">
           {data.conversations.length > 0 && (
@@ -132,10 +148,20 @@ function GardenPage() {
           <Button variant="outline" size="sm" onClick={exportJson}>Export Stam JSON</Button>
         </div>
       </header>
+      <div className="grid gap-6 border-y border-rule py-5 sm:grid-cols-2">
+        <section className="min-w-0" aria-label="The question">
+          <p className="eyebrow">The question</p>
+          {root && <><Button variant="ghost" onClick={() => select(root.id)} className="h-auto whitespace-normal p-0 text-left font-serif text-[24px] font-normal"><Upright>{root.label}</Upright></Button><p className="mt-1 text-muted-foreground"><Upright>{root.note}</Upright></p></>}
+        </section>
+        <section className="grid min-w-0 content-start gap-3" aria-label="Where it has reached">
+          <p className="eyebrow">Where it has reached</p>
+          {outcomes.length ? outcomes.map((n) => <div key={n.id}><Button variant="ghost" onClick={() => select(n.id)} className="h-auto whitespace-normal p-0 text-left font-serif text-[24px] font-normal"><Upright>{n.label}</Upright></Button><p className="mt-1 text-muted-foreground"><Upright>{n.note}</Upright></p><p className="smallcaps mt-1 text-[13px] text-muted-foreground">Step {n.step}{data.steps.find((s: any) => s.step === n.step)?.title ? <> · <Upright>{data.steps.find((s: any) => s.step === n.step)?.title}</Upright></> : null}</p></div>) : <p className="text-muted-foreground">No outcome marked yet.</p>}
+        </section>
+      </div>
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
         <section className="rounded-md border border-rule bg-sheet" aria-label="Specimen sheet">
           <div className="flex flex-wrap items-center gap-4 border-b border-rule px-4 py-3">
-            <button type="button" className="ink-btn px-3.5 py-2.5" onClick={mode === "steps" ? r.play : playEvents}>{(mode === "steps" ? r.playing : evPlaying) ? "Pause" : "Play growth"}</button>
+            <Button variant="outline" onClick={mode === "steps" ? r.play : playEvents}>{(mode === "steps" ? r.playing : evPlaying) ? "Pause" : "Play growth"}</Button>
             <div role="radiogroup" aria-label="Replay by" className="smallcaps flex gap-2 text-[13px]">
               {(["steps", "events"] as const).map((m) => (
                 <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => { r.stop(); stopEv(); setMode(m); setEvIdx(null); }}
@@ -150,6 +176,8 @@ function GardenPage() {
                   className={view === v ? "text-foreground underline underline-offset-4" : "text-muted-foreground hover:text-foreground"}>{v === "tree" ? "Tree" : "Systema"}</button>
               ))}
             </div>
+            <ReadingSwitch value={level} onChange={changeLevel} />
+            {data.garden.is_demo && <div role="radiogroup" aria-label="Idea language" className="smallcaps flex">{(["zh", "en"] as const).map((lang) => <Button key={lang} size="sm" variant="ghost" role="radio" aria-checked={language === lang} className={language === lang ? "underline" : "text-muted-foreground"} onClick={() => setLanguage(lang)}>{lang === "zh" ? "中文" : "EN"}</Button>)}</div>}
             <span className="text-[15px]" aria-live="polite">
               <span className="smallcaps">Step {r.step} of {max}</span>
               {stepInfo?.title ? <span className="ml-2">{stepInfo.title}</span> : null}
@@ -159,14 +187,14 @@ function GardenPage() {
           {mode === "events" && (
             <p className="border-b border-rule px-4 py-2 text-[15px]" aria-live="polite" data-testid="event-line">
               {currentEvent
-                ? <><span className="smallcaps mr-2 text-[13px] text-muted-foreground">Event {evIdx! + 1} of {events.length}</span>{thoughtSentence(currentEvent, evNames)}</>
+                ? <><span className="smallcaps mr-2 text-[13px] text-muted-foreground">Event {(evIdx ?? 0) + 1} of {events.length}</span>{thoughtSentence(currentEvent, evNames)}</>
                 : <span className="text-muted-foreground">{events.length} events. Play growth to step through what happened to each idea.</span>}
             </p>
           )}
           {ideas.length === 0 ? <Seed /> : view === "systema" ? (
-            <Systema title={data.garden.title} nodes={ideas} selected={selected} onSelect={(k) => { select(k); }} />
+            <Systema main={main} title={data.garden.title} nodes={ideas} selected={selected} onSelect={(k) => { select(k); }} />
           ) : (
-            <StamTree nodes={ideas} step={r.step} selected={selected} onSelect={select} freshStep={r.fresh.step} freshKey={r.fresh.key}
+            <StamTree level={level} main={main} nodes={ideas} step={r.step} selected={selected} onSelect={select} freshStep={r.fresh.step} freshKey={r.fresh.key}
               ariaLabel={data.garden.title} interactive
               specimen={{ no: data.garden.specimen_no, title: data.garden.title, collected: collectedOn ?? undefined, collectors: people.map((p) => p.name) }} />
           )}

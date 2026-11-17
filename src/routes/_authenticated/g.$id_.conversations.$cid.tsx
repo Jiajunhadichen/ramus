@@ -9,6 +9,8 @@ const convQuery = (gardenId: string, id: string) =>
 export const Route = createFileRoute("/_authenticated/g/$id_/conversations/$cid")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "Conversation — Ramus" },
       { name: "description", content: "A recorded conversation and the ideas that grew from it." },
       { property: "og:title", content: "Conversation — Ramus" },

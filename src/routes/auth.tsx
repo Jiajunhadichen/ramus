@@ -9,6 +9,8 @@ import { SiteHeader } from "@/components/SiteHeader";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "Sign in — Ramus" },
       { name: "description", content: "Sign in to Ramus to tend your group's idea gardens." },
       { property: "og:title", content: "Sign in — Ramus" },

@@ -20,7 +20,7 @@ export function toIdeas(d: GardenData): Idea[] {
     const natures = Object.fromEntries(mine.map((l: any) => [byId.get(l.parent_id)?.key, l.nature ?? null]));
     const c = contrib.get(i.contributor_id);
     return {
-      id: i.key, dbId: i.id, label: i.label, note: i.note, parents, step: i.step, knot: i.is_knot,
+      id: i.key, dbId: i.id, label: i.label, note: i.note, parents, step: i.step, knot: i.is_knot, outcome: !!i.is_outcome, originQuote: (d.convMessages as any[]).find((m) => (d.evidence as any[]).some((e) => e.idea_id === i.id && e.role === "origin" && e.message_id === m.id))?.content,
       status: i.status, by: c?.name ?? "Unknown", color: c?.color ?? "var(--muted-ink)", settled: i.settled,
       contributorId: i.contributor_id, natures,
     };

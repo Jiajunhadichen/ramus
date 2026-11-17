@@ -1,5 +1,5 @@
 /** Systema: a Linnaean table of a garden. One column per first-level branch, ideas indented by depth (primary parent only), merges noted. */
-export type SysNode = { id: string; label: string; parents: string[]; knot?: boolean; status?: string };
+export type SysNode = { id: string; label: string; parents: string[]; knot?: boolean; status?: string; outcome?: boolean };
 export type SysEntry = { id: string; label: string; depth: number; knot: boolean; resting: boolean; merges: string[] };
 export type SysColumn = { head: SysEntry; entries: SysEntry[] };
 

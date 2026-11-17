@@ -26,6 +26,7 @@ Tagline: "Ideas grow between people."
 11. Ideas recombine. One primary parent per idea plus optional merge parents. The primary chain is acyclic and each garden has exactly one root.
 12. Branches belong to people; the gardener only tends. Every idea on the tree has a human author. The gardener never contributes ideas of its own: it records, structures, reminds and asks. Only people get branch colors; the gardener has none. Reason: AI-generated ideas make a group's ideas more alike, and human differences are what make thinking together valuable.
 13. Every voice counts. Quiet people often hold what the group is missing. Ramus helps people think on their own first, then share, and shows ideas only one person raised.
+14. Show what matters first. A complex system is understood through its levels. Ramus keeps every idea, but the tree is read from the outside in: first the question and where it has reached, then the main line of growth, then every branch and every word. Levels change what is emphasised, never what exists. (Herbert Simon, “The Architecture of Complexity”, 1962.)
 Exception: the demo garden "The origin of Ramus" is the historical record of how Ramus was born in conversations with two AIs. It keeps them as contributors and ends with the knot "相信人与人" (trust in people).
 
 ## Archive and garden (two layers)
@@ -44,7 +45,7 @@ Garden = a group's space for one long discussion or project. Idea = node. Primar
 - messages (insert-only): conversation_id, sequence (always set), contributor_id, sent_at (nullable; never invented), time_precision ('second' | 'minute' | 'day' | 'unknown'), time_source ('source_export' | 'user_entered' | 'none'), parent_message_id, external_id (source id; re-imports do not duplicate), imported_at, content.
 - idea_evidence: idea_id, message_id, role ('origin' | 'restated' | 'supports' | 'challenges'), note. At most one origin per idea. Replaces ideas.message_id / conversation_id / source_excerpt (deprecated, kept, not written).
 - steps: step, title, date (optional).
-- ideas: label (max 24 chars), note, contributor_id, step, status ('growing' | 'dormant'), is_knot, settled, origin ('human' | 'ai'), confirmed, rejected_at, visibility ('shared' | 'private'), owner_user_id, conversation_id, message_id, source_excerpt.
+- ideas: is_outcome (human-set; several allowed), label (max 24 chars), note, contributor_id, step, status ('growing' | 'dormant'), is_knot, settled, origin ('human' | 'ai'), confirmed, rejected_at, visibility ('shared' | 'private'), owner_user_id, conversation_id, message_id, source_excerpt.
 - idea_links: parent_id, child_id, kind ('primary' | 'merge'), nature ('refines' | 'answers' | 'challenges' | 'splits' | 'combines'), origin, confirmed, rationale. At most one primary link per child.
 - events: insert-only; actor, actor_kind ('human' | 'ai'), type, idea_id, payload jsonb.
 - Import/export always uses the Stam JSON format of docs/sample-garden.json: { title, collected, focus, steps, nodes: [{ id, label, by, step, status, knot, parents, note }] }. parents[0] is the primary parent.

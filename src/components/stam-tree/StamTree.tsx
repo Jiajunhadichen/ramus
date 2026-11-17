@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CX, CY, W, H, computeLayout, curve, mergePath, taper, textWidth, thick, type LayoutInput, type Rect } from "@/lib/stam/layout";
+import { mainLineage, readingDetail, type ReadingLevel } from "@/lib/stam/reading";
+import { Button } from "@/components/ui/button";
 import { lineage, REASONS } from "@/lib/stam/focus";
 import { runs } from "@/lib/epigraphs";
 import { Epigraph } from "@/components/epigraph/Epigraph";
+import { Upright } from "@/components/epigraph/Epigraph";
 
 const Runs = ({ s }: { s: string }) => <>{runs(s).map((r, i) => (r.cjk ? <tspan key={i} className="cjk">{r.t}</tspan> : r.t))}</>;
 
-export type TreeNode = LayoutInput & { by: string; color: string; status: "growing" | "dormant"; confirmed?: boolean };
+export type TreeNode = LayoutInput & { by: string; color: string; status: "growing" | "dormant"; confirmed?: boolean; outcome?: boolean; originQuote?: string };
 
 export type SpecimenInfo = { no: number | string; title: string; collected?: string; collectors: string[] };
 
@@ -25,6 +28,8 @@ type Props = {
   interactive?: boolean;
   /** Margin notes in the naturalist's hand, pinned to an idea or a merge. */
   notes?: MarginNote[];
+  level?: ReadingLevel;
+  main?: Set<string>;
 };
 
 export type MarginNote = { text: string; id: string; from?: string };
@@ -69,12 +74,15 @@ function useMeasure(labels: { label: string; major: boolean; dormant?: boolean }
   return widths;
 }
 
-export function StamTree({ nodes, step, selected, onSelect, freshStep = null, freshKey = 0, ariaLabel = "Idea tree", specimen = null, interactive = false, notes = [] }: Props) {
+export function StamTree({ nodes, step, selected, onSelect, freshStep = null, freshKey = 0, ariaLabel = "Idea tree", specimen = null, interactive = false, notes = [], level = "record", main: suppliedMain }: Props) {
   const widths = useMeasure(useMemo(() => nodes.map((n) => ({ label: n.label, major: !!n.knot, dormant: n.status === "dormant" })), [nodes]));
   const L = useMemo(() => computeLayout(nodes, {
     obstacle: specimen ? CARD : null,
     measure: (s, major) => widths?.get((major ? "M" : "m") + s) ?? textWidth(s, major),
   }), [nodes, widths, specimen]);
+  const main = useMemo(() => suppliedMain ?? mainLineage(nodes), [nodes, suppliedMain]);
+  const detail = useMemo(() => readingDetail(nodes, level, main, selected), [nodes, level, main, selected]);
+  const labeled = (id: string) => detail.has(id) || hover === id;
   const focus = useMemo(() => lineage(nodes, selected), [nodes, selected]);
   const [hover, setHover] = useState<string | null>(null);
   const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
@@ -92,7 +100,7 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
     const r = wrap.current?.getBoundingClientRect();
     if (r) setTip({ text, x: e.clientX - r.left, y: e.clientY - r.top });
   };
-  const reasonOf = (n: TreeNode) => (n.confirmed === false ? REASONS.unconfirmed : n.knot ? REASONS.knot : n.status === "dormant" ? REASONS.resting : null);
+  const reasonOf = (n: TreeNode) => level === "record" && n.originQuote ? `“${n.originQuote}”` : !detail.has(n.id) ? n.label : (n.confirmed === false ? REASONS.unconfirmed : n.knot ? REASONS.knot : n.status === "dormant" ? REASONS.resting : null);
   const tipProps = (text: string | null, id?: string) => ({
     onPointerEnter: (e: React.PointerEvent) => { if (id) setHover(id); if (text && e.pointerType === "mouse") tipAt(text, e); },
     onPointerLeave: () => { setHover(null); setTip(null); if (press.current) clearTimeout(press.current); },
@@ -158,14 +166,14 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
   const merges = L.nodes.flatMap((n) => n.parents.slice(1).map((mid) => ({ n, m: L.byId.get(mid) })).filter((x) => x.m));
   const mergeEl = (n: (typeof L.nodes)[number], m: NonNullable<(typeof merges)[number]["m"]>, front: boolean) => (
     <path key={`m-${m.id}-${n.id}`} d={mergePath(m, n)} fill="none" strokeWidth={front ? 1.6 : 1.2} strokeDasharray="5 4 3 5 6 4 4 5" strokeLinecap="round"
-      className={"merge " + cls(n.id, m.id) + (front ? " front" : "")} style={{ stroke: (m as TreeNode).color }}
+      className={"merge " + cls(n.id, m.id) + (front ? " front" : "") + (level !== "record" ? " quiet-merge" : "")} style={{ stroke: (m as TreeNode).color }}
       {...tipProps(REASONS.merge)} />
   );
 
   return (
     <div ref={wrap} className="relative">
       <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={ariaLabel}
-        className={"stam-tree block h-auto w-full select-none" + (interactive ? " touch-none" : "")}
+        data-level={level} className={"stam-tree block h-auto w-full select-none" + (interactive ? " touch-none" : "")}
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
         <desc>Each dot is an idea. Branches show what grew from what, dashed lines show ideas recombining, colors show who said it, hollow tips are resting.</desc>
         <defs>
@@ -185,7 +193,7 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
         </defs>
         <mask id="lbl-space" maskUnits="userSpaceOnUse" x={-W} y={-H} width={W * 3} height={H * 3}>
           <rect x={-W} y={-H} width={W * 3} height={H * 3} fill="white" />
-          {L.nodes.filter((n) => n.box && vis(n.id)).map((n) => (
+          {L.nodes.filter((n) => n.box && vis(n.id) && labeled(n.id)).map((n) => (
             <rect key={n.id} x={n.box!.x0 - 3} y={n.box!.top - 3} width={n.box!.x1 - n.box!.x0 + 6} height={n.box!.h + 6} fill="black" />
           ))}
         </mask>
@@ -200,8 +208,10 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
               if (!n.parents.length) return null;
               const p = L.byId.get(n.parents[0]!);
               if (!p) return null;
-              const w1 = Math.max(1.1, thick(n) * 0.85);
-              const w0 = Math.min(thick(p), Math.max(w1 * 1.5, w1 + 1));
+              const full = detail.has(n.id);
+              const weight = level !== "record" && main.has(n.id) ? 1.3 : 1;
+              const w1 = full ? Math.max(1.1, thick(n) * 0.85) * weight : 0.55;
+              const w0 = full ? Math.min(thick(p), Math.max(w1 * 1.5, w1 + 1)) * weight : 0.7;
               const c = curve(p, n, 0.5, 0.3);
               const grow = fresh(n.id);
               const mid = `g-${n.id.replace(/[^\w-]/g, "_")}-${freshKey}`;
@@ -214,7 +224,7 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
                     </mask>
                   )}
                   <path d={taper(c, w0, w1)} mask={grow ? `url(#${mid})` : undefined} className={"branch " + cls(n.id, p.id)}
-                    style={{ fill: n.color, opacity: n.status === "dormant" ? 0.3 : 0.9 }} />
+                    style={{ fill: n.color, opacity: !full ? 0.25 : n.status === "dormant" && !main.has(n.id) ? 0.3 : 0.9 }} />
                   {w0 > 8 && (
                     <path d={taper(c, w0, w1)} mask={grow ? `url(#${mid})` : undefined} className={"hatch " + cls(n.id, p.id)}
                       fill={`url(#hatch-${inks.indexOf(n.color)})`} pointerEvents="none" />
@@ -227,29 +237,30 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
           </g>
           <g>
             {L.nodes.map((n) =>
-              n.leader ? <line key={`l-${n.id}`} x1={n.x} y1={n.y} x2={n.anchor === "end" ? n.label0.x + 2 : n.label0.x - 2} y2={n.ly - 4} className={"leader " + cls(n.id)} /> : null,
+              n.leader && labeled(n.id) ? <line key={`l-${n.id}`} x1={n.x} y1={n.y} x2={n.anchor === "end" ? n.label0.x + 2 : n.label0.x - 2} y2={n.ly - 4} className={"leader " + cls(n.id)} /> : null,
             )}
           </g>
           <g>
             {L.nodes.map((n) => {
               const c = n.color;
               const resting = n.status === "dormant";
+              const full = detail.has(n.id);
               return (
-                <g key={`n-${n.id}`} className={"node " + cls(n.id)} tabIndex={vis(n.id) ? 0 : -1} role="button" aria-label={n.label}
+                <g key={`n-${n.id}`} data-idea={n.id} data-detail={full ? "full" : "bud"} className={"node " + cls(n.id) + (!full ? " bud" : "")} tabIndex={vis(n.id) ? 0 : -1} role="button" aria-label={n.label}
                   {...tipProps(reasonOf(n), n.id)}
                   onClick={(e) => { e.stopPropagation(); click(n.id); }}
                   onFocus={() => setHover(n.id)} onBlur={() => setHover(null)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect?.(n.id); } }}>
                   <circle cx={n.x} cy={n.y} r={14} fill="transparent" />
-                  {n.knot && (
+                  {n.knot && full && (
                     <g key={fresh(n.id) ? `k-${freshKey}` : "k"} className={fresh(n.id) ? "knot-tighten" : undefined}>
                       <circle cx={n.x} cy={n.y} r={8.5} fill="none" strokeWidth={1.4} style={{ stroke: c }} />
                       <circle cx={n.x + 0.7} cy={n.y - 0.5} r={8.9} fill="none" strokeWidth={0.8} style={{ stroke: c, opacity: 0.7 }} />
                       <circle cx={n.x} cy={n.y} r={6.2} style={{ fill: "var(--sheet)" }} />
                     </g>
                   )}
-                  {!resting && n.isLeaf && <circle cx={n.x} cy={n.y} r={9} className="pulse" style={{ fill: c }} />}
-                  <circle cx={n.x} cy={n.y} r={n.isRoot ? 6 : n.isLeaf ? 4.6 : 4} strokeWidth={1.6}
+                  {full && !resting && n.isLeaf && <circle cx={n.x} cy={n.y} r={9} className="pulse" style={{ fill: c }} />}
+                  <circle cx={n.x} cy={n.y} r={!full ? 3 : n.isRoot ? 6 : n.isLeaf ? 4.6 : 4} strokeWidth={1.6}
                     strokeDasharray={n.confirmed === false ? "2 2" : undefined}
                     style={{ stroke: c, fill: resting || n.confirmed === false ? "var(--sheet)" : c }} />
                   <circle cx={n.x} cy={n.y} r={16} className="selring" style={{ display: selected === n.id ? undefined : "none" }} />
@@ -261,7 +272,7 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
             {L.nodes.map((n) => (
               <text key={`t-${n.id}`} x={n.label0.x} y={n.ly} textAnchor={n.anchor} onClick={(e) => { e.stopPropagation(); click(n.id); }}
                 {...tipProps(reasonOf(n), n.id)}
-                className={"lbl " + cls(n.id) + (n.knot ? " major" : "") + (n.status === "dormant" ? " dormant" : "") + (selected === n.id ? " sel" : "")}>
+                data-label={n.id} aria-hidden={!labeled(n.id)} className={"lbl " + cls(n.id) + (!labeled(n.id) ? " label-hidden" : "") + (n.knot ? " major" : "") + (n.status === "dormant" ? " dormant" : "") + (selected === n.id ? " sel" : "")}>
                 <Runs s={n.label} />
               </text>
             ))}
@@ -271,11 +282,11 @@ export function StamTree({ nodes, step, selected, onSelect, freshStep = null, fr
         {specimen && <SpecimenLabel {...specimen} nodes={nodes} />}
       </svg>
       {interactive && (view.k !== 1 || view.x !== 0 || view.y !== 0) && (
-        <button type="button" className="ink-btn absolute right-3 top-3 px-3 py-1.5 text-xs" onClick={() => setView(FIT)}>Fit</button>
+        <Button variant="outline" size="sm" className="absolute right-3 top-3" onClick={() => setView(FIT)}>Fit</Button>
       )}
       {tip && (
-        <p role="tooltip" className="pointer-events-none absolute z-10 max-w-[30ch] border border-rule bg-sheet px-2.5 py-1.5 text-xs leading-snug text-muted-foreground"
-          style={{ left: tip.x + 12, top: tip.y + 14 }}>{tip.text}</p>
+        <p role="tooltip" className="hand pointer-events-none absolute z-10 max-w-[30ch] border border-rule bg-sheet px-2.5 py-1.5 text-xs leading-snug text-muted-foreground"
+          style={{ left: Math.max(0, Math.min(tip.x + 12, (wrap.current?.clientWidth ?? 320) - 220)), top: tip.y + 14 }}><Upright>{tip.text}</Upright></p>
       )}
     </div>
   );

@@ -49,3 +49,10 @@ use the editor.
 - Thought events (what happened to an idea in the discussion) live in thought_events, separate from the events audit log; every garden write records both through the record_action RPC so they share one transaction. Why: the audit log and the discussion history answer different questions and must never drift apart.
 - thought_events is insert-only (no UPDATE/DELETE grants plus a guard trigger); confirmed/rejected_at are set once only via review_thought_event, and corrections are new rows with corrects_event_id. Why: history is evidence and must not be rewritten.
 - Digits everywhere render from a "Ramus Digits" alias of Noto Serif SC (self-hosted in public/fonts, unicode-range 0-9) placed first in every font token. Why: IM Fell old-style zero reads as the letter o.
+
+## Reading hierarchy
+- Principle 14 — Show what matters first (Herbert Simon, “The Architecture of Complexity”, 1962): levels change emphasis, never what exists; retain every idea while showing the question, outcomes, main growth, then the full record.
+- Compute main lineage and reading detail in pure src/lib/stam/reading.ts; keep layout inputs independent of reading level. Why: switching depth must preserve the mental map and remain testable.
+- Outcome writes use the authenticated setOutcome server function and atomic set_idea_outcome RPC, with validation and an audit entry, never a fabricated thought event. Why: only people decide outcomes, and changing emphasis is not rewriting discussion history.
+- Remember reading depth under a user-and-garden-scoped local preference. Why: another person's choice must not change this person's reading level.
+- The public /genesis page reads bundled historical demo content, never authenticated archive records; English demo labels are presentation-only and export retains original labels. Why: public readings must not expose private gardens or rewrite their source.

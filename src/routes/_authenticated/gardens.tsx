@@ -20,6 +20,8 @@ const gardensQuery = queryOptions({
 export const Route = createFileRoute("/_authenticated/gardens")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "My gardens — Ramus" },
       { name: "description", content: "Your Ramus gardens, pressed as specimen cards." },
       { property: "og:title", content: "My gardens — Ramus" },

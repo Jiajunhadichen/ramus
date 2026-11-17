@@ -164,11 +164,11 @@
 .stam-tree .lbl.major { font-family: var(--font-sc); letter-spacing: .06em; }
 .stam-tree .lbl.major .cjk { font-size: 16px; letter-spacing: 0; }
 .stam-tree .lbl.dormant { fill: var(--muted-ink); font-style: normal; }
-.cjk { font-family: "Noto Serif SC", serif; font-style: normal !important; font-weight: 400 !important; }
+.cjk { font-family: "Ramus Digits", "Noto Serif SC", serif; font-style: normal !important; font-weight: 400 !important; }
 .stam-tree .lbl.sel { text-decoration: underline; }
 .stam-tree .node { cursor: pointer; outline: none; }
 .stam-tree .node:focus-visible .selring { display: inline !important; }
-.stam-tree .fade { transition: opacity .5s ease; }
+.stam-tree .fade { transition: opacity .4s ease, d .4s ease, r .4s ease; }
 .stam-tree .dim { opacity: .3; }
 .stam-tree .merge { opacity: .35; }
 .stam-tree .merge.front { opacity: .85; }
@@ -218,3 +218,7 @@
   &:hover { background: var(--ink); color: var(--sheet); } }
 @utility range-green { accent-color: var(--person-1); height: 2px; }
 @utility essay { font-family: var(--font-sans); max-width: 65ch; line-height: 1.5; font-size: 18px; }
+
+.stam-tree .label-hidden { opacity: 0 !important; pointer-events: none; }
+.stam-tree .bud { opacity: .25; }
+.stam-tree .merge.quiet-merge { opacity: .2; }

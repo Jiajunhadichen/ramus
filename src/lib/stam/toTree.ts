@@ -6,6 +6,7 @@ export function stamToTree(g: StamGarden): TreeNode[] {
   const people = [...new Set(g.nodes.map((n) => n.by))];
   return g.nodes.map((n) => ({
     id: n.id, label: n.label, parents: n.parents, step: n.step, knot: !!n.knot,
+    outcome: n.id === "humans",
     status: n.status === "dormant" ? "dormant" : "growing", by: n.by, color: nextColor(people.indexOf(n.by)),
   }));
 }

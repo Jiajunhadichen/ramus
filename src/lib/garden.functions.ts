@@ -64,7 +64,7 @@ async function importStamInto(ctx: Ctx, obj: StamGarden, opts: { demo?: boolean 
   const ideas = check(await supabase.from("ideas").insert(obj.nodes.map((n, i) => ({
     garden_id: garden.id, key: n.id, label: n.label, note: n.note ?? "",
     contributor_id: cBy.get(n.by || "Unknown")!, step: Math.max(1, Math.round(Number(n.step) || 1)),
-    status: n.status === "dormant" ? "dormant" : "growing", is_knot: !!n.knot, position: i, owner_user_id: ctx.userId,
+    status: n.status === "dormant" ? "dormant" : "growing", is_knot: !!n.knot, is_outcome: !!opts.demo && n.id === "humans", position: i, owner_user_id: ctx.userId,
   }))).select("id,key"));
   const iBy = new Map(ideas.map((i) => [i.key, i.id]));
   // insert primary links in root-to-leaf order so the cycle check walks a consistent chain
@@ -140,7 +140,7 @@ export const getGarden = createServerFn({ method: "GET" })
     const [contributors, steps, ideas, links, conversations] = await Promise.all([
       supabase.from("contributors").select("id,name,color,kind").eq("garden_id", data.id).order("created_at"),
       supabase.from("steps").select("step,title,date").eq("garden_id", data.id).order("step"),
-      supabase.from("ideas").select("id,key,label,note,contributor_id,step,status,is_knot,settled,position").eq("garden_id", data.id).order("position"),
+      supabase.from("ideas").select("id,key,label,note,contributor_id,step,status,is_knot,is_outcome,settled,position").eq("garden_id", data.id).order("position"),
       supabase.from("idea_links").select("parent_id,child_id,kind,position,nature").eq("garden_id", data.id).order("position"),
       supabase.from("conversations").select("id,title,happened_at,source,imported_at").eq("garden_id", data.id).order("created_at"),
     ]).then((rs) => rs.map((r: any) => check(r)) as never as [any[], any[], any[], any[], any[]]);
@@ -148,7 +148,7 @@ export const getGarden = createServerFn({ method: "GET" })
     const evidence = check(await supabase.from("idea_evidence").select("id,idea_id,message_id,role,note").eq("garden_id", data.id));
     const thoughts = check(await supabase.from("thought_events").select("id,seq,type,idea_id,related_idea_id,settled_kind,person_id,occurred_at,time_precision,recorded_at,rationale,origin,confirmed,rejected_at,corrects_event_id").eq("garden_id", data.id).order("seq"));
     const thoughtEvidence = check(await supabase.from("thought_event_evidence").select("thought_event_id,message_id").eq("garden_id", data.id));
-    return { garden, contributors, steps, ideas, links, conversations, convMessages, evidence, thoughts, thoughtEvidence };
+    return { viewerId: context.userId, garden, contributors, steps, ideas, links, conversations, convMessages, evidence, thoughts, thoughtEvidence };
   });
 
 export const getConversation = createServerFn({ method: "GET" })
@@ -329,5 +329,19 @@ export const reviewThought = createServerFn({ method: "POST" })
   .inputValidator((d: { id: string; confirm: boolean }) => d)
   .handler(async ({ data, context }) => {
     check(await context.supabase.rpc("review_thought_event", { _id: data.id, _confirm: data.confirm }));
+    return { ok: true };
+  });
+
+export const setOutcome = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { gardenId: string; key: string; outcome: boolean }) => {
+    if (typeof d.outcome !== "boolean") fail("Choose whether this is an outcome.");
+    return d;
+  })
+  .handler(async ({ data, context }) => {
+    const graph = await loadGraph(context.supabase, data.gardenId);
+    assertValid(graph.nodes);
+    const idea = graph.byKey.get(data.key) ?? fail("That idea is not in this garden.");
+    check(await context.supabase.rpc("set_idea_outcome", { _garden: data.gardenId, _idea: idea.dbId, _outcome: data.outcome }));
     return { ok: true };
   });
