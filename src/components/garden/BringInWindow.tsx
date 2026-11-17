@@ -11,6 +11,7 @@ import { shorten } from "@/lib/gardener/harvest";
 import { checkOverlap, createGarden, getAccessionContext, receiveBatch, whoAmI } from "@/lib/garden.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { grownLine, useGrow, type GrowProgress } from "./Gardener";
+import { Upright } from "@/components/epigraph/Epigraph";
 
 /**
  * One window for bringing words in: drop or paste everything that belongs together, then grow the tree.
@@ -20,7 +21,13 @@ import { grownLine, useGrow, type GrowProgress } from "./Gardener";
 export type Incoming = { text?: string; files?: File[] };
 export type BringInTarget =
   | { kind: "new" }
-  | { kind: "more"; gardenId: string; /** nothing has been said in the garden yet (only changes the wording) */ fresh: boolean };
+  | {
+      kind: "more"; gardenId: string;
+      /** nothing has been said in the garden yet (only changes the wording) */
+      fresh: boolean;
+      /** the idea the discussion goes back to, chosen on the tree */
+      resumeFrom?: { key: string; label: string } | null | undefined;
+    };
 
 type Item = {
   id: string; name: string; fileName: string | null; input: PrepareInput | null; file: File | null;
@@ -48,7 +55,7 @@ async function toIncoming(f: File): Promise<IncomingFile> {
   return { name, type: f.type, bytes };
 }
 
-export function BringInWindow({ open, onOpenChange, target, incoming, onIncomingTaken, onGrown }: {
+export function BringInWindow({ open, onOpenChange, target, incoming, onIncomingTaken, onGrown, onClearResume }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   target: BringInTarget;
@@ -56,9 +63,12 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
   incoming?: Incoming | null | undefined;
   onIncomingTaken?: (() => void) | undefined;
   onGrown: (gardenId: string) => void;
+  onClearResume?: (() => void) | undefined;
 }) {
   const [items, setItems] = useState<Item[]>([]);
   const [typed, setTyped] = useState("");
+  // what the people want the gardener to know, in their words (only when adding to a tree)
+  const [told, setTold] = useState("");
   const [over, setOver] = useState(false);
   const [phase, setPhase] = useState<Phase>({ kind: "collecting" });
   const [ctx, setCtx] = useState<PrepareContext>({ contributors: [], aliases: [], importerContributorId: null, importerName: "Me" });
@@ -127,7 +137,7 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
   const ready = items.filter((it) => { const a = prepared.get(it.id); return typeof a === "object" && a.draft.kept.some((m) => !m.hidden); });
   const busy = phase.kind === "keeping" || phase.kind === "reading";
 
-  function reset() { setItems([]); setTyped(""); setPhase({ kind: "collecting" }); setPlantedId(null); setPartsDone(0); }
+  function reset() { setItems([]); setTyped(""); setTold(""); setPhase({ kind: "collecting" }); setPlantedId(null); setPartsDone(0); }
 
   async function go() {
     if (!ready.length) return;
@@ -172,7 +182,8 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
       }
       if (!batchIds.length) { toast("Everything here was already kept."); reset(); onOpenChange(false); onGrown(gid); return; }
       setPhase({ kind: "reading", progress: { part: 1, of: 1 } });
-      const g = await grow(gid, { batchIds }, { nameRoot, nameGarden, from: partsDone, onProgress: (progress) => setPhase({ kind: "reading", progress }), onPartDone: setPartsDone });
+      const resumeFrom = target.kind === "more" ? target.resumeFrom?.key ?? null : null;
+      const g = await grow(gid, { batchIds }, { nameRoot, nameGarden, resumeFrom, told: told.trim() || null, from: partsDone, onProgress: (progress) => setPhase({ kind: "reading", progress }), onPartDone: setPartsDone });
       toast.success(grownLine(g.grown));
       reset();
       onOpenChange(false);
@@ -187,7 +198,9 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
     <Dialog open={open} onOpenChange={(o) => { if (!busy) onOpenChange(o); }}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-display">{target.kind === "more" && !target.fresh ? "Add more to this tree" : "Bring in the conversations"}</DialogTitle>
+          <DialogTitle className="font-display">
+            {target.kind === "more" && target.resumeFrom ? <>Grow again from “<Upright>{target.resumeFrom.label}</Upright>”</> : target.kind === "more" && !target.fresh ? "Add more to this tree" : "Bring in the conversations"}
+          </DialogTitle>
           <DialogDescription className="hand text-[16px]">
             Drop or paste everything that belongs together: chats, meeting notes, transcripts, any file. Ramus puts them in the order things were said.
           </DialogDescription>
@@ -214,6 +227,20 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
               {typed.trim() && <Button size="sm" variant="outline" className="ml-auto" onClick={() => { addText(typed); setTyped(""); }}>Add</Button>}
               <input ref={picker} type="file" multiple className="sr-only" onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ""; if (files.length) void addFiles(files); }} />
             </div>
+          </div>
+        )}
+
+        {target.kind === "more" && !target.fresh && !busy && (
+          <div className="grid gap-1.5">
+            {target.resumeFrom && (
+              <p className="flex items-baseline gap-2 text-[15px]">
+                <span className="hand">The discussion picks up again from “<Upright>{target.resumeFrom.label}</Upright>”; new ideas grow from there.</span>
+                {onClearResume && <button type="button" className="text-xs text-muted-foreground underline underline-offset-4" onClick={onClearResume}>not from there</button>}
+              </p>
+            )}
+            <input aria-label="Anything to tell the gardener" value={told} onChange={(e) => setTold(e.target.value)} maxLength={600}
+              placeholder="Anything to tell the gardener? e.g. “Product says the cost won't come down, so we went back to the fabric.”"
+              className="h-9 w-full rounded-md border border-rule bg-transparent px-3 text-[15px] outline-none focus:border-ink" />
           </div>
         )}
 

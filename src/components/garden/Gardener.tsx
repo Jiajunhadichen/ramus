@@ -14,12 +14,13 @@ export function useGrow() {
   const grow = useServerFn(growTree);
   const qc = useQueryClient();
   /** `from` resumes after parts already read, so trying again never reads a part twice. */
-  return async function run(gardenId: string, scope: GrowScope, opts: { nameRoot?: boolean; nameGarden?: boolean; from?: number; onProgress?: (p: GrowProgress) => void; onPartDone?: (partsDone: number) => void } = {}): Promise<Grown> {
+  return async function run(gardenId: string, scope: GrowScope, opts: { nameRoot?: boolean; nameGarden?: boolean; resumeFrom?: string | null; told?: string | null; from?: number; onProgress?: (p: GrowProgress) => void; onPartDone?: (partsDone: number) => void } = {}): Promise<Grown> {
     let part = opts.from ?? 0, of = Math.max(1, part + 1), grown = 0;
     let root: string | null = null;
     do {
       opts.onProgress?.({ part: part + 1, of });
-      const r = await grow({ data: { gardenId, ...scope, part, nameRoot: part === 0 && !!opts.nameRoot, nameGarden: part === 0 && !!opts.nameGarden } });
+      const first = part === 0;
+      const r = await grow({ data: { gardenId, ...scope, part, nameRoot: first && !!opts.nameRoot, nameGarden: first && !!opts.nameGarden, resumeFrom: first ? opts.resumeFrom ?? null : null, told: first ? opts.told ?? null : null } });
       of = r.parts; grown += r.grown; root ??= r.root;
       part++;
       opts.onPartDone?.(part);

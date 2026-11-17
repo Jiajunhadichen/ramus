@@ -1,3 +1,9 @@
+# Ramus v2.3 — Grow again from an earlier point; readable at first sight
+- [x] Story (was Systema): the garden read step by step; who raised each idea, how it grew, its note; reading level picks what is written out.
+- [x] Going back: "Grow again from here" + an optional note to the gardener; the gardener also recognises a clear return; abandoned line rests with the reason; margin note on the tree; line in the Story.
+- [x] Idea panel: one main action, the rest under More.
+- [ ] Check in the preview with a real two-round discussion (needs Lovable AI credits).
+
 # Ramus v2.2 — Straight to the tree
 - [x] One collecting window: drop or paste everything, see what each source is and when it was said, then "That's everything — grow the tree". No questions; automatic choices in src/lib/intake/auto.ts.
 - [x] Order is evidence: WhatsApp day/month order from chronology; several sources read as one time-ordered stream; no branch grows from later words; stages, step dates and history at message times.

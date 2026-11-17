@@ -23,6 +23,10 @@ export type HarvestInput = {
   part?: { n: number; of: number } | undefined;
   /** the garden is new and its root is only a placeholder: the gardener names it */
   nameRoot?: boolean | undefined;
+  /** the people say this conversation picks up again from this idea (its key) */
+  resumeFrom?: string | null | undefined;
+  /** what the people told the gardener about these messages, in their words */
+  told?: string | null | undefined;
 };
 
 export const NATURES = ["refines", "answers", "challenges", "splits", "combines"] as const;
@@ -40,7 +44,9 @@ export type Proposal = {
   status: "growing" | "dormant"; knot: { kind: (typeof KNOT_KINDS)[number]; settled: string; messageId: string | null } | null; stage: number;
 };
 export type RootName = { label: string; note: string; personId: string | null; originMessageId: string | null };
-export type Checked = { proposals: Proposal[]; stages: { n: number; title: string }[]; dropped: { label: string; reason: string }[]; root: RootName | null };
+/** The group went back to an earlier idea and grew again from there. */
+export type Return = { to: string; messageId: string | null; personId: string | null; why: string | null; setAside: string[] };
+export type Checked = { proposals: Proposal[]; stages: { n: number; title: string }[]; dropped: { label: string; reason: string }[]; root: RootName | null; returns: Return[] };
 
 const SYSTEM = `You are the gardener of a Ramus garden. Ramus believes the best ideas grow between people.
 You read a recorded group discussion and trace how the people's ideas grew out of each other: where an idea answered, refined, challenged or split from another, where two lines of thought merged, which ideas went quiet, and which questions the group settled.
@@ -71,11 +77,15 @@ Messages are listed in the order they were said, across every source. Order is e
 4. Time.
 - "stages": 1 to 6 natural turns of the discussion, in the order they happened, each {"n": 1, "title": "at most 6 words"}. Each idea has "stage": the stage where it first appears.
 
-5. Honesty.
+5. Going back.
+- Groups often go back to an earlier point: a result is turned down (the cost will not come down, a client says no, a test fails) and they return to an idea they had before and branch out again from there. When the messages go back like this, give "returns": [{"to": the key of the earlier idea in the garden they go back to, "m": the ref of the message where they go back, "why": the reason in a few words, as they put it, "set_aside": keys of ideas in the garden they now leave behind}]. Their new ideas then grow from that earlier idea (or from what grows out of it), never from what they set aside.
+- Only a clear return; most readings have none; at most 3. Otherwise "returns": [].
+
+6. Honesty.
 - Use only what is in the messages. Prefer fewer, well-grounded ideas over many thin ones: at most 15. Unrelated chatter is not a thread; leave it out.
 
 Return only JSON, exactly in this shape:
-{"stages":[{"n":1,"title":"..."}],"root":null,"ideas":[{"id":"short-id","label":"...","note":"...","origin":"m3","quote":"...","evidence":[],"parent":"root-or-key-or-id","nature":null,"why":"...","merges":[],"status":"growing","knot":null,"stage":1}]}`;
+{"stages":[{"n":1,"title":"..."}],"root":null,"returns":[],"ideas":[{"id":"short-id","label":"...","note":"...","origin":"m3","quote":"...","evidence":[],"parent":"root-or-key-or-id","nature":null,"why":"...","merges":[],"status":"growing","knot":null,"stage":1}]}`;
 
 const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 
@@ -105,9 +115,12 @@ export function harvestPrompt(input: HarvestInput): { system: string; user: stri
   const root = input.nameRoot ? `
 
 This garden is new: its root "${input.rootKey}" is only a placeholder. Also return "root": {"label": the question or subject the group keeps coming back to, as a short name (same limits as idea labels), "note": one sentence, "origin": the ref of the message where a person first raised it, or null when it is the group's shared subject rather than one person's words}. Ideas that start a thread still grow from "${input.rootKey}".` : "";
+  const resume = input.resumeFrom && input.ideas.some((i) => i.key === input.resumeFrom)
+    ? `\n\nThe people say these messages pick up again from "${input.resumeFrom}". Unless the words clearly say otherwise, record that return in "returns" and grow the new ideas from there.` : "";
+  const told = input.told?.trim() ? `\n\nThe people told the gardener about these messages: “${clip(input.told.trim(), 600)}”` : "";
   const part = input.part && input.part.of > 1 ? ` (part ${input.part.n} of ${input.part.of}; the ideas of earlier parts are already in the garden above)` : "";
   const user = `Garden: ${input.gardenTitle}
-The root (the group's question) is "${input.rootKey}".${root}
+The root (the group's question) is "${input.rootKey}".${root}${resume}${told}
 
 Ideas already in the garden:
 ${tree || "(only the root)"}
@@ -203,6 +216,23 @@ export function checkHarvest(answer: unknown, input: HarvestInput): Checked {
       seen.add(q.temp);
     }
   }
+  // 2a. going back: after the group returns to an earlier idea, nothing grows from what they set aside
+  const returns = readReturns(a["returns"], input, byRef, existing);
+  const at = new Map(input.messages.map((m, i) => [m.id, i]));
+  for (const r of returns) {
+    const from = r.messageId ? at.get(r.messageId)! : 0;
+    const aside = new Set(r.setAside);
+    for (const p of out) {
+      if (at.get(p.originMessageId)! < from) continue;
+      if (aside.has(p.parent)) {
+        p.parent = r.to; p.parentIsNew = false; p.nature = null;
+        p.why = `Grows again from “${existing.get(r.to)!.label}” after the group went back${r.why ? `: ${r.why}` : ""}.`;
+      }
+      p.merges = p.merges.filter((m) => !aside.has(m.target));
+      if (p.nature === "combines" && !p.merges.length) p.nature = null;
+    }
+  }
+
   // 2b. order is evidence: nothing grows from, merges with or is settled by something said later
   const index = new Map(input.messages.map((m, i) => [m.id, i]));
   const sentAt = new Map(input.messages.map((m) => [m.id, m.sentAt]));
@@ -263,7 +293,38 @@ export function checkHarvest(answer: unknown, input: HarvestInput): Checked {
   }
   const used = new Set(ordered.map((p) => p.stage));
 
-  return { proposals: ordered, stages: usedTitles.filter((s) => used.has(s.n)), dropped, root: readRoot(a["root"], input, byRef) };
+  return { proposals: ordered, stages: usedTitles.filter((s) => used.has(s.n)), dropped, root: readRoot(a["root"], input, byRef), returns };
+}
+
+/**
+ * Where the group went back to an earlier idea. Only ideas already in the garden can be gone back to or set
+ * aside; the idea gone back to and its ancestors are never set aside. When the people said where it picks up,
+ * that return is kept even if the model missed it.
+ */
+function readReturns(v: unknown, input: HarvestInput, byRef: Map<string, HarvestMessage>, existing: Map<string, HarvestIdea>): Return[] {
+  const ancestors = (key: string) => {
+    const up = new Set<string>();
+    for (let k = existing.get(key)?.parents[0]; k && !up.has(k); k = existing.get(k)?.parents[0]) up.add(k);
+    return up;
+  };
+  const out: Return[] = [];
+  for (const raw of (Array.isArray(v) ? v : []).slice(0, 3)) {
+    if (!raw || typeof raw !== "object") continue;
+    const r = raw as Any;
+    const to = str(r["to"]);
+    if (!existing.has(to) || out.some((x) => x.to === to)) continue;
+    const m = byRef.get(str(r["m"]));
+    const up = ancestors(to);
+    const setAside = [...new Set((Array.isArray(r["set_aside"]) ? r["set_aside"] : []).map(str))]
+      .filter((k) => existing.has(k) && k !== to && k !== input.rootKey && !up.has(k));
+    out.push({ to, messageId: m?.id ?? null, personId: m?.personId && m.personIsHuman ? m.personId : null, why: str(r["why"]) ? clip(str(r["why"]), 140) : null, setAside });
+  }
+  const hint = input.resumeFrom;
+  if (hint && existing.has(hint) && !out.some((x) => x.to === hint)) {
+    const first = input.messages.find((m) => m.personIsHuman && m.personId) ?? input.messages[0];
+    out.unshift({ to: hint, messageId: first?.id ?? null, personId: first?.personIsHuman ? first.personId : null, why: input.told?.trim() ? clip(input.told.trim(), 140) : null, setAside: [] });
+  }
+  return out;
 }
 
 /** The name the gardener gives a new garden's root; its words, if any, must belong to a person. */

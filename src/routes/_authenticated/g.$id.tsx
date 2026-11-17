@@ -64,7 +64,9 @@ function GardenPage() {
   const r = useReplay(max);
   const [bringOpen, setBringOpen] = useState(false);
   const [incoming, setIncoming] = useState<Incoming | null>(null);
-  const bringIn = () => setBringOpen(true);
+  // the idea the discussion goes back to, when someone chose "Grow again from here"
+  const [resumeKey, setResumeKey] = useState<string | null>(null);
+  const bringIn = () => { setResumeKey(null); setBringOpen(true); };
   // Pasting a discussion (no field focused) or dropping files anywhere on the garden opens the window with it.
   useBringIn((got) => { setIncoming(got); setBringOpen(true); });
   const fresh = data.conversations.length === 0 && data.ideas.length <= 1;
@@ -134,7 +136,12 @@ function GardenPage() {
     URL.revokeObjectURL(a.href);
   }
 
-  const notes = idea ? <FieldNotes data={data} ideas={ideas} idea={idea} currentStep={r.step} onSelect={select} onChanged={refresh} /> : null;
+  const growAgain = data.garden.is_demo ? undefined : (key: string) => { setResumeKey(key); setBringOpen(true); };
+  // a margin note where the group went back and grew again
+  const returnNotes = ((data.returns ?? []) as { key: string; why: string | null }[])
+    .filter((x, i, all) => ideas.some((n) => n.id === x.key) && all.findIndex((y) => y.key === x.key) === i)
+    .map((x) => ({ id: x.key, text: `went back here${x.why ? ` · ${x.why.length > 44 ? x.why.slice(0, 43) + "…" : x.why}` : ""}` }));
+  const notes = idea ? <FieldNotes data={data} ideas={ideas} idea={idea} currentStep={r.step} onSelect={select} onChanged={refresh} onGrowAgain={growAgain} /> : null;
   return (
     <main className="mx-auto grid max-w-[1400px] gap-6 px-5 py-8">
       <header className="flex flex-wrap items-end gap-4">
@@ -161,7 +168,7 @@ function GardenPage() {
           <Button size="sm" onClick={bringIn}>Bring in conversations</Button>
         </section>
       )}
-      <BringInWindow open={bringOpen} onOpenChange={setBringOpen} target={{ kind: "more", gardenId: id, fresh }} incoming={incoming} onIncomingTaken={() => setIncoming(null)} onGrown={() => refresh()} />
+      <BringInWindow open={bringOpen} onOpenChange={setBringOpen} target={{ kind: "more", gardenId: id, fresh, resumeFrom: resumeKey ? { key: resumeKey, label: ideas.find((i) => i.id === resumeKey)?.label ?? resumeKey } : null }} onClearResume={() => setResumeKey(null)} incoming={incoming} onIncomingTaken={() => setIncoming(null)} onGrown={() => refresh()} />
       {data.conversations.length > 0 && !data.garden.is_demo && (
         <GardenerPanel gardenId={id} conversations={data.conversations as { id: string; title: string }[]}
           suggested={ideas.filter((i) => i.confirmed === false).length}
@@ -192,7 +199,7 @@ function GardenPage() {
             <div role="tablist" aria-label="View" className="smallcaps ml-auto flex gap-3 text-[15px] order-first basis-full sm:basis-auto sm:order-none">
               {(["tree", "systema"] as const).map((v) => (
                 <button key={v} role="tab" aria-selected={view === v} type="button" onClick={() => setView(v)}
-                  className={view === v ? "text-foreground underline underline-offset-4" : "text-muted-foreground hover:text-foreground"}>{v === "tree" ? "Tree" : "Systema"}</button>
+                  className={view === v ? "text-foreground underline underline-offset-4" : "text-muted-foreground hover:text-foreground"}>{v === "tree" ? "Tree" : "Story"}</button>
               ))}
             </div>
             <ReadingSwitch value={level} onChange={changeLevel} />
@@ -211,9 +218,9 @@ function GardenPage() {
             </p>
           )}
           {ideas.length === 0 ? <Seed /> : view === "systema" ? (
-            <Systema main={main} level={level} title={data.garden.title} nodes={ideas} steps={Object.fromEntries(data.steps.map((st: { step: number; title: string | null }) => [st.step, st.title]))} selected={selected} onSelect={(k) => { select(k); }} />
+            <Systema returns={(data.returns ?? []) as { key: string; why: string | null; step: number | null }[]} main={main} level={level} title={data.garden.title} nodes={ideas} steps={Object.fromEntries(data.steps.map((st: { step: number; title: string | null }) => [st.step, st.title]))} selected={selected} onSelect={(k) => { select(k); }} />
           ) : (
-            <StamTree level={level} main={main} nodes={ideas} step={r.step} selected={selected} onSelect={select} freshStep={r.fresh.step} freshKey={r.fresh.key}
+            <StamTree notes={returnNotes} level={level} main={main} nodes={ideas} step={r.step} selected={selected} onSelect={select} freshStep={r.fresh.step} freshKey={r.fresh.key}
               ariaLabel={data.garden.title} interactive
               specimen={{ no: data.garden.specimen_no, title: data.garden.title, collected: collectedOn ?? undefined, collectors: people.map((p) => p.name) }} />
           )}

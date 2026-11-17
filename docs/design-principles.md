@@ -98,7 +98,7 @@ Text ink #1C2520. Sepia #6B4A2E only for marginalia. No browns in the people pal
 6. Linnaeus: order and names
 - Specimen card as a herbarium label: "Specimen Nº 004" in small caps; the title in Double Pica; "Collected — Stockholm, 17 Nov 2026"; "Collectors — 你, ChatGPT, Claude"; counts in small caps; keep the oval accession stamp.
 - Field notes shows the idea's lineage as a classification line in small caps, like Regnum › Classis › Ordo: the garden › … › parent › the idea, each part a link.
-- A second view of every garden, "Systema", as a tab beside the tree: the garden read step by step, like a naturalist's journal (v2.3; the earlier Linnaean column table was unreadable: it ordered ideas by ancestry, dropped time, notes and reasons, and put almost everything in one deep column). One chapter per step (Roman numeral and the step's title), each entry written as: who raised it (name in their color), the label, how it grew ("combines A, B and C", "refines A", "grew from A", "one answer to the question"), and the idea's note. The reading level decides which entries are written out (Form: the main line and knots; Lineage: what grew on; Record: everything); the rest of a step is named at its end, so nothing disappears. Selecting an entry selects it on the tree.
+- A second view of every garden, the Story (tab "Story"; the component is still Systema), beside the tree: the garden read step by step, like a naturalist's journal (v2.3; the earlier Linnaean column table was unreadable: it ordered ideas by ancestry, dropped time, notes and reasons, and put almost everything in one deep column). One chapter per step (Roman numeral and the step's title), each entry written as: who raised it (name in their color), the label, how it grew ("combines A, B and C", "refines A", "grew from A", "one answer to the question"), and the idea's note. The reading level decides which entries are written out (Form: the main line and knots; Lineage: what grew on; Record: everything); the rest of a step is named at its end, so nothing disappears. Selecting an entry selects it on the tree.
 
 7. Epigraphs in the original language
 Ramus speaks to people everywhere, so every quote appears in the language its author wrote it in. Under each quote that is not in English, a small English gloss in muted IM Fell English Italic. Quote only public-domain classics; modern thinkers are cited by work on /principles, never quoted. Save the list as docs/epigraphs.md and use these exact texts:
@@ -151,3 +151,8 @@ Acceptance criteria
 - The Systema view reads the demo garden step by step with every idea present, and selecting an entry selects it on the tree.
 
 Still in force from v1.5.1: pen wobble, left-handed hatching, uneven merge dashes, offset knot rings, faint grain and dotted rules, construction circle, landing growth from a seed with three sepia margin notes, accession stamp, the Day · Night toggle.
+
+## Usable at first sight (v2.3)
+- A person with a university education uses Ramus without being taught: no tutorial, no jargon to learn first. Each panel has one obvious main action; the rest waits under "More".
+- On an idea: "Grow again from here" (main), Let it rest / Revive, Mark as outcome, Edit; under More: Add a branch by hand, Graft a merge, Mark as knot / Reopen knot, Add evidence.
+- Beauty stays the requirement: a tree someone would screenshot and ask "what made this?". New features express themselves in the existing forms (a margin note in the naturalist's hand, hollow resting branches), never in new UI colors or badges.

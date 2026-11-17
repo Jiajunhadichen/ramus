@@ -124,6 +124,38 @@ describe("checking what the gardener proposes", () => {
     expect(u).toContain("part 2 of 3");
     expect(harvestPrompt(input).user).not.toContain("(Meeting)");
   });
+  describe("going back to an earlier point", () => {
+    const grown: HarvestInput = { ...input, ideas: [
+      ...input.ideas,
+      { key: "fabric", label: "Fabric choice", note: "", by: "Ana", parents: ["root"], status: "growing", knot: false },
+      { key: "cotton", label: "Organic cotton", note: "", by: "Bo", parents: ["fabric"], status: "growing", knot: false },
+      { key: "final", label: "Final sample", note: "", by: "Ana", parents: ["cotton"], status: "growing", knot: true },
+    ] };
+    it("records where the group went back to, why, and what it set aside", () => {
+      const c = checkHarvest({
+        returns: [{ to: "fabric", m: "m2", why: "the cost won't come down", set_aside: ["final", "cotton", "root", "fabric", "nope"] }],
+        ideas: [idea({ id: "linen", label: "Linen blend", origin: "m3", parent: "final" }), idea({ id: "early", label: "Polish it", origin: "m1", parent: "final" })],
+      }, grown);
+      expect(c.returns).toEqual([{ to: "fabric", messageId: "id-2", personId: "p-Benjamin", why: "the cost won't come down", setAside: ["final", "cotton"] }]);
+      const by = new Map(c.proposals.map((p) => [p.label, p]));
+      // what was said after going back grows from the point they went back to, never from what they left
+      expect(by.get("Linen blend")).toMatchObject({ parent: "fabric", nature: null });
+      expect(by.get("Linen blend")!.why).toMatch(/went back: the cost won't come down/);
+      // what was said before still grows where it grew
+      expect(by.get("Polish it")!.parent).toBe("final");
+    });
+    it("only ideas in the garden can be gone back to", () => {
+      expect(checkHarvest({ returns: [{ to: "ghost", m: "m2" }], ideas: [] }, grown).returns).toEqual([]);
+    });
+    it("when the people say where it picks up, that return is kept even if the model missed it", () => {
+      const told = { ...grown, resumeFrom: "cotton", told: "Product said the cost won't come down; we're back at the cotton." };
+      const p = harvestPrompt(told).user;
+      expect(p).toContain('pick up again from "cotton"');
+      expect(p).toContain("Product said the cost");
+      const c = checkHarvest({ returns: [], ideas: [] }, told);
+      expect(c.returns).toEqual([{ to: "cotton", messageId: "id-1", personId: "p-Saloni", why: "Product said the cost won't come down; we're back at the cotton.", setAside: [] }]);
+    });
+  });
   it("reads answers wrapped in a code fence or prose", () => {
     expect(parseAnswer('```json\n{"ideas":[]}\n```')).toEqual({ ideas: [] });
     expect(parseAnswer('Here you go: {"ideas":[]} hope it helps')).toEqual({ ideas: [] });

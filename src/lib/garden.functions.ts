@@ -160,12 +160,19 @@ export const getGarden = createServerFn({ method: "GET" })
     const proposed = check(await supabase.from("events").select("idea_id,payload").eq("garden_id", data.id).eq("actor_kind", "ai").eq("type", "idea_created"));
     const suggestions = Object.fromEntries(proposed.filter((e) => e.idea_id && liveIds.has(e.idea_id)).map((e) => [e.idea_id!, e.payload as { why?: string | null; quote?: string | null; knot?: { kind: string; settled: string } | null; conversation_id?: string }]));
     // which conversations the gardener has read, even where it found nothing to grow
-    const readings = check(await supabase.from("events").select("payload").eq("garden_id", data.id).eq("actor_kind", "ai").eq("type", "idea_edited"));
+    const readings = check(await supabase.from("events").select("idea_id,payload").eq("garden_id", data.id).eq("actor_kind", "ai").eq("type", "idea_edited"));
     const readConversationIds = [...new Set([
       ...proposed.map((e) => (e.payload as { conversation_id?: string } | null)?.conversation_id),
       ...readings.flatMap((e) => (e.payload as { read?: { conversation_ids?: string[] } } | null)?.read?.conversation_ids ?? []),
     ].filter((c): c is string => !!c))];
-    return { viewerId: context.userId, garden, contributors, steps, ideas, links: liveLinks, conversations, convMessages, evidence, thoughts, thoughtEvidence, suggestions, readConversationIds };
+    // where the group went back to an earlier idea and grew again from it
+    const keyOfId = new Map(ideas.map((i: { id: string; key: string }) => [i.id, i.key]));
+    const returns = readings.flatMap((e) => {
+      const r = (e.payload as { returned?: { why: string | null; step: number | null } } | null)?.returned;
+      const key = e.idea_id ? keyOfId.get(e.idea_id) : undefined;
+      return r && key ? [{ key, why: r.why ?? null, step: r.step ?? null }] : [];
+    });
+    return { viewerId: context.userId, garden, contributors, steps, ideas, links: liveLinks, conversations, convMessages, evidence, thoughts, thoughtEvidence, suggestions, readConversationIds, returns };
   });
 
 export const getConversation = createServerFn({ method: "GET" })
@@ -483,7 +490,8 @@ type ThoughtRow = Database["public"]["Tables"]["thought_events"]["Insert"];
  */
 export const growTree = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { gardenId: string; batchIds?: string[] | undefined; conversationIds?: string[] | undefined; part: number; nameRoot?: boolean | undefined; nameGarden?: boolean | undefined }) => {
+  .inputValidator((d: { gardenId: string; batchIds?: string[] | undefined; conversationIds?: string[] | undefined; part: number; nameRoot?: boolean | undefined; nameGarden?: boolean | undefined; resumeFrom?: string | null | undefined; told?: string | null | undefined }) => {
+    if (d.told && d.told.length > 600) fail("Keep the note to the gardener under 600 characters.");
     const n = (d.batchIds?.length ?? 0) + (d.conversationIds?.length ?? 0);
     if (!n) fail("Nothing to read.");
     if (n > 50) fail("At most 50 conversations can be read together.");
@@ -535,11 +543,13 @@ export const growTree = createServerFn({ method: "POST" })
       return { ref: `m${i + 1}`, id: m.id, speaker: p?.name ?? m.speaker_label ?? null, personId: p?.id ?? null, personIsHuman: p?.kind === "person", sentAt: m.time_precision !== "unknown" ? m.sent_at : null, content: m.content, source: titleOf.get(m.conversation_id) ?? null };
     });
     const titles = [...new Set(convIds.map((c) => titleOf.get(c)).filter(Boolean))];
-    const input = { gardenTitle: garden.title, conversationTitle: titles.join("; "), rootKey: root.key, ideas, messages, skipped: 0, part: { n: data.part + 1, of: all.length }, nameRoot };
+    // where the people say it picks up again, and what they told the gardener (first part only)
+    const resumeFrom = data.part === 0 && data.resumeFrom && live.some((i) => i.key === data.resumeFrom) ? data.resumeFrom : null;
+    const input = { gardenTitle: garden.title, conversationTitle: titles.join("; "), rootKey: root.key, ideas, messages, skipped: 0, part: { n: data.part + 1, of: all.length }, nameRoot, resumeFrom, told: data.part === 0 ? data.told ?? null : null };
 
     const prompt = harvestPrompt(input);
     const asked = await askGardener(prompt.system, prompt.user).catch((e) => fail((e as Error).message));
-    const { proposals, stages, dropped, root: rootName } = checkHarvest(parseAnswer(asked.text), input);
+    const { proposals, stages, dropped, root: rootName, returns } = checkHarvest(parseAnswer(asked.text), input);
     const sentOf = new Map(slice.map((m) => [m.id, m.time_precision !== "unknown" ? { at: m.sent_at, precision: m.time_precision } : null]));
     const orderOf = new Map(slice.map((m, i) => [m.id, i]));
     const speakerOf = new Map(slice.map((m) => [m.id, m.contributor_id]));
@@ -561,6 +571,25 @@ export const growTree = createServerFn({ method: "POST" })
       if (data.nameGarden) check(await supabase.from("gardens").update({ title: rootName.label }).eq("id", data.gardenId));
       check(await supabase.from("events").insert({ garden_id: data.gardenId, actor: userId, actor_kind: "ai", type: "idea_edited", idea_id: rootRow.id, payload: { named_root: true, was: rootRow.label, label: rootName.label, model: asked.model } as never }));
     }
+    // going back: the history says where the group returned to and why; what it left behind rests
+    const base = Math.max(0, ...stepRows.map((s) => s.step), ...ideaRows.map((i) => i.step));
+    const stepOf = new Map(stages.map((s, i) => [s.n, base + i + 1]));
+    // the step where growth starts again from the point gone back to
+    const stepOfReturn = (to: string) => Math.min(...proposals.filter((p) => p.parent === to && !p.parentIsNew).map((p) => stepOf.get(p.stage) ?? base + 1), Infinity);
+    for (const r of returns) {
+      const toRow = live.find((i) => i.key === r.to);
+      if (!toRow) continue;
+      thoughts.push(thoughtFor({ type: "revived", idea_id: toRow.id, person_id: r.personId, rationale: r.why }, r.messageId));
+      for (const k of r.setAside) {
+        const row = live.find((i) => i.key === k);
+        if (!row || row.status === "dormant") continue;
+        check(await supabase.from("ideas").update({ status: "dormant", updated_at: new Date().toISOString() }).eq("id", row.id));
+        thoughts.push(thoughtFor({ type: "rested", idea_id: row.id, person_id: r.personId, rationale: r.why ?? `Set aside when the group went back to “${toRow.label}”.` }, r.messageId));
+      }
+      check(await supabase.from("events").insert({ garden_id: data.gardenId, actor: userId, actor_kind: "ai", type: "idea_edited", idea_id: toRow.id,
+        payload: { returned: { why: r.why, step: Number.isFinite(stepOfReturn(r.to)) ? stepOfReturn(r.to) : stages.length ? base + 1 : null, message_id: r.messageId, set_aside: r.setAside, told: input.told }, model: asked.model } as never }));
+    }
+
     if (!proposals.length) {
       await writeThoughts(supabase, thoughts);
       await noteReading();
@@ -572,8 +601,6 @@ export const growTree = createServerFn({ method: "POST" })
     const keyFor = (t: string, isNew: boolean) => (isNew ? key.get(t)! : t);
     const g = await loadGraph(supabase, data.gardenId);
     assertValid([...g.nodes, ...proposals.map((p) => ({ id: key.get(p.temp)!, label: p.label, parents: [keyFor(p.parent, p.parentIsNew), ...p.merges.map((m) => keyFor(m.target, m.isNew))] }))]);
-    const base = Math.max(0, ...stepRows.map((s) => s.step), ...ideaRows.map((i) => i.step));
-    const stepOf = new Map(stages.map((s, i) => [s.n, base + i + 1]));
     const stageDate = (n: number) => proposals.filter((p) => p.stage === n).map((p) => sentOf.get(p.originMessageId)?.at).filter((t): t is string => !!t).sort()[0]?.slice(0, 10) ?? null;
     if (stages.length) check(await supabase.from("steps").insert(stages.map((s) => ({ garden_id: data.gardenId, step: stepOf.get(s.n)!, title: s.title, date: stageDate(s.n) }))));
 

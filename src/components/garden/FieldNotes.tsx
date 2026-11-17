@@ -24,11 +24,14 @@ import { formatDate, formatTime, NATURES, ROLE_LABEL, ROLE_ORDER, sortEvidence, 
 type Props = {
   data: GardenData; ideas: Idea[]; idea: Idea; currentStep: number;
   onSelect: (key: string) => void; onChanged: () => Promise<unknown>;
+  /** opens the bring-in window picking up from this idea (not on the demo garden) */
+  onGrowAgain?: ((key: string) => void) | undefined;
 };
 
 const selectCls = "h-9 w-full rounded-md border border-input bg-sheet px-2 text-sm";
 
-export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged }: Props) {
+export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged, onGrowAgain }: Props) {
+  const [more, setMore] = useState(false);
   const [dialog, setDialog] = useState<null | "grow" | "graft" | "knot" | "reopen" | "edit" | "evidence">(null);
   const status = useServerFn(setStatus);
   const outcomeFn = useServerFn(setOutcome);
@@ -190,17 +193,21 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
       </section>
 
       {!suggested && <div className="mt-2 grid grid-cols-2 gap-2 border-t border-rule pt-3">
-        <Button size="sm" variant="outline" className="col-span-2" onClick={() => run(() => outcomeFn({ data: { gardenId: data.garden.id, key: idea.id, outcome: !idea.outcome } }), idea.outcome ? "Outcome unmarked." : "Outcome marked.")}>{idea.outcome ? "Unmark" : "Mark as outcome"}</Button>
-        <Button size="sm" onClick={() => setDialog("grow")}>Grow a branch</Button>
-        <Button size="sm" variant="outline" onClick={() => setDialog("graft")} disabled={!idea.parents.length}>Graft a merge</Button>
+        {onGrowAgain && <Button size="sm" className="col-span-2" onClick={() => onGrowAgain(idea.id)}>Grow again from here</Button>}
         {idea.status === "growing"
           ? <Button size="sm" variant="outline" onClick={() => run(() => status({ data: { gardenId: data.garden.id, key: idea.id, status: "dormant" } }), "Resting now, still on the tree.")}>Let it rest</Button>
           : <Button size="sm" variant="outline" onClick={() => run(() => status({ data: { gardenId: data.garden.id, key: idea.id, status: "growing" } }), "Growing again.")}>Revive</Button>}
-        {idea.knot
-          ? <Button size="sm" variant="outline" onClick={() => setDialog("reopen")}>Reopen knot</Button>
-          : <Button size="sm" variant="outline" onClick={() => setDialog("knot")}>Mark as knot</Button>}
-        <Button size="sm" variant="ghost" onClick={() => setDialog("edit")}>Edit label and note</Button>
-        <Button size="sm" variant="ghost" onClick={() => setDialog("evidence")} disabled={!(data.convMessages ?? []).length}>Add evidence</Button>
+        <Button size="sm" variant="outline" onClick={() => run(() => outcomeFn({ data: { gardenId: data.garden.id, key: idea.id, outcome: !idea.outcome } }), idea.outcome ? "Outcome unmarked." : "Outcome marked.")}>{idea.outcome ? "Unmark outcome" : "Mark as outcome"}</Button>
+        <Button size="sm" variant="ghost" onClick={() => setDialog("edit")}>Edit</Button>
+        <Button size="sm" variant="ghost" aria-expanded={more} onClick={() => setMore(!more)}>{more ? "Less" : "More"}</Button>
+        {more && <>
+          <Button size="sm" variant="ghost" onClick={() => setDialog("grow")}>Add a branch by hand</Button>
+          <Button size="sm" variant="ghost" onClick={() => setDialog("graft")} disabled={!idea.parents.length}>Graft a merge</Button>
+          {idea.knot
+            ? <Button size="sm" variant="ghost" onClick={() => setDialog("reopen")}>Reopen knot</Button>
+            : <Button size="sm" variant="ghost" onClick={() => setDialog("knot")}>Mark as knot</Button>}
+          <Button size="sm" variant="ghost" onClick={() => setDialog("evidence")} disabled={!(data.convMessages ?? []).length}>Add evidence</Button>
+        </>}
       </div>}
 
       {dialog === "grow" && <GrowDialog {...{ data, idea, currentStep, onSelect, run }} onClose={() => setDialog(null)} />}

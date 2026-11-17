@@ -11,7 +11,7 @@ const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI"
  * from, and its note. The reading level decides which entries are written out; the rest of a step is named
  * at the end of it, so nothing disappears.
  */
-export function Systema({ title, nodes, steps = {}, level = "record", selected, onSelect, main: suppliedMain }: {
+export function Systema({ title, nodes, steps = {}, level = "record", selected, onSelect, main: suppliedMain, returns = [] }: {
   title: string;
   nodes: (SysNode & { color: string })[];
   steps?: Record<number, string | null | undefined>;
@@ -19,6 +19,8 @@ export function Systema({ title, nodes, steps = {}, level = "record", selected, 
   main?: Set<string>;
   selected: string | null;
   onSelect: (id: string) => void;
+  /** where the group went back to an earlier idea, and in which step it grew again */
+  returns?: { key: string; why: string | null; step: number | null }[];
 }) {
   const s = useMemo(() => systema(nodes, steps), [nodes, steps]);
   // a root marked as the outcome leaves no main line to read; then the newest growth is the main line
@@ -30,6 +32,9 @@ export function Systema({ title, nodes, steps = {}, level = "record", selected, 
   const color = new Map(nodes.map((n) => [n.id, n.color]));
   const people = [...new Map(nodes.map((n) => [n.by, n.color])).entries()];
   const rootId = s.root?.id ?? null;
+  const label = new Map(nodes.map((n) => [n.id, n.label]));
+  const how = (e: SysEntry, step: number) =>
+    returns.some((r) => r.step === step && r.key === e.from[0]?.id) && e.from.length === 1 ? `grows again from ${e.from[0]!.label}` : grewFrom(e, rootId);
 
   const Mark = ({ e }: { e: SysEntry }) => (
     <span aria-hidden className="mr-2 inline-block size-2 shrink-0 rounded-full align-middle"
@@ -41,7 +46,7 @@ export function Systema({ title, nodes, steps = {}, level = "record", selected, 
       <Epigraph n={7} className="max-w-[60ch]" />
       {s.root && (
         <header className="grid gap-1 border-b border-rule pb-4 text-center">
-          <p className="eyebrow">Systema · {nodes.length} ideas · {s.chapters.length} steps</p>
+          <p className="eyebrow">The story · {nodes.length} ideas · {s.chapters.length} steps</p>
           <Button variant="ghost" onClick={() => onSelect(s.root!.id)}
             className={"mx-auto h-auto whitespace-normal font-display text-[26px] leading-tight hover:underline " + (selected === s.root.id ? "underline" : "")}>
             <Upright>{s.root.label}</Upright>
@@ -59,10 +64,18 @@ export function Systema({ title, nodes, steps = {}, level = "record", selected, 
           const entries = ch.entries.filter((e) => e.id !== rootId);
           const written = entries.filter((e) => shown.has(e.id));
           const named = entries.filter((e) => !shown.has(e.id));
-          if (!entries.length) return null;
+          const back = returns.filter((r) => r.step === ch.step && label.has(r.key));
+          if (!entries.length && !back.length) return null;
           return (
             <section key={ch.step} aria-label={`Step ${ch.step}`} className="grid gap-3 border-t border-ink pt-2">
               <h3 className="eyebrow">{ROMAN[i] ?? ch.step} {ch.title ? <>· <Upright>{ch.title}</Upright></> : null}</h3>
+              {back.map((r) => (
+                <p key={r.key} className="hand text-[16px]">
+                  The group went back to{" "}
+                  <button type="button" className="underline underline-offset-4" onClick={() => onSelect(r.key)}>“<Upright>{label.get(r.key)!}</Upright>”</button>
+                  {r.why ? <>: <Upright>{r.why}</Upright></> : null} and grew again from there.
+                </p>
+              ))}
               {written.length > 0 && (
                 <ol className="grid gap-3">
                   {written.map((e) => (
@@ -78,7 +91,7 @@ export function Systema({ title, nodes, steps = {}, level = "record", selected, 
                           {e.outcome && <span className="smallcaps ml-2 text-[13px]">· outcome</span>}
                           {e.resting && <span className="ml-2 text-[13px] italic text-muted-foreground">resting</span>}
                         </p>
-                        {grewFrom(e, rootId) && <p className="hand text-[15px]"><Upright>{grewFrom(e, rootId)}</Upright></p>}
+                        {how(e, ch.step) && <p className="hand text-[15px]"><Upright>{how(e, ch.step)}</Upright></p>}
                         {e.note && <p className="text-[15px] text-muted-foreground"><Upright>{e.note}</Upright></p>}
                       </div>
                     </li>
