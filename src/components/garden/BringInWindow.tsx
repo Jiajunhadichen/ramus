@@ -48,6 +48,8 @@ type Phase =
   | { kind: "failed"; message: string };
 
 const JSON_FORMATS = new Set(["chatgpt", "claude", "slack", "discourse"]);
+/** sources whose voices come from the text itself, where the person may say who speaks */
+const LOOSE = new Set(["notes", "lines", "transcript"]);
 const uid = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 const env = () => ({ timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", dateOrder: browserDateOrder() });
 
@@ -211,7 +213,7 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
       setPhase({ kind: "reading", progress: { part: 1, of: 1 } });
       const resumeFrom = target.kind === "more" ? target.resumeFrom?.key ?? null : null;
       const g = await grow(gid, { batchIds }, { nameRoot, nameGarden, resumeFrom, told: told.trim() || null, from: partsDone, onProgress: (progress) => setPhase({ kind: "reading", progress }), onPartDone: setPartsDone });
-      toast.success(grownLine(g.grown));
+      toast.success(grownLine(g.grown, g));
       reset();
       onOpenChange(false);
       onGrown(gid);
@@ -291,7 +293,8 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
         {!busy && (
           <div className="grid gap-2 border-t border-rule pt-3">
             {waiting > 0 && <p className="text-ui">{waiting === 1 ? "One source above is" : `${waiting} sources above are`} incomplete or copied off a page. It will still be read as it is; bring the discussion in from its address if you have it.</p>}
-            <Button disabled={!ready.length || waiting > 0 || items.some((it) => it.opening)} onClick={go}>
+            {/* warnings inform, never block: only nothing readable, or a file still opening, stops the gardener */}
+            <Button disabled={!ready.length || items.some((it) => it.opening)} onClick={go}>
               {phase.kind === "failed" ? (keptAll ? "Let the gardener try again" : "Try again") : target.kind === "more" && !target.fresh ? "Add to the tree" : "That’s everything — grow the tree"}
             </Button>
             {phase.kind === "failed" && keptAll && gardenId && (
@@ -311,6 +314,10 @@ function Row({ item, auto, locked, onRemove, onExtra, onAccept, onFetch }: { ite
   const problem = item.error ?? (typeof auto === "string" ? auto : a && !a.draft.kept.some((m) => !m.hidden) ? "No messages were found in this." : null);
   const t = a ? timeLine(a.draft) : null;
   const words = a ? a.draft.kept.filter((m) => !m.hidden).length : 0;
+  // voices with evidence (a source's own names, or the person's word); words with no known author are counted, never guessed
+  const named = new Set(a ? a.draft.speakers.filter((s) => s.suggested.type !== "none").map((s) => s.label) : []);
+  const voices = named.size;
+  const unattributed = a ? a.draft.kept.filter((m) => !m.hidden && !named.has(m.speakerLabel ?? (a.draft.format === "notes" ? "" : "\u0000"))).length : 0;
   return (
     <li className={"grid gap-1  border bg-sheet px-3 py-2 text-ui " + (problem ? "border-rule opacity-70" : "border-rule")}>
       <div className="flex items-baseline gap-2">
@@ -341,9 +348,19 @@ function Row({ item, auto, locked, onRemove, onExtra, onAccept, onFetch }: { ite
       {a && !problem && (
         <>
           <span className="smallcaps text-note text-muted-foreground">
-            {KIND_LABEL[a.draft.format]} · {words} message{words === 1 ? "" : "s"} · {a.draft.speakers.length} {a.draft.speakers.length === 1 ? "voice" : "voices"}
+            {KIND_LABEL[a.draft.format]} · {words} {a.draft.format === "notes" ? (words === 1 ? "passage" : "passages") : words === 1 ? "message" : "messages"}
+            {voices ? ` · ${voices} ${voices === 1 ? "voice" : "voices"}` : ""}
+            {unattributed ? ` · ${unattributed} unattributed` : ""}
             {a.notes.length ? ` · ${a.notes.join(" · ")}` : ""}
           </span>
+          {LOOSE.has(a.draft.format) && (
+            <label className="flex flex-wrap items-center gap-2 text-ui">
+              <span className="text-muted-foreground">Who speaks here? (optional)</span>
+              <input disabled={locked} placeholder="e.g. Me, Claude" className="h-8 min-w-0 flex-1 border border-input bg-transparent px-2"
+                defaultValue={(item.extra.knownVoices ?? []).join(", ")}
+                onBlur={(e) => { const v = e.target.value.split(/[,，、;]+/).map((x) => x.trim()).filter(Boolean); if (v.join() !== (item.extra.knownVoices ?? []).join()) onExtra({ knownVoices: v.length ? v : undefined }); }} />
+            </label>
+          )}
           {t?.kind === "span" && <span className="text-ui">{formatWhen(t.from)} – {formatWhen(t.to)}{t.all ? "" : " · lines without a time keep their place"}</span>}
           {t?.kind === "none" && <span className="text-ui text-muted-foreground">No times in it: kept in the order it was written.</span>}
           {t?.kind === "clock" && (

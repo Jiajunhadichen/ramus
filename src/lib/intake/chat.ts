@@ -1,4 +1,5 @@
 import { MONTHS, blank, clockParts, close, noTime, setAside, tidy, type Unit } from "./text";
+import { nameShape } from "./names";
 import { plain, toLines, zonedToUtc, type Line } from "./util";
 
 /**
@@ -69,7 +70,8 @@ function nameLike(t: string): boolean {
   if (/[.?!。？！:：;…]$/.test(s) || /^\d+$/.test(s) || /https?:|www\.|@\w+\./.test(s)) return false;
   if (NOISE.test(s) || DIVIDER.test(s) || REACTION.test(s) || setAside(s)) return false;
   if (!/^[\p{L}]/u.test(s)) return false;
-  return s.split(/\s+/).length <= 4;
+  // a heading, a phrase or a sentence is never a name, however short (names.ts)
+  return s.split(/\s+/).length <= 4 && nameShape(s) !== "no";
 }
 
 /** A header on one line: "Ana — Today at 2:02 PM", "Ana Lind, 2:02 PM, Edited", "Ana Lind, [17.11.2026 14:02]", "Ana  2:02 PM", "张三 14:02". */
@@ -104,7 +106,9 @@ function numericOrder(lines: Line[], fallback: "DMY" | "MDY"): "DMY" | "MDY" {
 
 export type ChatCopy = { units: Unit[]; headers: number; offsetLike: boolean; clockOnly: boolean };
 
-export function parseChatCopy(raw: string, tz: string, conversationDate: string | null, order: "DMY" | "MDY", known: Set<string> = new Set()): ChatCopy {
+export function parseChatCopy(raw: string, tz: string, conversationDate: string | null, order: "DMY" | "MDY", known: Set<string> = new Set(), only: string[] = []): ChatCopy {
+  const allowed = new Set(only.map((v) => v.trim().toLowerCase()).filter(Boolean));
+  const speaks = (name: string) => !allowed.size || allowed.has(name.toLowerCase()) || (allowed.has("me") && /^(?:you|我|du)$/i.test(name));
   const lines = toLines(raw);
   const txt = lines.map((l) => plain(l.text).trim());
   const ord = numericOrder(lines, order);
@@ -138,7 +142,9 @@ export function parseChatCopy(raw: string, tz: string, conversationDate: string 
   for (const [i, h] of cands) {
     const recurring = (names.get(h.name) ?? 0) >= 2 || known.has(h.name.toLowerCase());
     if (h.shape === "self") heads.set(i, h);
-    else if (h.shape === "name") { if (!best && recurring && (names.get(h.name) ?? 0) >= 2) heads.set(i, h); }
+    else if (!speaks(h.name)) continue;
+    // a bare line counts as a name only when it looks like one (or is known) and recurs with nothing better on the page
+    else if (h.shape === "name") { if (!best && recurring && (names.get(h.name) ?? 0) >= 2 && (nameShape(h.name) === "name" || known.has(h.name.toLowerCase()) || allowed.has(h.name.toLowerCase()))) heads.set(i, h); }
     else if (best && h.shape === best[0] && (strong.has(h.shape) || best[1] >= 3 || recurring)) heads.set(i, h);
     else if (recurring && strong.has(h.shape)) heads.set(i, h);
   }

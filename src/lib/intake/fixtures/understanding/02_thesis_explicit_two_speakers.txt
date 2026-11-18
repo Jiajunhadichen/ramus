@@ -1,0 +1,8 @@
+Me: 我在瑞典读数据科学硕士，想选对找工作有帮助、并能按时完成的论文。
+Claude: 我先推荐偏工程的 travel-time 计算题，理由是能连接 Azure 和瑞典开放数据。
+Me: 这是我更新后的三个简历。我的实际经历还有 AI agent、MCP、人工审批和 Azure 网络。
+Claude: 有了这些新信息，我修改排序。现在 Multi-criteria decision modelling with LLMs 更适合把 AI 系统与决策分析串起来。
+Me: Aron Larsson 的这篇 LLM/MCDA 论文到底还有什么未解决问题？Mats 是它的作者吗？
+Claude: 一次案例和一次运行还不能说明稳定性。可以研究重复运行、证据引用核对、准则自动提取。Aron 和 Mats 是这里被讨论的人，不是这个聊天的参与者。
+Me: 那我准备跟 Aron 谈“系统如何避免黑箱”，尤其要核实证据。
+Claude: 可以说：LLM prepares information, but the MCDA process remains transparent and subject to human judgment.

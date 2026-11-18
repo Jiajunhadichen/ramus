@@ -1,0 +1,10 @@
+2026-11-17 09:00 - Ana Lind: Our team could create an allergen directory for restaurant staff.
+2026-11-17 09:03 - Bo Berg: That may not be enough value on its own. Restaurants need recurring workflows.
+2026-11-17 09:04 - Cy Wang: Let's add a daily hygiene checklist, but keep the first version simple.
+2026-11-17 09:08 - Dina Ali: How would this work for staff who do not speak Swedish?
+2026-11-17 09:11 - Ana Lind: Add translations for the allergen directory and daily checklist.
+2026-11-17 09:15 - Bo Berg: Good, but do not add a massive compliance module in v1.
+2026-11-17 09:18 - Cy Wang: Then v1 is allergen lookup plus a simple daily checklist, with translations.
+2026-11-17 09:22 - Dina Ali: We can add Swedish inspector reports in a later phase.
+
+Meeting note: Aron Larsson will not be on this team. Aron is mentioned as a possible academic adviser only.

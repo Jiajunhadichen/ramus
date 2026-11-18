@@ -7,7 +7,11 @@ export type Idea = TreeNode & {
   dbId: string; note: string; settled: string | null; contributorId: string | null;
   natures: Record<string, string | null>;
   /** the gardener's proposal, if this idea came from a harvest: why it grows here, and a knot it thinks was tied */
-  suggestion: { why: string | null; knot: { kind: string; settled: string } | null; conversationId: string | null } | null;
+  suggestion: {
+    why: string | null; knot: { kind: string; settled: string } | null; conversationId: string | null;
+    /** how the author is known (source, header, the person's word), or a probable voice that was never confirmed */
+    attribution: { basis: string; likely: string | null } | null;
+  } | null;
 };
 
 export function toIdeas(d: GardenData): Idea[] {
@@ -29,6 +33,10 @@ export function toIdeas(d: GardenData): Idea[] {
         why: (d.suggestions as Record<string, any> | undefined)?.[i.id]?.why ?? mine.find((l: any) => l.kind === "primary")?.rationale ?? null,
         knot: (d.suggestions as Record<string, any> | undefined)?.[i.id]?.knot ?? null,
         conversationId: (d.suggestions as Record<string, any> | undefined)?.[i.id]?.conversation_id ?? null,
+        attribution: (() => {
+          const a = (d.suggestions as Record<string, { attribution?: { basis?: unknown; likely?: unknown } } | undefined> | undefined)?.[i.id]?.attribution;
+          return a && typeof a.basis === "string" ? { basis: a.basis, likely: typeof a.likely === "string" ? a.likely : null } : null;
+        })(),
       } : null,
     };
   });

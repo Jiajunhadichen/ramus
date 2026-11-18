@@ -1,6 +1,6 @@
 import { parseChatCopy } from "./chat";
 import { deepMap, readJson, type JsonSource } from "./json";
-import { GENERIC, OFTEN_NOT_PEOPLE, lineLabels, parseLines, shortExchange, parseNotes, parseTranscript, parseVtt, parseWhatsApp, speakerSet, statedRecordingStart, transcriptShape, waDateOrder, waHeader, waOrderByTime, waWhen, type Unit } from "./text";
+import { GENERIC, OFTEN_NOT_PEOPLE, nameLines, parseLines, parseNotes, parseTranscript, parseVtt, parseWhatsApp, speakerSet, statedRecordingStart, transcriptShape, waDateOrder, waHeader, waOrderByTime, waWhen, type Unit } from "./text";
 import { PARSER_VERSION, type Draft, type DraftMessage, type Format, type Hidden, type PrepareContext, type PrepareInput, type PrepareOptions, type Question, type Segment, type SpeakerInfo, type Voice } from "./types";
 import { findPrivate, hash, localStringToUtc, maskText, toLines, validTimeZone } from "./util";
 
@@ -26,8 +26,8 @@ export function detect(raw: string): { format: Format; confidence: number }[] {
   const wa = lines.filter((l) => waHeader(l.text)).length;
   const timings = lines.filter((l) => /-->/.test(l.text)).length;
   const tr = transcriptShape(raw);
-  const short = shortExchange(raw);
-  const labels = [...lineLabels(raw).entries()].filter(([l, c]) => c >= 2 || short.has(l)).reduce((a, [, c]) => a + c, 0);
+  // name lines count only when the labels are people speaking, not headings or phrases before a colon
+  const labels = nameLines(raw).labeled;
   const out: { format: Format; confidence: number }[] = [
     { format: "whatsapp", confidence: wa >= 2 ? Math.min(0.98, 0.4 + wa / n) : wa ? 0.2 : 0 },
     { format: "vtt", confidence: /^\ufeff?WEBVTT/.test(raw.trimStart()) ? 0.99 : 0 },
@@ -49,17 +49,30 @@ function localDate(isoStr: string, tz: string) {
   catch { return isoStr.slice(0, 10); }
 }
 
-function suggestVoice(label: string, format: Format, ctx: PrepareContext): { voice: Voice; remembered: boolean } {
-  const k = label.toLowerCase();
+function suggestVoice(label: string, format: Format, ctx: PrepareContext, author: string | null = null): { voice: Voice; remembered: boolean } {
   const me: Voice = ctx.importerContributorId ? { type: "person", id: ctx.importerContributorId } : { type: "new", name: ctx.importerName || "Me" };
-  if (format === "notes" || ((format === "chatgpt" || format === "claude") && (k === "user" || k === "human"))) return { voice: me, remembered: false };
+  if (format === "notes") {
+    // bringing words in does not make them yours: notes are credited only when the person says who wrote them
+    if (!author) return { voice: { type: "none" }, remembered: false };
+    if (/^(?:me|我|i|jag)$/i.test(author) || (ctx.importerName && author.toLowerCase() === ctx.importerName.toLowerCase())) return { voice: me, remembered: false };
+    label = author;
+  }
+  const k = label.toLowerCase();
+  if ((format === "chatgpt" || format === "claude") && (k === "user" || k === "human")) return { voice: me, remembered: false };
   if ((format === "chatgpt" || format === "claude") && k === "assistant") {
     const name = format === "chatgpt" ? "ChatGPT" : "Claude";
     const hit = ctx.contributors.find((c) => c.name === name);
     return { voice: hit ? { type: "person", id: hit.id } : { type: "new", name, kind: "historical_ai" }, remembered: false };
   }
-  // "You" in a copied chat is the person copying it
-  if (/^(?:you|du|我)$/i.test(label)) return { voice: me, remembered: false };
+  // "You" in a copied chat, or a line headed "Me:", is the person bringing it in
+  if (/^(?:you|du|我|me|jag)$/i.test(label)) return { voice: me, remembered: false };
+  // an AI that took part, named in the text ("Claude: …"): the same contributor as its exports
+  const ai = /^(?:claude|chatgpt|gemini|copilot)$/i.exec(label.trim());
+  if (ai) {
+    const name = { claude: "Claude", chatgpt: "ChatGPT", gemini: "Gemini", copilot: "Copilot" }[ai[0].toLowerCase() as "claude"];
+    const hit = ctx.contributors.find((c) => c.name.toLowerCase() === name.toLowerCase());
+    return { voice: hit ? { type: "person", id: hit.id } : { type: "new", name, kind: "historical_ai" }, remembered: false };
+  }
   const alias = ctx.aliases.find((a) => a.alias.toLowerCase() === k);
   if (alias && ctx.contributors.some((c) => c.id === alias.contributor_id)) return { voice: { type: "person", id: alias.contributor_id }, remembered: true };
   const hit = ctx.contributors.find((c) => c.name.toLowerCase() === k);
@@ -131,7 +144,7 @@ export function prepare(input: PrepareInput, options: PrepareOptions, ctx: Prepa
       if (!recordingIso) questions.push({ kind: "recording-start", unsure: 0.5, text: "When did the recording start? Without it, times stay as offsets into the recording." });
     } else if (format === "transcript" && chatCopyWins(raw, transcriptShape(raw)?.count ?? 0)) {
       const known = new Set([...ctx.contributors.map((c) => c.name.toLowerCase()), ...ctx.aliases.map((a) => a.alias.toLowerCase())]);
-      const c = parseChatCopy(raw, tz, date, options.dateOrder ?? "DMY", known);
+      const c = parseChatCopy(raw, tz, date, options.dateOrder ?? "DMY", known, options.knownVoices ?? []);
       units = c.units;
       if (c.clockOnly && !date) questions.push({ kind: "conversation-date", unsure: 0.5, text: "The lines carry clock times but no full date. On which day was this? Without it, times stay unknown." });
     } else if (format === "transcript") {
@@ -144,7 +157,7 @@ export function prepare(input: PrepareInput, options: PrepareOptions, ctx: Prepa
       if (t.clockOnly && !date) questions.push({ kind: "conversation-date", unsure: 0.5, text: "The lines carry clock times but no date. On which day was this? Without it, times stay unknown." });
     } else if (format === "lines") {
       const known = new Set([...ctx.contributors.map((c) => c.name.toLowerCase()), ...ctx.aliases.map((a) => a.alias.toLowerCase())]);
-      const s = speakerSet(raw, known, options.arePeople ?? [], options.notAPerson ?? []);
+      const s = speakerSet(raw, known, options.arePeople ?? [], options.notAPerson ?? [], options.knownVoices ?? []);
       for (const d of s.doubtful) questions.push({ kind: "not-a-person", unsure: 0.7, text: `Is “${d}” a person?`, label: d });
       units = parseLines(raw, s.speakers, tz, date);
       if (!date && units.some((u) => u.clock)) questions.push({ kind: "conversation-date", unsure: 0.5, text: "The lines carry clock times but no date. On which day was this? Without it, times stay unknown." });
@@ -194,8 +207,10 @@ export function prepare(input: PrepareInput, options: PrepareOptions, ctx: Prepa
     byLabel.set(key, [...(byLabel.get(key) ?? []), m]);
   }
   for (const [label, ms] of byLabel) if (ms.every((m) => m.hidden === "system")) byLabel.delete(label);
+  const knownVoices = (options.knownVoices ?? []).map((v) => v.trim()).filter(Boolean);
+  const author = format === "notes" && knownVoices.length === 1 ? knownVoices[0]! : null;
   const speakers: SpeakerInfo[] = [...byLabel.entries()].map(([label, ms]) => {
-    const s = suggestVoice(label, format, ctx);
+    const s = suggestVoice(label, format, ctx, author);
     return { label, count: ms.length, samples: ms.filter((m) => !m.hidden).slice(0, 2).map((m) => m.content.slice(0, 120)), suggested: s.voice, remembered: s.remembered };
   });
   const aiExport = format === "chatgpt" || format === "claude";
@@ -203,7 +218,7 @@ export function prepare(input: PrepareInput, options: PrepareOptions, ctx: Prepa
   const newcomers = speakers.filter(isNew).length;
   if (newcomers > 3) questions.push({ kind: "newcomers", unsure: 0.2, text: `${newcomers} people are new to this garden and will be added under the names they use here.` });
   for (const s of speakers) {
-    if (options.voices?.[s.label] || s.remembered || s.suggested.type === "person") continue;
+    if (options.voices?.[s.label] || s.remembered || s.suggested.type === "person" || s.suggested.type === "none") continue;
     if (aiExport && ["user", "human", "assistant"].includes(s.label.toLowerCase())) continue;
     const generic = GENERIC.test(s.label) || /^U[A-Z0-9]{6,}$/.test(s.label);
     if (!generic && newcomers > 3) continue;

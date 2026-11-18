@@ -1,0 +1,91 @@
+{
+  "description": "Ramus semantic source understanding acceptance suite. Expectations are semantic, not hardcoded production answers.",
+  "version": 1,
+  "cases": [
+    {
+      "name": "Unlabeled thesis excerpt with two known participants",
+      "fixture": "fixtures/01_thesis_unlabeled_messy.txt",
+      "optional_user_hint": { "knownParticipants": ["Me", "Claude"] },
+      "should": [
+        "Generate an idea tree from meaningful material without timestamps",
+        "Never create a contributor from an ordinary heading, phrase, sentence, or professor mentioned in text",
+        "Represent a changed thesis recommendation after new CV evidence",
+        "Distinguish original candidate topics from later concerns about evidence and robustness",
+        "Keep ambiguous passage authors as null despite a two-person participant constraint"
+      ],
+      "should_not": [
+        "Create contributors named 三份方向分得很开 or LLM 自己给的区间",
+        "Assume all copied text was written by the importer",
+        "Invent timestamps or claim every paragraph has an identified speaker"
+      ]
+    },
+    {
+      "name": "Explicit two-person conversation",
+      "fixture": "fixtures/02_thesis_explicit_two_speakers.txt",
+      "should": [
+        "Exactly two verified speakers: Me and Claude",
+        "Keep Aron and Mats as mentioned names, not contributors",
+        "Link changed recommendation to new CV evidence where supported",
+        "Retain source text and message order"
+      ]
+    },
+    {
+      "name": "Copied webpage with irrelevant site notice",
+      "fixture": "fixtures/03_webpage_copy_messy.txt",
+      "should": [
+        "Make Grow the tree available despite webpage warning",
+        "Prefer content ideas about packaging PEP discoverability",
+        "Preserve original webpage copy in archive",
+        "Explain missing-post uncertainty without refusing"
+      ],
+      "should_not": ["Treat navigation, statistics, or the site-wide maintenance announcement as the central idea", "Claim the text is all 39 original forum posts"]
+    },
+    {
+      "name": "Real four-person group chat",
+      "fixture": "fixtures/04_four_person_group_chat.txt",
+      "should": [
+        "Keep exactly four verified speakers: Ana Lind, Bo Berg, Cy Wang, Dina Ali",
+        "Keep Aron Larsson as a mentioned person only",
+        "Reconstruct movement from allergen-only idea to a bilingual lean checklist product",
+        "Preserve timestamps, quoted/reply metadata if present and idea provenance"
+      ]
+    },
+    {
+      "name": "Solo rough coffee business notes",
+      "fixture": "fixtures/05_unstructured_idea_notes.txt",
+      "should": [
+        "Produce useful idea tree without assigning a person or time without evidence",
+        "Preserve branches for fixed shop, mobile coffee cart, weekend popup",
+        "Represent rent, permits, weather, validation plan and later research needs",
+        "Allow stated vs inferred rationale inspection"
+      ]
+    },
+    {
+      "name": "Markdown and colon-rich prose are not speakers",
+      "fixture": "fixtures/06_markdown_false_speakers.txt",
+      "should": [
+        "Create zero confirmed contributors from body headings or colon-rich sentences",
+        "Preserve themes of model stability and evidence verification"
+      ],
+      "should_not": ["Create Aron Larsson or Mats as speakers", "Create contributors from Markdown titles", "Reject the input because no timestamps exist"]
+    },
+    {
+      "name": "Real public Discourse regression",
+      "external_source_url": "https://discuss.python.org/t/14111",
+      "should": [
+        "Preserve 39 posts and 12 original contributors when available from the public API",
+        "Retain author/time/reply metadata without AI overwriting",
+        "Never import unrelated global security banners as original discussion posts",
+        "Maintain distinctions among Category, Type, Track and separate index-page alternatives"
+      ]
+    }
+  ],
+  "cross_cutting": [
+    "Verbatim evidence quote matches the original or validated normalized source",
+    "No destructive rewrites of existing Gardens or the original archive",
+    "Stated link supported by explicit source evidence; inferred link marked as inferred",
+    "Failures degrade gracefully and preserve source material",
+    "Existing unit and integration tests remain passing",
+    "Tree colors only represent genuine authors; unknown is neutral"
+  ]
+}

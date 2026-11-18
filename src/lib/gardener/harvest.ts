@@ -13,7 +13,18 @@ export type HarvestMessage = {
   sentAt: string | null; content: string;
   /** which conversation it comes from, shown when several are read together */
   source?: string | null | undefined;
+  /** what kind of text it is, from the structure reading (src/lib/intake/semantic.ts) */
+  kind?: string | null | undefined;
+  /** for words with no known author: a probable voice, never confirmed and never credited */
+  likely?: string | null | undefined;
 };
+
+/** How a message's author is shown to the model: a known person, an AI that took part, or nobody known. */
+export function voiceLine(m: HarvestMessage): string {
+  const kind = m.kind && m.kind !== "message" && m.kind !== "note" ? ` [${m.kind}]` : "";
+  if (!m.personId) return `Unattributed${m.likely ? ` (possibly ${m.likely}, unconfirmed)` : ""}${kind}`;
+  return `${m.speaker ?? "Unattributed"}${m.personIsHuman ? "" : " (AI)"}${kind}`;
+}
 /** An idea already on the tree; `at` is when its first words were said, if known. */
 export type HarvestIdea = { key: string; label: string; note: string; by: string; parents: string[]; status: string; knot: boolean; at?: string | null | undefined };
 /** Messages are in the order they were said (see inTimeOrder); their position is their order. */
@@ -64,10 +75,10 @@ const MAX_CANDIDATES = 40;
 
 /** Stage 1: extract atomic, verbatim-grounded claims without inventing their causal relationships. */
 export function thoughtCandidatePrompt(input: HarvestInput): { system: string; user: string } {
-  const messages = input.messages.map(m => `${m.ref} [${when(m.sentAt)}] ${m.speaker ?? "Unattributed"}: ${m.content.replace(/\s*\n\s*/g, " / ")}`).join("\n");
+  const messages = input.messages.map(m => `${m.ref} [${when(m.sentAt)}] ${voiceLine(m)}: ${m.content.replace(/\s*\n\s*/g, " / ")}`).join("\n");
   const already = input.ideas.map(i => `${i.key}: ${i.label} (${clip(i.note, 100)})`).join("\n");
   return {
-    system: `You are the first-pass reader of real recorded thought: a conversation, a transcript, notes, an article, a copied page or loose fragments, in any format. Lines marked Unattributed have no known author; their ideas still count. Ignore page furniture (menus, counters, announcements, lists of other pages). Extract individual consequential thought-events, NOT a topic summary and NOT a graph. Include distinct alternatives, objections to earlier ideas, constraints, meaningful revisions, explicit decisions and reported outcomes. Pure agreement without new content can be omitted. Quote the shortest verbatim continuous phrase of at most 20 words from the originating message; do not invent a quote or claim. Lines starting with ">" under "[quoting name]" are quoted from someone else: never quote them as this speaker's words. Keep the original chronological order. An opening question that only repeats the garden's root is not a new proposal. The second pass will determine influence and connections. Return JSON only: {"candidates":[{"origin":"m2","quote":"exact quoted words","kind":"proposal|alternative|objection|constraint|revision|decision|result","claim":"short faithful explanation"}]}. Up to 40; do not impose a minimum or fabricate ideas.`,
+    system: `You are the first-pass reader of real recorded thought: a conversation, a transcript, notes, an article, a copied page or loose fragments, in any format. Lines marked Unattributed have no known author; their ideas still count. "(possibly X, unconfirmed)" is only a hint about who may have said it: never treat it as the author. Lines marked [heading] or [quote] are titles or quoted words, not new claims by the speaker. People who are only talked about or cited are not speakers. Ignore page furniture (menus, counters, announcements, lists of other pages). Extract individual consequential thought-events, NOT a topic summary and NOT a graph. Include distinct alternatives, objections to earlier ideas, constraints, meaningful revisions, explicit decisions and reported outcomes. Pure agreement without new content can be omitted. Quote the shortest verbatim continuous phrase of at most 20 words from the originating message; do not invent a quote or claim. Lines starting with ">" under "[quoting name]" are quoted from someone else: never quote them as this speaker's words. Keep the original chronological order. An opening question that only repeats the garden's root is not a new proposal. The second pass will determine influence and connections. Return JSON only: {"candidates":[{"origin":"m2","quote":"exact quoted words","kind":"proposal|alternative|objection|constraint|revision|decision|result","claim":"short faithful explanation"}]}. Up to 40; do not impose a minimum or fabricate ideas.`,
     user: `Existing ideas (avoid re-proposing them verbatim):\n${already}\n\nConversation: ${input.conversationTitle}\nChronological messages:\n${messages}`,
   };
 }
@@ -107,7 +118,7 @@ Messages are listed in the order they were said, across every source. Order is e
 
 1. Ideas belong to people.
 - An idea is something a person said that others could build on: a proposal, claim, question, option, decision, correction or explanation. Small talk, greetings, thanks and plain agreement are not ideas.
-- Every idea has an "origin": the ref of the message where it is first said. The author is whoever wrote that message: a person, or an AI that took part in the conversation (marked "(AI)"), or nobody known (marked "Unattributed": notes, articles, fragments). Never guess an author; unattributed ideas are kept and credited to no one. Words that are clearly page furniture (menus, post counters, announcements, lists of other topics) are not ideas. You, the gardener, never add ideas of your own.
+- Every idea has an "origin": the ref of the message where it is first said. The author is whoever wrote that message: a person, or an AI that took part in the conversation (marked "(AI)"), or nobody known (marked "Unattributed": notes, articles, fragments). Never guess an author; unattributed ideas are kept and credited to no one, even when a line says "(possibly X, unconfirmed)". Lines marked [heading] or [quote] are titles or words quoted from others; people who are only talked about or cited (an author, a professor) are not speakers. Words that are clearly page furniture (menus, post counters, announcements, lists of other topics) are not ideas. You, the gardener, never add ideas of your own.
 - "quote": the shortest exact words (at most 20) from the origin message that carry the idea, copied character for character. Lines starting with ">" (under "[quoting name]") are words the speaker quoted from someone else: never quote them as the speaker's own, and never treat them as a new idea of that speaker.
 - "label": the idea as a short name, not a sentence, in the language of the discussion: at most 12 Chinese characters or 5 English words (hard limit 24 characters).
 - "note": one sentence, at most 30 words, saying what the idea is in the speaker's own terms. Do not improve, extend or judge it.
@@ -176,7 +187,7 @@ const when = (t: string | null | undefined) => (t ? t.slice(0, 16).replace("T", 
 export function harvestPrompt(input: HarvestInput): { system: string; user: string } {
   const tree = input.ideas.map((i) => `- ${i.key}: ${i.label}${i.note ? ` (${clip(i.note, 140)})` : ""}; by ${i.by}${i.at ? `, ${when(i.at)}` : ""}${i.parents.length ? `; grew from ${i.parents.join(", ")}` : "; the root"}${i.status === "dormant" ? "; resting" : ""}${i.knot ? "; knot" : ""}`).join("\n");
   const several = new Set(input.messages.map((m) => m.source ?? "")).size > 1;
-  const msgs = input.messages.map((m) => `${m.ref} [${when(m.sentAt)}]${several && m.source ? ` (${m.source})` : ""} ${m.speaker ?? "Unattributed"}${m.personIsHuman ? "" : " (AI)"}: ${m.content.replace(/\s*\n\s*/g, " / ")}`).join("\n");
+  const msgs = input.messages.map((m) => `${m.ref} [${when(m.sentAt)}]${several && m.source ? ` (${m.source})` : ""} ${voiceLine(m)}: ${m.content.replace(/\s*\n\s*/g, " / ")}`).join("\n");
   const root = input.nameRoot ? `
 
 This garden is new: its root "${input.rootKey}" is only a placeholder. Also return "root": {"label": the question or subject the group keeps coming back to, as a short name (same limits as idea labels), "note": one sentence, "origin": the ref of the message where a person first raised it, or null when it is the group's shared subject rather than one person's words}. Ideas that start a thread still grow from "${input.rootKey}".` : "";

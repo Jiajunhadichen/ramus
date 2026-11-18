@@ -1,0 +1,26 @@
+Skip to main content
+Log In
+Forum-wide notice: This site is undergoing maintenance. Some links may not work.
+
+Splitting out the packaging PEPs, on the PEP site
+Packaging
+2.9k views
+44 likes
+12 users
+1 / 39
+
+Top replies
+post by Pradyun on March 8
+post by Gerlach on March 8
+post by Coghlan on March 21
+
+Pradyun Gedam: Packaging PEPs would be easier to discover through a dedicated index.
+C.A.M. Gerlach: There are several implementation options: Type, Category, or Track. The metadata should remain maintainable.
+Alyssa Coghlan: Separate topic index pages would avoid changing the main PEP page.
+Paul Moore: Existing PEP-number links should not break.
+Pradyun Gedam: We have consensus on the Track field and the separate index. The page is now live.
+
+Suggested Topics
+Replies  Views  Activity
+Read more
+Reply

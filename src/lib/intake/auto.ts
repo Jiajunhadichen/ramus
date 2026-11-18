@@ -6,7 +6,11 @@ import { prepare, type Draft, type Format, type PrepareContext, type PrepareInpu
  */
 export type AutoEnv = { timeZone: string; dateOrder: "DMY" | "MDY" };
 /** What the person may add on their own (never asked for): the day of a chat with clock times only, or when a recording started. */
-export type AutoExtra = { conversationDate?: string | null | undefined; recordingStart?: string | null | undefined };
+export type AutoExtra = {
+  conversationDate?: string | null | undefined; recordingStart?: string | null | undefined;
+  /** who speaks in this source, if the person cares to say (restricts voices; never assigns words without evidence) */
+  knownVoices?: string[] | undefined;
+};
 export type Auto = { draft: Draft; options: PrepareOptions; notes: string[] };
 
 export const MAX_EXPORT_CONVERSATIONS = 20;
@@ -15,6 +19,8 @@ export function prepareAuto(input: PrepareInput, env: AutoEnv, ctx: PrepareConte
   const options: PrepareOptions = { timeZone: env.timeZone, dateOrder: env.dateOrder };
   if (extra.conversationDate) options.conversationDate = extra.conversationDate;
   if (extra.recordingStart) options.recordingStart = extra.recordingStart;
+  const known = (extra.knownVoices ?? []).map((v) => v.trim()).filter(Boolean).slice(0, 20);
+  if (known.length) options.knownVoices = known;
   const notes: string[] = [];
   let draft = prepare(input, options, ctx);
   // an AI-assistant export: its conversations, or the most recent ones when there are many

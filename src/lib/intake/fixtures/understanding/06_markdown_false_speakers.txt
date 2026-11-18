@@ -1,0 +1,16 @@
+# 模型稳定性
+
+### 三份方向分得很开
+
+模型评价：同一个 prompt 多次运行是否稳定？
+LLM 自己给的区间：它表示模型的不确定还是文本自身的模糊？
+论文没有试图打开黑箱，而是通过 MCDA 权重和证据表限制黑箱影响。
+
+**作者明确提及的未来研究**
+
+1. 多案例测试
+2. 跨模型复现
+3. 验证引用证据
+
+Aron Larsson 提到了论文，但他在这段材料里不是发言人。
+Mats is an author cited in the text, not a speaker in the conversation.
