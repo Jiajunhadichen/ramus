@@ -1,0 +1,39 @@
+# 瑞典硕士论文选题讨论摘录
+
+先说个前提：这38个题目没有一个直接对口 Azure 管理员。按三条标准筛选：能按时完成、面试能讲、与瑞典行业有连接。
+
+### 第一推荐：Aron Larsson — Travel-time and accessibility calculations
+这类题更偏工程计算和开放数据，可用 Python 与 Azure 做部署实验。
+
+### 第二推荐：Multi-criteria decision modelling with LLMs
+先前的排序是第三。看了三份简历后，判断需要调整：用户具有 AI agent、MCP 和 Azure 经验，而论文可以把决策分析、人类审批、工具调用贯穿起来。
+
+这是我的三个简历。结合这些背景，你觉得哪个论文更好？
+
+**新的排序**
+1. Multi-criteria decision modelling with LLMs
+2. Travel-time and accessibility calculations
+3. Speculative tool calling for retrieval
+
+### 论文已经证实了什么？
+作者仅做了一次运行和一个案例。31 个明确高低关系和专家组一致，43/57 个比较完全一致。更值得研究的还是可复现性、证据表核验、准则自动发现。
+
+### 作者明确提出的未来工作
+- 多案例；重复运行；不同提示词；更多 MCDA 方法。
+- 更复杂的方案和准则结构。
+
+我想把这些结论直接讲给 Aron，帮我写成自然、简短的英语。
+
+“LLM prepares the information, but the transparent MCDA tool makes the value judgments.”
+
+还要补充一条：只有一次运行，所以我们无法区分区间宽度到底是因为材料模糊还是模型不稳定。
+
+**引用：**“The criteria were provided in advance.”
+这句话是被讨论的研究设置，不是一个人的名字。
+
+以下都是普通论点，绝不是说话者的姓名：
+三份方向分得很开：商业、教学、技术。
+LLM 自己给的区间，和多次运行得到的区间并不相同。
+论文没有试图打开黑箱，而是用架构把它的影响限制住。
+
+来源上下文：这是用户与 Claude 的来回讨论，但这个 TXT 摘录没有逐条明确的作者标签。不能因为知道成员是 Me/Claude 就把任意段落强制归属一方；不确定就 Unknown。

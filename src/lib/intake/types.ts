@@ -33,6 +33,12 @@ export type PrepareOptions = {
   /** "all" or the exact matches to mask */
   mask?: "all" | string[] | undefined;
   voices?: Record<string, Voice> | undefined;
+  /**
+   * Who speaks in this source, as the person said it (optional, never asked for). It only restricts:
+   * no other label becomes a voice, and nothing is assigned to these names without evidence. One name
+   * on notes says who wrote them (user_supplied); several names leave unlabeled words unattributed.
+   */
+  knownVoices?: string[] | undefined;
 };
 
 export type PrepareInput = { kind: "text" | "json"; text: string; fileName?: string | undefined; files?: { name: string; text: string }[] | undefined };

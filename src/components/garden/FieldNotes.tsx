@@ -105,7 +105,10 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
       {suggested && (
         <section aria-label="The gardener’s suggestion" className="grid gap-2  border border-rule p-3">
           <p className="eyebrow">The gardener’s suggestion</p>
-          <p className="text-ui">The gardener read the conversation and thinks <span style={{ color: idea.color }}>{idea.by}</span> raised this here. People decide.</p>
+          <p className="text-ui">{idea.contributorId
+            ? <>The gardener read the conversation and thinks <span style={{ color: idea.color }}>{idea.by}</span> raised this here. People decide.</>
+            : <>The gardener read the words and thinks this is raised here. No one is named as its author. People decide.</>}</p>
+          <Attribution idea={idea} />
           {idea.suggestion?.why && <p className="hand text-ui"><Upright>{idea.suggestion.why}</Upright></p>}
           {idea.suggestion?.knot && <p className="text-ui"><span className="hand text-note">It may have settled · </span><Upright>{idea.suggestion.knot.settled}</Upright></p>}
           <div className="flex flex-wrap gap-2">
@@ -117,7 +120,10 @@ export function FieldNotes({ data, ideas, idea, currentStep, onSelect, onChanged
       )}
       {!suggested && idea.suggestion && (
         <section aria-label="Placed by the gardener" className="grid gap-1.5 border-l border-rule pl-3 text-ui">
-          <p className="hand text-ui">The gardener placed this from what <span style={{ color: idea.color }}>{idea.by}</span> said.{idea.suggestion.why ? <> <Upright>{idea.suggestion.why}</Upright></> : null}</p>
+          <p className="hand text-ui">{idea.contributorId
+            ? <>The gardener placed this from what <span style={{ color: idea.color }}>{idea.by}</span> said.</>
+            : <>The gardener placed this from words with no known author.</>}{idea.suggestion.why ? <> <Upright>{idea.suggestion.why}</Upright></> : null}</p>
+          <Attribution idea={idea} />
           <div><button type="button" className="text-note text-muted-foreground underline underline-offset-4 hover:text-foreground"
             onClick={() => run(() => suggestFn({ data: { gardenId: data.garden.id, key: idea.id, accept: false } }), "Taken off the tree. It stays in the record.")}>Not right? Take it off the tree</button></div>
         </section>
@@ -432,4 +438,17 @@ function KnotDialog({ submit, onClose }: { submit: (t: string, kind: Kind) => Pr
       </form>
     </Shell>
   );
+}
+
+/** How Ramus knows who said it: never more certain than the source. A probable voice is only a hint and is not coloured. */
+const KNOWN_BY: Record<string, string> = {
+  source_metadata: "Who said it comes from the source itself.",
+  explicit_header: "Who said it is written in the words (a name before the line).",
+  user_supplied: "Who wrote it is what you said when bringing it in.",
+};
+function Attribution({ idea }: { idea: Idea }) {
+  const a = idea.suggestion?.attribution;
+  if (!a) return null;
+  if (idea.contributorId) return KNOWN_BY[a.basis] ? <p className="text-note text-muted-foreground">{KNOWN_BY[a.basis]}</p> : null;
+  return <p className="text-note text-muted-foreground">{a.likely ? `Possibly ${a.likely}, but the words do not say so: it stays unattributed and uncoloured.` : "The words do not say who said it, so Ramus does not guess."}</p>;
 }

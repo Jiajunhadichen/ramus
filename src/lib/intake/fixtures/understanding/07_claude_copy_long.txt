@@ -1,0 +1,59 @@
+我在斯德哥尔摩读数据科学硕士，下面是 38 个论文题目，帮我挑三个最适合找工作的。
+
+先说个前提：这38个题目没有一个直接对口 Azure 管理员。我按三条标准筛选：能按时完成、面试能讲、与瑞典行业有连接。
+
+### 三份方向分得很开
+
+商业：Multi-criteria decision modelling with LLMs
+教学：Learning analytics for programming courses
+技术：Travel-time and accessibility calculations
+
+理由：工程题最容易在面试里讲清楚。
+风险：开放数据质量不稳定。
+
+**第一推荐：Travel-time and accessibility calculations**
+理由：可以用 Python 和 Azure 做部署实验。
+风险：和决策分析的连接比较弱。
+
+这是我的三个简历。结合这些背景，你觉得哪个论文更好？
+
+看了三份简历后，判断需要调整。
+
+### 三份方向分得很开
+
+你的简历其实也分成三条线：商业分析、少儿编程教学、云与 AI agent。
+
+**新的排序**
+1. Multi-criteria decision modelling with LLMs
+2. Travel-time and accessibility calculations
+3. Speculative tool calling for retrieval
+
+理由：你已经做过 AI agent、MCP 和人工审批，论文可以把决策分析、人类审批、工具调用贯穿起来。
+风险：需要读懂 MCDA 的方法论。
+
+Aron Larsson 的这篇论文到底还有什么没解决的问题？
+
+### 论文已经证实了什么？
+
+作者仅做了一次运行和一个案例。31 个明确高低关系和专家组一致，43/57 个比较完全一致。
+
+LLM 自己给的区间：它表示模型的不确定，还是文本自身的模糊？
+论文没有试图打开黑箱，而是：用 MCDA 权重和证据表限制黑箱的影响。
+
+### 作者明确提出的未来工作
+
+- 多案例；重复运行；不同提示词；更多 MCDA 方法。
+- 更复杂的方案和准则结构。
+
+所以只有一次运行，我们无法区分区间宽度到底是因为材料模糊还是模型不稳定？
+
+对。LLM 自己给的区间：和多次运行得到的区间并不相同，这是你可以做的第一件事。
+论文没有试图打开黑箱，而是：把它关进一个透明的流程里。
+
+我想把这些结论直接讲给 Aron，帮我写成自然、简短的英语。
+
+“LLM prepares the information, but the transparent MCDA tool makes the value judgments.”
+
+Mats 是这篇论文的作者之一吗？
+
+是的，Mats 是作者之一，但他不在这个对话里。

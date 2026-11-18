@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 
 export type GrowScope = { batchIds?: string[]; conversationIds?: string[] };
 export type GrowProgress = { part: number; of: number };
-export type Grown = { grown: number; parts: number; root: string | null };
+export type Grown = { grown: number; parts: number; root: string | null; unattributed: number; setAside: number };
 
 /** The gardener reads everything in scope, part after part, and grows the tree. */
 export function useGrow() {
@@ -17,21 +17,26 @@ export function useGrow() {
   return async function run(gardenId: string, scope: GrowScope, opts: { nameRoot?: boolean; nameGarden?: boolean; resumeFrom?: string | null; told?: string | null; from?: number; onProgress?: (p: GrowProgress) => void; onPartDone?: (partsDone: number) => void } = {}): Promise<Grown> {
     let part = opts.from ?? 0, of = Math.max(1, part + 1), grown = 0;
     let root: string | null = null;
+    let unattributed = 0, setAside = 0;
     do {
       opts.onProgress?.({ part: part + 1, of });
       const first = part === 0;
       const r = await grow({ data: { gardenId, ...scope, part, nameRoot: first && !!opts.nameRoot, nameGarden: first && !!opts.nameGarden, resumeFrom: first ? opts.resumeFrom ?? null : null, told: first ? opts.told ?? null : null } });
       of = r.parts; grown += r.grown; root ??= r.root;
+      unattributed += r.understanding?.unattributed ?? 0; setAside += r.understanding?.setAside ?? 0;
       part++;
       opts.onPartDone?.(part);
     } while (part < of);
     await qc.invalidateQueries({ queryKey: ["garden", gardenId] });
     await qc.invalidateQueries({ queryKey: ["gardens"] });
-    return { grown, parts: of, root };
+    return { grown, parts: of, root, unattributed, setAside };
   };
 }
 
-export const grownLine = (n: number) => (n ? `The tree grew ${n} branch${n === 1 ? "" : "es"}.` : "The gardener found no ideas to grow from this.");
+export const grownLine = (n: number, read?: { unattributed?: number; setAside?: number }) =>
+  (n ? `The tree grew ${n} branch${n === 1 ? "" : "es"}.` : "The gardener found no ideas to grow from this.")
+  + (read?.unattributed ? ` ${read.unattributed} passage${read.unattributed === 1 ? " has" : "s have"} no named author and stay${read.unattributed === 1 ? "s" : ""} unattributed.` : "")
+  + (read?.setAside ? " Page text was left out of the reading; the original is kept whole." : "");
 
 type Conv = { id: string; title: string };
 
@@ -55,7 +60,7 @@ export function GardenerPanel({ gardenId, conversations, suggested, readConversa
   }
   async function read(c: Conv) {
     setReading({ part: 1, of: 1 });
-    try { toast.success(grownLine((await grow(gardenId, { conversationIds: [c.id] }, { onProgress: setReading })).grown)); }
+    try { const g = await grow(gardenId, { conversationIds: [c.id] }, { onProgress: setReading }); toast.success(grownLine(g.grown, g)); }
     catch (e) { toast.error((e as Error).message); }
     finally { setReading(null); }
   }

@@ -10,6 +10,7 @@ import { nextColor } from "./stam/palette";
 import { checkHarvest, harvestPrompt, parseAnswer, thoughtCandidatePrompt, checkThoughtCandidates } from "./gardener/harvest";
 import { inTimeOrder, parts } from "./gardener/order";
 import { askGardener } from "./gardener/ai";
+import { checkUnderstanding, deterministicReading, forGardener, needsUnderstanding, understandingPrompt, understandingSummary, type AttributionBasis, type SemanticNormalization } from "./intake/semantic";
 import sample from "../../docs/sample-garden.json";
 
 type DB = SupabaseClient<Database>;
@@ -234,7 +235,7 @@ export const getGarden = createServerFn({ method: "GET" })
     const liveIds = new Set(ideas.map((i: { id: string }) => i.id));
     const liveLinks = links.filter((l: { parent_id: string; child_id: string }) => liveIds.has(l.parent_id) && liveIds.has(l.child_id));
     const proposed = check(await supabase.from("events").select("idea_id,payload").eq("garden_id", data.id).eq("actor_kind", "ai").eq("type", "idea_created"));
-    const suggestions = Object.fromEntries(proposed.filter((e) => e.idea_id && liveIds.has(e.idea_id)).map((e) => [e.idea_id!, e.payload as { why?: string | null; quote?: string | null; knot?: { kind: string; settled: string } | null; conversation_id?: string }]));
+    const suggestions = Object.fromEntries(proposed.filter((e) => e.idea_id && liveIds.has(e.idea_id)).map((e) => [e.idea_id!, e.payload as { why?: string | null; quote?: string | null; knot?: { kind: string; settled: string } | null; conversation_id?: string; basis?: "stated" | "inferred"; attribution?: { basis: string; likely?: string | null } }]));
     // which conversations the gardener has read, even where it found nothing to grow
     const readings = check(await supabase.from("events").select("idea_id,payload").eq("garden_id", data.id).eq("actor_kind", "ai").eq("type", "idea_edited"));
     const readConversationIds = [...new Set([
@@ -598,7 +599,7 @@ export const growTree = createServerFn({ method: "POST" })
     // Bounded chronological readings: smaller discussions no longer become one generic summary.
     const all = parts(stream, 24000, 14);
     const range = all[data.part];
-    if (!range) return { grown: 0, dropped: [], part: data.part, parts: all.length, read: 0, model: null, root: null };
+    if (!range) return { grown: 0, dropped: [], part: data.part, parts: all.length, read: 0, model: null, root: null, understanding: null };
     const slice = stream.slice(range.from, range.to);
 
     // the tree as it stands, with when each idea's first words were said
@@ -615,11 +616,39 @@ export const growTree = createServerFn({ method: "POST" })
     const rootRow = live.find((i) => i.key === root.key)!;
     const nameRoot = !!data.nameRoot && data.part === 0 && live.length === 1;
 
-    const messages = slice.map((m, i) => {
+    const titles = [...new Set(convIds.map((c) => titleOf.get(c)).filter(Boolean))];
+    // how each source was read, and who the person said speaks in it (optional, restrictive only)
+    const batchIdsRead = [...new Set(slice.map((m) => m.batch_id).filter((x): x is string => !!x))];
+    const batches = batchIdsRead.length ? check(await supabase.from("intake_batches").select("id,source_format,options").in("id", batchIdsRead)) : [];
+    const formatOf = new Map(batches.map((b) => [b.id, b.source_format]));
+    const knownVoices = [...new Set(batches.flatMap((b) => {
+      const v = (b.options as { knownVoices?: unknown } | null)?.knownVoices;
+      return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && !!x.trim()) : [];
+    }))];
+    const TRUSTED = new Set(["whatsapp", "chatgpt", "claude", "slack", "discourse", "vtt", "srt"]);
+    const basisOf = (m: (typeof slice)[number]): AttributionBasis => {
+      if (!m.contributor_id) return "unknown";
+      const f = m.batch_id ? formatOf.get(m.batch_id) : undefined;
+      return f === "notes" ? "user_supplied" : f && TRUSTED.has(f) ? "source_metadata" : "explicit_header";
+    };
+    const heard = slice.map((m, i) => {
       const p = m.contributor_id ? person.get(m.contributor_id) : undefined;
       return { ref: `m${i + 1}`, id: m.id, speaker: p?.name ?? m.speaker_label ?? null, personId: p?.id ?? null, personIsHuman: p?.kind === "person", sentAt: m.time_precision !== "unknown" ? m.sent_at : null, content: m.content, source: titleOf.get(m.conversation_id) ?? null };
     });
-    const titles = [...new Set(convIds.map((c) => titleOf.get(c)).filter(Boolean))];
+    // loose material (notes, copied pages, unlabeled chats) is first read for its structure; exports and timed chats are trusted as they are
+    const semanticInput = { messages: heard.map((m, i) => ({ ref: m.ref, id: m.id, content: m.content, speaker: m.personId ? m.speaker : null, basis: basisOf(slice[i]!), sentAt: m.sentAt })), knownVoices, title: titles.join("; ") };
+    const loose = needsUnderstanding(slice.map((m) => (m.batch_id ? formatOf.get(m.batch_id) ?? "notes" : "notes")), semanticInput.messages);
+    let reading: SemanticNormalization = deterministicReading(semanticInput);
+    if (loose) {
+      const u = understandingPrompt(semanticInput);
+      // if the structure reading fails, the words are read as they are: nothing brought in is lost
+      reading = await askGardener(u.system, u.user)
+        .then((r) => checkUnderstanding(parseAnswer(r.text), semanticInput, r.model))
+        .catch(() => deterministicReading(semanticInput, ["The structure reading was not available; the words were read as they are."]));
+    }
+    const messages = (loose ? forGardener(heard, reading).messages : heard).map((m, i) => ({ ...m, ref: `m${i + 1}` }));
+    const likelyOf = new Map(reading.passages.filter((p) => p.likely).map((p) => [p.messageId, p.likely!]));
+    const understanding = understandingSummary(reading);
     // where the people say it picks up again, and what they told the gardener (first part only)
     const resumeFrom = data.part === 0 && data.resumeFrom && live.some((i) => i.key === data.resumeFrom) ? data.resumeFrom : null;
     const input = { gardenTitle: garden.title, conversationTitle: titles.join("; "), rootKey: root.key, ideas, messages, skipped: 0, part: { n: data.part + 1, of: all.length }, nameRoot, resumeFrom, told: data.part === 0 ? data.told ?? null : null };
@@ -697,7 +726,7 @@ export const growTree = createServerFn({ method: "POST" })
     if (!proposals.length) {
       await writeThoughts(supabase, thoughts);
       await noteReading();
-      return { grown: 0, dropped, part: data.part, parts: all.length, read: slice.length, model: asked.model, root: rootName?.label ?? null };
+      return { grown: 0, dropped, part: data.part, parts: all.length, read: slice.length, model: asked.model, root: rootName?.label ?? null, understanding };
     }
 
     // keys and steps
@@ -726,7 +755,12 @@ export const growTree = createServerFn({ method: "POST" })
     // the audit log: the gardener placed these, at whose request, and why
     check(await supabase.from("events").insert(proposals.map((p) => ({
       garden_id: data.gardenId, actor: userId, actor_kind: "ai" as const, type: "idea_created" as const, idea_id: dbOf(p),
-      payload: { placed_by_gardener: true, conversation_id: slice.find((m) => m.id === p.originMessageId)?.conversation_id ?? null, label: p.label, why: p.why, quote: p.quote, knot: p.knot, model: asked.model } as never,
+      payload: {
+        placed_by_gardener: true, conversation_id: slice.find((m) => m.id === p.originMessageId)?.conversation_id ?? null, label: p.label, why: p.why, basis: p.basis, quote: p.quote, knot: p.knot, model: asked.model,
+        // who said it, and how Ramus knows: a probable voice is recorded as a hint, never as the author
+        attribution: p.personId ? { basis: basisOf(slice.find((m) => m.id === p.originMessageId)!) } : { basis: "unknown", likely: likelyOf.get(p.originMessageId) ?? null },
+        understanding: { version: reading.version, model: reading.model, fallback: reading.fallback, source_kind: reading.sourceKind },
+      } as never,
     }))));
     // the discussion history, at the times the words were said
     for (const p of proposals) {
@@ -740,12 +774,12 @@ export const growTree = createServerFn({ method: "POST" })
     }
     await writeThoughts(supabase, thoughts);
     await noteReading();
-    return { grown: proposals.length, dropped, part: data.part, parts: all.length, read: slice.length, model: asked.model, root: rootName?.label ?? null };
+    return { grown: proposals.length, dropped, part: data.part, parts: all.length, read: slice.length, model: asked.model, root: rootName?.label ?? null, understanding };
 
     /** After the last part: the audit log says what the gardener read, so it is not offered again. */
     async function noteReading() {
       if (data.part !== all.length - 1) return;
-      check(await supabase.from("events").insert({ garden_id: data.gardenId, actor: userId, actor_kind: "ai", type: "idea_edited", idea_id: rootRow.id, payload: { read: { conversation_ids: convIds, batch_ids: data.batchIds ?? [], parts: all.length, model: asked.model } } as never }));
+      check(await supabase.from("events").insert({ garden_id: data.gardenId, actor: userId, actor_kind: "ai", type: "idea_edited", idea_id: rootRow.id, payload: { read: { conversation_ids: convIds, batch_ids: data.batchIds ?? [], parts: all.length, model: asked.model, understanding } } as never }));
     }
   });
 

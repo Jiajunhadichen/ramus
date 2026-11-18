@@ -1,5 +1,6 @@
 import type { DraftMessage, Hidden } from "./types";
 import { plain, toLines, ws, zonedToUtc, type Line } from "./util";
+import { nameShape } from "./names";
 
 export type Unit = Omit<DraftMessage, "segment" | "externalId"> & { externalId?: string };
 
@@ -336,36 +337,74 @@ function lineLabel(text: string) {
   return { label, clock: m[2] ?? null, len: m[0].length };
 }
 
+/** Labels that name a participant in so many chats that two uses are enough: the copier, the AI. */
+const SELF_OR_AI = /^(?:me|you|i|我|du|jag|claude|chatgpt|gpt(?:-?[\d.o]+)?|gemini|copilot|assistant|user|human|ai)$/i;
+
+export type NameLines = { speakers: Set<string>; doubtful: string[]; labeled: number; filled: number };
+
 /**
- * A short exchange ("Ana: …" / "Bo: …") where some people speak only once: labels count as speakers when
- * at least two different name-like labels start most of the lines.
+ * Which "Label: words" labels are people speaking. Evidence, strongest first:
+ * the person's own list (knownVoices: nothing else can speak), people already in the garden or confirmed,
+ * then the text itself — a document made of name lines, a run of real names (a copied forum), or a
+ * multi-word name or AI/self label used more than once. Headings, phrases and sentences never qualify
+ * (names.ts), and a word before a colon in ordinary prose is not a speaker.
  */
-export function shortExchange(raw: string): Set<string> {
-  const filled = toLines(raw).filter((l) => plain(l.text).trim()).length;
-  const counts = lineLabels(raw);
-  const names = [...counts.entries()].filter(([l]) => /^[\p{L}]/u.test(l) && l.split(/\s+/).length <= 3 && !OFTEN_NOT_PEOPLE.includes(l.toLowerCase()));
-  const covered = names.reduce((a, [, n]) => a + n, 0);
-  return names.length >= 2 && covered * 2 >= filled ? new Set(names.map(([l]) => l)) : new Set();
+export function nameLines(raw: string, known: Set<string> = new Set(), arePeople: string[] = [], notAPerson: string[] = [], only: string[] = []): NameLines {
+  const yes = new Set(arePeople.map((s) => s.toLowerCase())), no = new Set(notAPerson.map((s) => s.toLowerCase()));
+  const allowed = new Set(only.map((s) => s.trim().toLowerCase()).filter(Boolean));
+  const lines = toLines(raw).filter((l) => plain(l.text).trim());
+  const labels = lines.map((l) => lineLabel(l.text)?.label ?? null);
+  const counts = new Map<string, number>();
+  for (const l of labels) if (l) counts.set(l, (counts.get(l) ?? 0) + 1);
+  const speakers = new Set<string>();
+  const doubtful: string[] = [];
+  const shape = new Map([...counts.keys()].map((l) => [l, nameShape(l)]));
+  if (allowed.size) {
+    // the person said who speaks here: only those labels (or "you"/"我" for "me") are voices
+    for (const l of counts.keys()) {
+      const k = l.toLowerCase();
+      if (!no.has(k) && (allowed.has(k) || (allowed.has("me") && /^(?:you|我|i|jag)$/i.test(l)))) speakers.add(l);
+    }
+  } else {
+    const candidate = (l: string) => {
+      const k = l.toLowerCase();
+      if (no.has(k)) return false;
+      if (OFTEN_NOT_PEOPLE.includes(k) && !yes.has(k)) { if ((counts.get(l) ?? 0) >= 2) doubtful.push(l); return false; }
+      return yes.has(k) || known.has(k) || shape.get(l) !== "no";
+    };
+    const cands = [...counts.keys()].filter(candidate);
+    const covered = labels.filter((l) => l && cands.includes(l)).length;
+    // 1. the document is an exchange of name lines (Ana: … / Bo: …), so every name-shaped label speaks
+    if (cands.length >= 2 && covered * 2 >= lines.length) for (const l of cands) speakers.add(l);
+    // 2. otherwise only strong evidence: confirmed names, a multi-word name or an AI/self label used twice
+    for (const l of cands) {
+      const k = l.toLowerCase(), n = counts.get(l) ?? 0;
+      if (yes.has(k) || known.has(k)) speakers.add(l);
+      else if (n >= 2 && shape.get(l) === "name" && (l.trim().split(/\s+/).length >= 2 || SELF_OR_AI.test(l))) speakers.add(l);
+    }
+    // 3. a run of three or more lines in a row that each start with a real name, one of them speaking again (a copied forum)
+    for (let i = 0; i < labels.length; ) {
+      let j = i;
+      while (j < labels.length && labels[j] && shape.get(labels[j]!) === "name" && candidate(labels[j]!)) j++;
+      const run = labels.slice(i, j) as string[];
+      if (run.length >= 3 && new Set(run).size >= 2 && run.some((l, x) => run.indexOf(l) !== x || speakers.has(l))) for (const l of run) speakers.add(l);
+      i = Math.max(j, i + 1);
+    }
+  }
+  return { speakers, doubtful: [...new Set(doubtful)], labeled: labels.filter((l) => l && speakers.has(l)).length, filled: lines.length };
 }
+
+/** @deprecated kept for callers outside intake; same evidence as nameLines. */
+export function shortExchange(raw: string): Set<string> { return nameLines(raw).speakers; }
 export function lineLabels(raw: string): Map<string, number> {
   const counts = new Map<string, number>();
   for (const l of toLines(raw)) { const x = lineLabel(l.text); if (x) counts.set(x.label, (counts.get(x.label) ?? 0) + 1); }
   return counts;
 }
 
-export function speakerSet(raw: string, known: Set<string>, arePeople: string[], notAPerson: string[]) {
-  const yes = new Set(arePeople.map((s) => s.toLowerCase())), no = new Set(notAPerson.map((s) => s.toLowerCase()));
-  const speakers = new Set<string>();
-  const doubtful: string[] = [];
-  const short = shortExchange(raw);
-  for (const [label, n] of lineLabels(raw)) {
-    const k = label.toLowerCase();
-    if (!(n >= 2 || known.has(k) || short.has(label))) continue;
-    if (no.has(k)) continue;
-    if (OFTEN_NOT_PEOPLE.includes(k) && !yes.has(k)) { doubtful.push(label); continue; }
-    speakers.add(label);
-  }
-  return { speakers, doubtful };
+export function speakerSet(raw: string, known: Set<string>, arePeople: string[], notAPerson: string[], only: string[] = []) {
+  const r = nameLines(raw, known, arePeople, notAPerson, only);
+  return { speakers: r.speakers, doubtful: r.doubtful };
 }
 
 export function parseLines(raw: string, speakers: Set<string>, tz: string, conversationDate: string | null): Unit[] {

@@ -70,7 +70,7 @@ function AccessionPage() {
   const [reading, setReading] = useState(false);
   async function read(batchId: string) {
     setReading(true);
-    try { toast.success(grownLine((await grow(id, { batchIds: [batchId] })).grown)); return true; }
+    try { const g = await grow(id, { batchIds: [batchId] }); toast.success(grownLine(g.grown, g)); return true; }
     catch (e) { toast.error((e as Error).message); return false; }
     finally { setReading(false); }
   }

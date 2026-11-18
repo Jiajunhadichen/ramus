@@ -153,10 +153,15 @@ describe("transcripts and lines", () => {
     expect(d.messages.map((m) => m.speakerLabel)).toEqual(["Ana", "Bo", "Ana", "Bo"]);
     expect(prepare({ kind: "text", text: raw }, { arePeople: ["Q"] }, ctx).messages.map((m) => m.speakerLabel)).toEqual(["Ana", "Q", "Bo", "Q", "Ana", "Bo"]);
   });
-  it("notes: one message per paragraph, all from the importer", () => {
+  it("notes: one message per paragraph, credited to no one unless the person says who wrote them", () => {
     const d = run("notes.txt");
     expect(d.messages.map((m) => m.content)).toEqual(["First thought about the garden.\nStill the first.", "Second paragraph.", "Third."]);
-    expect(resolveVoices(d, {}).get("")).toEqual({ type: "person", id: "p-me" });
+    // bringing words in does not make them yours
+    expect(resolveVoices(d, {}).get("")).toEqual({ type: "none" });
+    expect(d.questions.some((q) => q.kind === "unknown-voice")).toBe(false);
+    // one known voice on notes is the person saying who wrote them
+    const mine = run("notes.txt", { knownVoices: ["Me"] });
+    expect(resolveVoices(mine, {}).get("")).toEqual({ type: "person", id: "p-me" });
   });
 });
 
