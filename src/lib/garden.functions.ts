@@ -425,6 +425,33 @@ export const setIdeaContributor = createServerFn({ method: "POST" })
     return { ok: true, changed: true };
   });
 
+/**
+ * Correct a voice everywhere at once: rename it, or — when the new name is someone already in the garden —
+ * move all of its ideas to that person. Colours follow; the archive's messages keep pointing where they did.
+ */
+export const renameContributor = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { gardenId: string; contributorId: string; name: string }) => {
+    const name = typeof d.name === "string" ? d.name.trim().slice(0, 60) : "";
+    if (!name) fail("Give a name.");
+    return { gardenId: d.gardenId, contributorId: d.contributorId, name };
+  })
+  .handler(async ({ data, context }) => {
+    const all = check(await context.supabase.from("contributors").select("id,name").eq("garden_id", data.gardenId));
+    const me = all.find((c) => c.id === data.contributorId);
+    if (!me) fail("That person is not in this garden.");
+    const other = all.find((c) => c.id !== me.id && c.name.toLowerCase() === data.name.toLowerCase());
+    if (!other) {
+      check(await context.supabase.from("contributors").update({ name: data.name }).eq("id", me.id));
+      await logEvent(context, data.gardenId, "idea_edited", null, { contributor_renamed: { id: me.id, before: me.name, after: data.name }, attribution: { basis: "user_corrected" } });
+      return { renamed: true, merged: 0 };
+    }
+    const moved = check(await context.supabase.from("ideas").select("id").eq("garden_id", data.gardenId).eq("contributor_id", me.id));
+    if (moved.length) check(await context.supabase.from("ideas").update({ contributor_id: other.id, updated_at: new Date().toISOString() }).eq("garden_id", data.gardenId).eq("contributor_id", me.id));
+    for (const i of moved) await logEvent(context, data.gardenId, "idea_edited", i.id, { before: { contributor_id: me.id }, after: { contributor_id: other.id }, attribution: { basis: "user_corrected" } });
+    return { renamed: false, merged: moved.length };
+  });
+
 export const addEvidence = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { gardenId: string; key: string; messageId: string; role: "origin" | "restated" | "supports" | "challenges"; note?: string | undefined }) => d)
@@ -607,7 +634,7 @@ export const growTree = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     if (!check(await supabase.rpc("can_write_garden", { _garden: data.gardenId }))) fail("You cannot write to this garden.");
     const garden = check(await supabase.from("gardens").select("id,title").eq("id", data.gardenId).single());
-    const people = check(await supabase.from("contributors").select("id,name,kind").eq("garden_id", data.gardenId));
+    const people = check(await supabase.from("contributors").select("id,name,kind,user_id").eq("garden_id", data.gardenId));
     const person = new Map(people.map((p) => [p.id, p]));
 
     // what to read: messages of the given batches (or conversations), each source in its own order
@@ -650,7 +677,12 @@ export const growTree = createServerFn({ method: "POST" })
     const batches = batchIdsRead.length ? check(await supabase.from("intake_batches").select("id,source_format,options").in("id", batchIdsRead)) : [];
     const formatOf = new Map(batches.map((b) => [b.id, b.source_format]));
     // turns reconstructed from loose text are named only by the person (their context or confirmation)
-    const rebuiltBatch = new Set(batches.filter((b) => (b.options as { reconstruction?: unknown } | null)?.reconstruction).map((b) => b.id));
+    const rebuiltBatch = new Map(batches.flatMap((b) => {
+      const r = (b.options as { reconstruction?: { voices?: { name?: unknown; basis?: unknown }[] } } | null)?.reconstruction;
+      if (!r) return [];
+      const voices = new Map((r.voices ?? []).filter((v) => typeof v.name === "string").map((v) => [String(v.name).toLowerCase(), String(v.basis ?? "")]));
+      return [[b.id, voices] as const];
+    }));
     const knownVoices = [...new Set(batches.flatMap((b) => {
       const v = (b.options as { knownVoices?: unknown } | null)?.knownVoices;
       return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && !!x.trim()) : [];
@@ -659,7 +691,10 @@ export const growTree = createServerFn({ method: "POST" })
     const basisOf = (m: (typeof slice)[number]): AttributionBasis => {
       if (!m.contributor_id) return "unknown";
       const f = m.batch_id ? formatOf.get(m.batch_id) : undefined;
-      return f === "notes" || (m.batch_id && rebuiltBatch.has(m.batch_id)) ? "user_supplied" : f && TRUSTED.has(f) ? "source_metadata" : "explicit_header";
+      const rebuilt = m.batch_id ? rebuiltBatch.get(m.batch_id) : undefined;
+      // reconstructed turns: named by the person (context, confirmation), or read from the words (inferred)
+      if (rebuilt) return rebuilt.get((m.speaker_label ?? "").toLowerCase()) === "inferred" ? "inferred" : "user_supplied";
+      return f === "notes" ? "user_supplied" : f && TRUSTED.has(f) ? "source_metadata" : "explicit_header";
     };
     const heard = slice.map((m, i) => {
       const p = m.contributor_id ? person.get(m.contributor_id) : undefined;
@@ -692,6 +727,16 @@ export const growTree = createServerFn({ method: "POST" })
     const prompt = harvestPrompt({ ...input, candidates });
     const asked = await askGardener(prompt.system, prompt.user).catch((e) => fail((e as Error).message));
     const { proposals, stages, dropped, root: rootName, returns, reactions } = checkHarvest(parseAnswer(asked.text), input);
+    // words with no author whose voice the reading is reasonably sure of: the idea is credited to that person,
+    // marked inferred, and the person can change it (setIdeaContributor). "Me" is whoever brought the words in.
+    const inferredBy = new Map<string, string>();
+    for (const p of proposals) {
+      if (p.personId) continue;
+      const likely = likelyOf.get(p.originMessageId);
+      if (!likely) continue;
+      const hit = likely === "Me" ? people.find((c) => c.user_id === userId) : people.find((c) => c.name.toLowerCase() === likely.toLowerCase());
+      if (hit) { p.personId = hit.id; inferredBy.set(p.temp, likely); }
+    }
     const sentOf = new Map(slice.map((m) => [m.id, m.time_precision !== "unknown" ? { at: m.sent_at, precision: m.time_precision } : null]));
     const orderOf = new Map(slice.map((m, i) => [m.id, i]));
     const speakerOf = new Map(slice.map((m) => [m.id, m.contributor_id]));
@@ -788,7 +833,7 @@ export const growTree = createServerFn({ method: "POST" })
       payload: {
         placed_by_gardener: true, conversation_id: slice.find((m) => m.id === p.originMessageId)?.conversation_id ?? null, label: p.label, why: p.why, basis: p.basis, quote: p.quote, knot: p.knot, model: asked.model,
         // who said it, and how Ramus knows: a probable voice is recorded as a hint, never as the author
-        attribution: p.personId ? { basis: basisOf(slice.find((m) => m.id === p.originMessageId)!) } : { basis: "unknown", likely: likelyOf.get(p.originMessageId) ?? null },
+        attribution: inferredBy.has(p.temp) ? { basis: "inferred", likely: inferredBy.get(p.temp)! } : p.personId ? { basis: basisOf(slice.find((m) => m.id === p.originMessageId)!) } : { basis: "unknown", likely: likelyOf.get(p.originMessageId) ?? null },
         understanding: { version: reading.version, model: reading.model, fallback: reading.fallback, source_kind: reading.sourceKind },
       } as never,
     }))));

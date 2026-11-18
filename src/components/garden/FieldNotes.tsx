@@ -10,7 +10,7 @@ function lineageOf<T extends { id: string; parents: string[] }>(idea: T, byKey: 
   return out;
 }
 import { toast } from "sonner";
-import { addEvidence, editIdea, graftMerge, growBranch, reopenKnot, reviewSuggestion, reviewThought, setIdeaContributor, setKnot, setStatus, setOutcome } from "@/lib/garden.functions";
+import { addEvidence, editIdea, graftMerge, growBranch, reopenKnot, renameContributor, reviewSuggestion, reviewThought, setIdeaContributor, setKnot, setStatus, setOutcome } from "@/lib/garden.functions";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { lifeOf, SETTLED_KINDS, thoughtPhrase, type Thought } from "@/lib/stam/thoughts";
 import { MAX_LABEL } from "@/lib/stam/validate";
@@ -451,6 +451,7 @@ function Attribution({ idea }: { idea: Idea }) {
   if (idea.authorCorrected) return <p className="text-note text-muted-foreground">{idea.contributorId ? "Who said it was corrected by a person." : "A person marked that no one is known to have said it."}</p>;
   const a = idea.suggestion?.attribution;
   if (!a) return null;
+  if (idea.contributorId && a.basis === "inferred") return <p className="text-note text-muted-foreground">Ramus read from the words that {idea.by} said this. Not right? Change it above.</p>;
   if (idea.contributorId) return KNOWN_BY[a.basis] ? <p className="text-note text-muted-foreground">{KNOWN_BY[a.basis]}</p> : null;
   return <p className="text-note text-muted-foreground">{a.likely ? `Possibly ${a.likely}, but the words do not say so: it stays unattributed and uncoloured.` : "The words do not say who said it, so Ramus does not guess."}</p>;
 }
@@ -461,15 +462,23 @@ function Attribution({ idea }: { idea: Idea }) {
  */
 function AuthorChip({ data, idea, run }: { data: GardenData; idea: Idea; run: Run }) {
   const change = useServerFn(setIdeaContributor);
-  const [naming, setNaming] = useState(false);
+  const rename = useServerFn(renameContributor);
+  // "one": who said this idea; "all": rename this voice everywhere (or fold it into someone already here)
+  const [naming, setNaming] = useState<false | "one" | "all">(false);
   const people = (data.contributors as { id: string; name: string; color: string }[]) ?? [];
   const set = (contributorId: string | null, newName?: string) =>
     run(() => change({ data: { gardenId: data.garden.id, key: idea.id, contributorId, newName: newName ?? null } }),
       newName ? `Now credited to ${newName}.` : contributorId ? `Now credited to ${people.find((p) => p.id === contributorId)?.name ?? "them"}.` : "Now unattributed.");
   if (naming) return (
-    <form className="inline-flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); const v = new FormData(e.currentTarget).get("name")?.toString().trim(); if (v) void set(null, v).then(() => setNaming(false)); }}>
-      <input name="name" autoFocus maxLength={60} placeholder="Name" aria-label="Who said it" className="h-7 w-32 border border-input bg-transparent px-2 text-note" />
-      <button type="submit" className="chip">Credit</button>
+    <form className="inline-flex items-center gap-1" onSubmit={(e) => {
+      e.preventDefault();
+      const v = new FormData(e.currentTarget).get("name")?.toString().trim();
+      if (!v) return;
+      if (naming === "all" && idea.contributorId) void run(() => rename({ data: { gardenId: data.garden.id, contributorId: idea.contributorId!, name: v } }), `${idea.by} is now ${v} everywhere.`).then(() => setNaming(false));
+      else void set(null, v).then(() => setNaming(false));
+    }}>
+      <input name="name" autoFocus maxLength={60} placeholder={naming === "all" ? `Rename ${idea.by}` : "Name"} aria-label={naming === "all" ? `Rename ${idea.by} everywhere` : "Who said it"} className="h-7 w-32 border border-input bg-transparent px-2 text-note" />
+      <button type="submit" className="chip">{naming === "all" ? "Rename" : "Credit"}</button>
       <button type="button" className="chip" onClick={() => setNaming(false)}>Cancel</button>
     </form>
   );
@@ -486,9 +495,10 @@ function AuthorChip({ data, idea, run }: { data: GardenData; idea: Idea; run: Ru
             <span aria-hidden className="mr-2 inline-block size-2 rounded-full" style={{ background: p.color }} />{p.name}
           </DropdownMenuItem>
         ))}
-        <DropdownMenuItem onSelect={() => setNaming(true)}>Someone else…</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => setNaming("one")}>Someone else…</DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={!idea.contributorId} onSelect={() => void set(null)}>No one known</DropdownMenuItem>
+        {idea.contributorId && <DropdownMenuItem onSelect={() => setNaming("all")}>Rename {idea.by} everywhere…</DropdownMenuItem>}
       </DropdownMenuContent>
     </DropdownMenu>
   );

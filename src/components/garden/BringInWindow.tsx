@@ -438,7 +438,13 @@ function Rebuilt({ item, locked, onExtra }: { item: Item; locked: boolean; onExt
   const names = new Set(r.voices.filter((v) => v.name).map((v) => v.name!));
   return (
     <div className="grid gap-1 text-ui">
-      {names.size > 0 && <span className="text-muted-foreground">Voices: {[...names].join(", ")}{r.voices.some((v) => v.basis === "context") ? " (from what you said about the source)" : ""}.</span>}
+      {names.size > 0 && (
+        <span className="text-muted-foreground">
+          {r.voices.some((v) => v.basis === "inferred")
+            ? <>Read as {[...names].join(" and ")}: Ramus’s reading of the words. Not right? Say who speaks above, or change it on the tree.</>
+            : <>Voices: {[...names].join(", ")}{r.voices.some((v) => v.basis === "context") ? " (from what you said about the source)" : ""}.</>}
+        </span>
+      )}
       {unnamed.length > 0 && (
         <span className="text-muted-foreground">
           {unnamed.length === 1 ? "One voice is" : `${unnamed.length} voices are`} not named: {unnamed.map((v) => `${v.id}${v.describe ? `, ${v.describe}` : ""}`).join("; ")}. Their words stay unattributed.

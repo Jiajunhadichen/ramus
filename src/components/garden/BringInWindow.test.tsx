@@ -12,7 +12,7 @@ const rebuild = vi.fn(async ({ data }: { data: { text: string; part: number; voi
   const lines = toLines(data.text);
   const starts = turnStarts.map((t) => lines.findIndex((l) => l.text.startsWith(t)));
   const blocks = starts.map((s, k) => ({ from: `L${s}`, to: `L${(starts[k + 1] ?? lines.length) - 1}`, voice: k % 2 ? "S2" : "S1", confidence: "high", evidence: lines[s]!.text.slice(0, 6) }));
-  const answer = { blocks, voices: [{ id: "S1", describe: "asks", suggested: "Me" }, { id: "S2", describe: "explains", suggested: "ChatGPT" }] };
+  const answer = { blocks, voices: [{ id: "S1", describe: "asks", name: "Me", confidence: "high" }, { id: "S2", describe: "explains", name: "ChatGPT", confidence: "medium" }] };
   const parts = readingParts(data.text);
   return { parts: parts.length, ...checkReconstructionPart(answer, data.text, parts[data.part]!, [], data.voices), model: "mock", participants: [] };
 });
@@ -51,15 +51,12 @@ describe("the bring-in window", () => {
     expect(screen.getByText(/Which day was it\? \(optional\)/)).toBeTruthy();
   });
 
-  it("a bare copy of an AI chat is reconstructed before anything is kept, and the person can name the voices it found", async () => {
+  it("a bare copy of an AI chat is reconstructed before anything is kept, and confident names are used without asking", async () => {
     open();
     fireEvent.paste(screen.getByLabelText("Paste anything"), { clipboardData: { files: [], getData: () => plain } });
-    await waitFor(() => expect(screen.getByRole("button", { name: /They are Me \(S1\) and ChatGPT \(S2\)/ })).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/Read as Me and ChatGPT: Ramus’s reading of the words/)).toBeTruthy());
     expect(rebuild).toHaveBeenCalled();
-    // until named, nobody is credited
-    expect(screen.getByText(/10 messages · 10 unattributed/i)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /They are Me/ }));
-    await waitFor(() => expect(screen.getByText(/10 messages · 2 voices/i)).toBeTruthy());
+    expect(screen.getByText(/10 messages · 2 voices/i)).toBeTruthy();
     expect(screen.getByRole("button", { name: /That’s everything — grow the tree/ }).hasAttribute("disabled")).toBe(false);
   });
 });

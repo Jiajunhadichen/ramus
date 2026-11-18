@@ -1,17 +1,18 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { askGardener } from "./gardener/ai";
+import { askGardener, RECONSTRUCTION_MODELS } from "./gardener/ai";
 import { parseAnswer } from "./gardener/harvest";
 import { checkReconstructionPart, contextVoices, readingParts, reconstructionPrompt, type ReVoice } from "./intake/reconstruct";
 
-/** Beyond this, loose text is kept and grown unattributed rather than reconstructed. */
+/** Beyond this, loose text is kept and grown unattributed rather than reconstructed (parts are ~50k characters). */
 const MAX_TEXT = 400_000;
 
 /**
  * Reconstruct one part of loose text: which lines form each message, and which anonymous voice says it.
  * The browser calls this part after part with the masked words it previewed, then keeps the merged result with
  * the source's options, so the server later applies exactly that (prepare → validateReconstruction).
- * Names come only from the person's context; the model's guesses come back as suggestions.
+ * With the person's context, names come only from it; without it, names the model is reasonably sure of are
+ * applied as inferred (shown as Ramus's reading, correctable), and low guesses come back as suggestions.
  */
 export const reconstructSource = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -33,7 +34,7 @@ export const reconstructSource = createServerFn({ method: "POST" })
     const participants = [...new Set([...data.knownVoices, ...contextVoices(data.context)].map((v) => v.trim()).filter(Boolean))];
     if (!part) return { parts: parts.length, blocks: [], voices: data.voices, warnings: [], model: null as string | null, participants };
     const p = reconstructionPrompt(data.text, part, { participants, context: data.context, voices: data.voices });
-    const asked = await askGardener(p.system, p.user);
+    const asked = await askGardener(p.system, p.user, { models: RECONSTRUCTION_MODELS });
     const checked = checkReconstructionPart(parseAnswer(asked.text), data.text, part, participants, data.voices);
     return { parts: parts.length, ...checked, model: asked.model as string | null, participants };
   });

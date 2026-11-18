@@ -5,9 +5,12 @@
  * 1. Turns. A model reads the numbered lines and groups them into blocks (a message, an answer with its
  *    headings and lists), each tagged with an anonymous voice — S1, S2 … — when the words show that the same
  *    voice is speaking, or no voice when it cannot tell. Blocks are exact line spans; no word is rewritten.
- * 2. Names. A voice gets a name only from the person: the source context they gave ("between Me and ChatGPT"),
- *    in which case the model may say which voice is which, or a suggestion they confirm. A voice nobody
- *    named stays unattributed. People mentioned or quoted in the words are never voices.
+ * 2. Names. With the person's context ("between Me and ChatGPT") the model may only choose among those names.
+ *    Without it, the model names a voice from the words when it is reasonably sure (medium or high, roughly
+ *    seven in ten or better): the person asking an AI is the one who brought it in ("Me"), an AI is named by
+ *    what the words or the file show. Such names are marked inferred, shown as Ramus's reading, and the person
+ *    corrects them in one place (per idea, or a voice everywhere). Unsure voices stay unattributed. People only
+ *    mentioned or quoted are never voices.
  *
  * The result travels with the source's options, so the server re-prepares exactly what the person previewed
  * (prepare() applies it deterministically through `applyReconstruction`). Pure: the model call is made by
@@ -24,9 +27,10 @@ export type ReBlock = { start: number; end: number; voice: string | null; confid
 /** An anonymous voice and, only when the person said so, its name. */
 export type ReVoice = {
   id: string;
-  /** set only from the person's context or confirmation */
+  /** from the person's context or confirmation, or inferred from the words when the model is reasonably sure */
   name: string | null;
-  basis: "context" | "confirmed" | null;
+  basis: "context" | "confirmed" | "inferred" | null;
+  confidence?: Confidence | null | undefined;
   /** the model's guess, shown to the person, never applied by itself */
   suggested: string | null;
   /** how it speaks ("asks the questions", "explains with headings"), for the person to recognise it */
@@ -77,7 +81,7 @@ export function contextVoices(context: string | null | undefined): string[] {
 }
 
 /** Parts of at most `budget` characters, cut between paragraphs; [from, to] are line indexes. */
-export function readingParts(raw: string, budget = 12000): { from: number; to: number }[] {
+export function readingParts(raw: string, budget = 50000): { from: number; to: number }[] {
   const lines = toLines(raw);
   const out: { from: number; to: number }[] = [];
   let from = 0, size = 0, lastBlank = -1;
@@ -103,12 +107,16 @@ Give each block an anonymous voice — S1, S2, S3 … — when the words show wh
 Evidence: for every block with a voice, copy a few exact words from that block (character for character, at most 12 words) that show it is that voice.
 People who are only mentioned, quoted or cited in the words are never voices.
 ${named
-  ? `The person said these take part: ${o.participants.join(", ")}. For each voice you may give "name": one of exactly these, only if the words make it clear which is which (who asks, who explains, who says "my CV"). Otherwise name null.`
-  : `The person has not said who takes part. Do not name voices; you may give "suggested": a short guess (for example "Me" for the person asking and "ChatGPT" or "AI assistant" for the one answering) that the person will confirm or not.`}
+  ? `The person said these take part: ${o.participants.join(", ")}. For each voice give "name": one of exactly these, the one the words point to (who asks, who explains, who says "my CV"), with "confidence".`
+  : `The person has not said who takes part. Name each voice from the words, with "confidence" (high, medium, low):
+- a person asking an AI questions is the one who brought this in: name them "Me";
+- an AI assistant is named by what the words show ("as ChatGPT", "Claude here", the source name); if nothing shows which AI, give your best guess at medium or low confidence, or "AI assistant";
+- in a chat between people, use the names the text itself uses for them (a name line, how they address each other).
+List in "mentioned" every person who is only talked about, quoted or cited, and never use them as a voice name.`}
 Voices already seen in earlier parts: ${o.voices.length ? o.voices.map((v) => `${v.id}${v.describe ? ` (${v.describe})` : ""}`).join("; ") : "none"}. Keep their ids when the same voice continues.
 
 Return only JSON:
-{"blocks":[{"from":"L0","to":"L4","voice":"S1","confidence":"high|medium|low","evidence":"exact words"}],"voices":[{"id":"S1","describe":"asks the questions","name":null,"suggested":null}],"warnings":["at most 2 short notes on what is uncertain"]}`,
+{"blocks":[{"from":"L0","to":"L4","voice":"S1","confidence":"high|medium|low","evidence":"exact words"}],"voices":[{"id":"S1","describe":"asks the questions","name":"Me","confidence":"high"}],"mentioned":["people only talked about"],"warnings":["at most 2 short notes on what is uncertain"]}`,
     user: `Source context from the person: ${o.context?.trim() || "none"}\n\n${numbered}`,
   };
 }
@@ -140,26 +148,41 @@ export function checkReconstructionPart(answer: unknown, raw: string, part: { fr
   const obj = answer && typeof answer === "object" ? (answer as Any) : {};
   const warnings: string[] = [];
   const voices = new Map(seen.map((v) => [v.id, { ...v }]));
+  // people the model says are only talked about: never a voice's name
+  const mentioned = new Set((Array.isArray(obj["mentioned"]) ? obj["mentioned"] : []).map((m) => canonical(str(m)).toLowerCase()).filter(Boolean));
   for (const v of Array.isArray(obj["voices"]) ? (obj["voices"] as Any[]) : []) {
     const id = str(v?.["id"]);
     if (!/^S\d{1,2}$/.test(id)) continue;
-    const prev = voices.get(id) ?? { id, name: null, basis: null, suggested: null, describe: null };
-    const named = str(v["name"]);
-    const allowed = named ? allowedName(named, participants) : null;
-    if (named && !allowed) warnings.push(`“${named}” is not one of the people named for this source; ${id} stays unnamed.`);
-    const suggested = str(v["suggested"]);
+    const prev: ReVoice = voices.get(id) ?? { id, name: null, basis: null, suggested: null, describe: null, confidence: null };
+    const named = str(v["name"]) || str(v["suggested"]);
+    const conf = CONF.includes(str(v["confidence"]) as Confidence) ? (str(v["confidence"]) as Confidence) : null;
+    let name: string | null = null, basis: ReVoice["basis"] = null;
+    if (named && participants.length) {
+      // the person said who takes part: only those names
+      name = allowedName(named, participants);
+      if (name) basis = "context";
+      else warnings.push(`“${named}” is not one of the people named for this source; ${id} stays unnamed.`);
+    } else if (named) {
+      // read from the words: reasonably sure, a plausible name, and not someone who is only talked about
+      const n = canonical(named);
+      const plausible = n.length <= 40 && (n === "Me" || AI.test(n) || /^ai assistant$/i.test(n) || nameShape(n) !== "no");
+      if (!plausible || mentioned.has(n.toLowerCase())) warnings.push(`“${named}” looks like someone talked about, not a voice; ${id} stays unnamed.`);
+      else if (conf === "high" || conf === "medium") { name = /^ai assistant$/i.test(n) ? "AI assistant" : n; basis = "inferred"; }
+    }
+    const keep = prev.basis === "confirmed" || (prev.basis === "context" && basis !== "context");
     voices.set(id, {
       id,
-      name: prev.basis === "confirmed" ? prev.name : allowed ?? prev.name,
-      basis: prev.basis === "confirmed" ? "confirmed" : allowed ? "context" : prev.basis,
-      suggested: suggested && suggested.length <= 40 && (AI.test(suggested) || SELF.test(suggested) || nameShape(suggested) !== "no" || /assistant|助手/i.test(suggested)) ? canonical(suggested) : prev.suggested,
+      name: keep ? prev.name : name ?? prev.name,
+      basis: keep ? prev.basis : basis ?? prev.basis,
+      confidence: keep ? prev.confidence ?? null : basis ? conf : prev.confidence ?? null,
+      suggested: !name && named ? canonical(named).slice(0, 40) : prev.suggested,
       describe: str(v["describe"]).slice(0, 80) || prev.describe,
     });
   }
-  // one name, one voice: if two voices claim the same participant, neither keeps it
+  // one name, one voice: if two voices claim the same name, neither keeps it
   const byName = new Map<string, string[]>();
-  for (const v of voices.values()) if (v.name && v.basis === "context") byName.set(v.name, [...(byName.get(v.name) ?? []), v.id]);
-  for (const [name, ids] of byName) if (ids.length > 1) { for (const id of ids) Object.assign(voices.get(id)!, { name: null, basis: null }); warnings.push(`Two voices looked like ${name}; neither is named.`); }
+  for (const v of voices.values()) if (v.name && (v.basis === "context" || v.basis === "inferred")) byName.set(v.name, [...(byName.get(v.name) ?? []), v.id]);
+  for (const [name, ids] of byName) if (ids.length > 1) { for (const id of ids) Object.assign(voices.get(id)!, { name: null, basis: null, suggested: name }); warnings.push(`Two voices looked like ${name}; neither is named.`); }
 
   const blocks: ReBlock[] = [];
   let next = part.from;
@@ -210,9 +233,30 @@ export function mergeParts(parts: { blocks: ReBlock[]; voices: ReVoice[]; warnin
   return {
     version: RECONSTRUCT_VERSION, context: o.context, participants: o.participants,
     voices: [...voices.values()].sort((a, b) => a.id.localeCompare(b.id, "en", { numeric: true })),
-    blocks: parts.flatMap((p) => p.blocks).sort((a, b) => a.start - b.start),
+    blocks: byTurns(parts.flatMap((p) => p.blocks).sort((a, b) => a.start - b.start)),
     model: o.model, warnings: [...new Set(parts.flatMap((p) => p.warnings))].slice(0, 5),
   };
+}
+
+/**
+ * Two voices taking turns (a person and an AI almost always do): a block the model left open between two turns
+ * of the same voice is the other voice's turn. Only when the rest of the conversation clearly alternates.
+ */
+export function byTurns(blocks: ReBlock[]): ReBlock[] {
+  const voiced = blocks.filter((b) => b.voice);
+  const ids = [...new Set(voiced.map((b) => b.voice!))];
+  if (ids.length !== 2 || voiced.length < 4) return blocks;
+  let changes = 0;
+  for (let i = 1; i < voiced.length; i++) if (voiced[i]!.voice !== voiced[i - 1]!.voice) changes++;
+  if (changes / (voiced.length - 1) < 0.8) return blocks;
+  return blocks.map((b, i) => {
+    if (b.voice) return b;
+    const before = blocks.slice(0, i).reverse().find((x) => x.voice), after = blocks.slice(i + 1).find((x) => x.voice);
+    if (!before || !after || before.voice !== after.voice) return b;
+    // only a block directly between them (no other open block on either side)
+    if (blocks[i - 1] !== before || blocks[i + 1] !== after) return b;
+    return { ...b, voice: ids.find((x) => x !== before.voice)!, confidence: "medium", evidence: null };
+  });
 }
 
 /** The person names the voices (from the suggestions or their own words). */
@@ -234,7 +278,11 @@ export function validateReconstruction(raw: string, r: Reconstruction | null | u
   const nameOf = new Map<string, string>();
   for (const v of Array.isArray(r.voices) ? r.voices : []) {
     if (!v || typeof v.id !== "string" || typeof v.name !== "string" || !v.name.trim()) continue;
-    const name = v.basis === "confirmed" ? v.name.trim().slice(0, 60) : v.basis === "context" ? allowedName(v.name, participants) : null;
+    const name = v.basis === "confirmed" ? v.name.trim().slice(0, 60)
+      : v.basis === "context" ? allowedName(v.name, participants)
+      // a name read from the words: kept as previewed when it is a plausible name (never a heading or sentence)
+      : v.basis === "inferred" && !participants.length && v.name.trim().length <= 40 && (canonical(v.name) === "Me" || AI.test(v.name) || /^ai assistant$/i.test(v.name.trim()) || nameShape(v.name.trim()) !== "no") ? canonical(v.name)
+      : null;
     if (name) nameOf.set(v.id, name);
   }
   const out: (ReBlock & { speaker: string | null; from: number; to: number })[] = [];

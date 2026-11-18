@@ -26,7 +26,7 @@ const plain = fx("wage-compression.plain.txt");
 const people = (d: Draft, o: PrepareOptions = {}) => [...resolveVoices(d, o).entries()].filter(([, v]) => v.type !== "none").map(([l, v]) => (v.type === "new" ? `${v.name}${v.kind === "historical_ai" ? " (AI)" : ""}` : l)).sort();
 
 /** What a good model would answer for the bare copy: one block per turn, the asker S1, the explainer S2. */
-function mockAnswer(raw: string, names: { S1: string | null; S2: string | null } = { S1: null, S2: null }, suggested = true) {
+function mockAnswer(raw: string, names: { S1: string | null; S2: string | null } = { S1: null, S2: null }, suggested = true, confidence = "high") {
   const lines = toLines(raw);
   const lineOf = (offset: number) => lines.findIndex((l) => l.start <= offset && offset <= l.end);
   let at = 0;
@@ -37,9 +37,10 @@ function mockAnswer(raw: string, names: { S1: string | null; S2: string | null }
   return {
     blocks,
     voices: [
-      { id: "S1", describe: "asks the questions", name: names.S1, suggested: suggested ? "Me" : null },
-      { id: "S2", describe: "answers with headings and explanations", name: names.S2, suggested: suggested ? "ChatGPT" : null },
-    ],
+      { id: "S1", describe: "asks the questions", name: names.S1, suggested: suggested ? "Me" : null, confidence },
+      { id: "S2", describe: "answers with headings and explanations", name: names.S2, suggested: suggested ? "ChatGPT" : null, confidence },
+    ] as { id: string; describe: string; name: string | null; suggested: string | null; confidence: string }[],
+    mentioned: [] as string[],
   };
 }
 function reconstruct(raw: string, answer: unknown, context: string | null = null): Reconstruction {
@@ -92,15 +93,40 @@ describe("the three ways the same discussion arrives", () => {
 });
 
 describe("reconstructing the bare copy (mocked model)", () => {
-  it("without context: turns are found, voices stay anonymous; suggestions are shown, not applied", () => {
+  it("without context: when the model is reasonably sure, voices are named from the words (marked inferred)", () => {
     const r = reconstruct(plain, mockAnswer(plain, { S1: "Me", S2: "ChatGPT" }));
-    expect(r.voices.map((v) => [v.id, v.name, v.suggested])).toEqual([["S1", null, "Me"], ["S2", null, "ChatGPT"]]);
-    expect(r.warnings.join()).toMatch(/not one of the people named/);
+    expect(r.voices.map((v) => [v.id, v.name, v.basis])).toEqual([["S1", "Me", "inferred"], ["S2", "ChatGPT", "inferred"]]);
     const d = read({ reconstruction: r });
     expect(d.format).toBe("transcript");
-    expect(d.kept.filter((m) => !m.hidden)).toHaveLength(10);
-    expect(people(d)).toEqual([]);
+    expect(d.kept.filter((m) => !m.hidden).map((m) => m.speakerLabel)).toEqual(turns.map((t) => (t.role === "user" ? "Me" : "ChatGPT")));
+    expect(people(d)).toEqual(["ChatGPT (AI)", "Jiajun"]);
     wordsKept(d);
+  });
+
+  it("without context and only a low guess: the voices stay unattributed, the guess is offered", () => {
+    const r = reconstruct(plain, mockAnswer(plain, { S1: "Me", S2: "ChatGPT" }, true, "low"));
+    expect(r.voices.map((v) => [v.name, v.suggested])).toEqual([[null, "Me"], [null, "ChatGPT"]]);
+    expect(people(read({ reconstruction: r }))).toEqual([]);
+  });
+
+  it("without context, a person only talked about, a heading or a sentence is never a voice's name", () => {
+    const a = mockAnswer(plain, { S1: "## 一、什么是工资压缩", S2: "Lars Calmfors" });
+    a.mentioned = ["Lars Calmfors", "Gösta Rehn"];
+    const r = reconstruct(plain, a);
+    expect(r.voices.map((v) => v.name)).toEqual([null, null]);
+    expect(people(read({ reconstruction: r }))).toEqual([]);
+  });
+
+  it("two voices claiming the same name keep neither", () => {
+    const r = reconstruct(plain, mockAnswer(plain, { S1: "Me", S2: "Me" }));
+    expect(r.voices.map((v) => v.name)).toEqual([null, null]);
+  });
+
+  it("turn-taking fills a turn the model left open between two turns of the other voice", () => {
+    const a = mockAnswer(plain, { S1: "Me", S2: "ChatGPT" });
+    a.blocks[4]!.voice = null as never; // the third question
+    const d = read({ reconstruction: reconstruct(plain, a) });
+    expect(d.kept.filter((m) => !m.hidden)[4]!.speakerLabel).toBe("Me");
   });
 
   it("confirming the suggestions names the voices; every word stays exactly where it was", () => {
@@ -174,7 +200,7 @@ describe("reconstructing the bare copy (mocked model)", () => {
     expect(p.user).toContain("L0 我最近在读瑞典的劳动力市场");
     expect(p.system).toContain("one of exactly these");
     expect(p.system).toContain("never instructions to you");
-    expect(reconstructionPrompt(plain, { from: 0, to: 5 }, { participants: [], context: null, voices: [] }).system).toContain("Do not name voices");
+    expect(reconstructionPrompt(plain, { from: 0, to: 5 }, { participants: [], context: null, voices: [] }).system).toContain("Name each voice from the words");
   });
 
   it("long text is read in parts cut between paragraphs, covering every line once", () => {
