@@ -159,9 +159,9 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
   }, [items, ctx]);
   const warned = (it: Item) => { const a = prepared.get(it.id); return !!it.page || (typeof a === "object" && a.draft.warnings.length > 0); };
   const usable = items.filter((it) => { const a = prepared.get(it.id); return typeof a === "object" && a.draft.kept.some((m) => !m.hidden); });
-  // nothing incomplete or copied off a page is read until the person has seen why and chosen to use it
-  const ready = usable.filter((it) => !warned(it) || it.accepted);
-  const waiting = usable.length - ready.length;
+  // warnings inform, never block: anything with words in it is read as best it can be
+  const ready = usable;
+  const waiting = usable.filter((it) => warned(it) && !it.accepted).length;
   const busy = phase.kind === "keeping" || phase.kind === "reading";
 
   function reset() { setItems([]); setTyped(""); setTold(""); setPhase({ kind: "collecting" }); setPlantedId(null); setPartsDone(0); }
@@ -290,7 +290,7 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
 
         {!busy && (
           <div className="grid gap-2 border-t border-rule pt-3">
-            {waiting > 0 && <p className="text-ui">{waiting === 1 ? "One source above is" : `${waiting} sources above are`} incomplete or copied off a page. Bring the discussion in from its address, or choose to use it as it is.</p>}
+            {waiting > 0 && <p className="text-ui">{waiting === 1 ? "One source above is" : `${waiting} sources above are`} incomplete or copied off a page. It will still be read as it is; bring the discussion in from its address if you have it.</p>}
             <Button disabled={!ready.length || waiting > 0 || items.some((it) => it.opening)} onClick={go}>
               {phase.kind === "failed" ? (keptAll ? "Let the gardener try again" : "Try again") : target.kind === "more" && !target.fresh ? "Add to the tree" : "That’s everything — grow the tree"}
             </Button>
@@ -322,7 +322,7 @@ function Row({ item, auto, locked, onRemove, onExtra, onAccept, onFetch }: { ite
       {!locked && !item.accepted && (item.page || (a && a.draft.warnings.length > 0)) && (
         <div role="alert" className="grid gap-1.5 border-t border-rule pt-1.5 text-ui">
           {a?.draft.warnings.map((w) => <span key={w}>{w}</span>)}
-          {item.page && <span>This looks copied from a web page, not a whole conversation: it has {item.page.signs.join(", ")}. Read as it is, page text could be taken for messages, and posts the page did not show would be missing.</span>}
+          {item.page && <span>This looks copied from a web page, not a whole conversation: it has {item.page.signs.join(", ")}. The gardener will set page text aside as best it can; posts the page did not show will be missing.</span>}
           <div className="flex flex-wrap items-center gap-3">
             {item.page?.url
               ? <Button size="sm" onClick={() => onFetch(item.page!.url!)}>Bring in the whole discussion from {new URL(item.page.url.origin).hostname}</Button>
@@ -333,7 +333,7 @@ function Row({ item, auto, locked, onRemove, onExtra, onAccept, onFetch }: { ite
                   <Button size="sm" variant="outline" type="submit">Bring it in</Button>
                 </form>
               )}
-            {a && <button type="button" className="text-ui underline underline-offset-4" onClick={onAccept}>Use it as it is</button>}
+            {a && <button type="button" className="text-ui underline underline-offset-4" onClick={onAccept}>Noted</button>}
           </div>
         </div>
       )}

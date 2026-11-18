@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { checkHarvest, checkThoughtCandidates, thoughtCandidatePrompt, rootNameEquivalent, fitMessages, harvestPrompt, parseAnswer, type HarvestInput, shorten } from "./harvest";
+import { checkHarvest, checkThoughtCandidates, thoughtCandidatePrompt, rootNameEquivalent, withBasis, fitMessages, harvestPrompt, parseAnswer, type HarvestInput, shorten } from "./harvest";
 import { askGardener, GardenerUnavailable } from "./ai";
 
 const msg = (n: number, speaker: string, content: string, human = true) => ({
@@ -62,12 +62,15 @@ describe("checking what the gardener proposes", () => {
     expect(c.proposals.map((p) => p.label)).toEqual(["Fault report"]);
     expect(c.dropped.map((d) => d.reason)).toEqual(["its origin is not a message in this conversation", "it is already in the garden"]);
   });
-  it("an AI taking part in the conversation owns what it said; a message with no speaker owns nothing", () => {
+  it("an AI taking part in the conversation owns what it said; a message with no known speaker is credited to no one", () => {
     const c = checkHarvest({ ideas: [idea({ id: "b", label: "Petition", origin: "m5", by: "Benjamin" })] }, input);
     expect(c.proposals[0]).toMatchObject({ label: "Petition", personId: "ai-ChatGPT", originMessageId: "id-5" });
     expect(harvestPrompt(input).user).toContain("m5 [2026-11-17 13:05] ChatGPT (AI): You could start a petition.");
     const nobody = { ...input, messages: input.messages.map((m) => (m.ref === "m3" ? { ...m, personId: null } : m)) };
-    expect(checkHarvest({ ideas: [idea({ id: "x", label: "Act", origin: "m3" })] }, nobody).dropped[0]!.reason).toBe("its first words have no known speaker");
+    // notes and articles have no known author: the idea is kept, credited to no one, never to a guessed person
+    const kept = checkHarvest({ ideas: [idea({ id: "x", label: "Act", origin: "m3" })] }, nobody);
+    expect(kept.dropped).toEqual([]);
+    expect(kept.proposals[0]).toMatchObject({ label: "Act", personId: null });
   });
   it("keeps a quote only if it is word for word in the origin message", () => {
     const c = checkHarvest({ ideas: [idea({ id: "a", label: "Report", origin: "m4", quote: "report report report" }), idea({ id: "b", label: "Act", origin: "m3", quote: "we must act now" })] }, input);
@@ -236,5 +239,16 @@ describe("asking the gardener through Lovable's AI gateway", () => {
   it("says plainly when credits are used up or the gateway is busy", async () => {
     await expect(askGardener("s", "u", { apiKey: "k", fetchImpl: (async () => new Response("", { status: 402 })) as never })).rejects.toThrow(/allowance for this project is used up/);
     await expect(askGardener("s", "u", { apiKey: "k", fetchImpl: (async () => new Response("", { status: 429 })) as never })).rejects.toThrow(/Try again in a minute/);
+  });
+});
+
+describe("how sure a link is", () => {
+  it("marks the gardener's reading as inferred and says Likely", () => {
+    expect(withBasis("Both are about cost", "inferred")).toEqual({ why: "Likely: Both are about cost", basis: "inferred" });
+    expect(withBasis("Likely: same mechanism", "")).toEqual({ why: "Likely: same mechanism", basis: "inferred" });
+    expect(withBasis("", "stated")).toEqual({ why: null, basis: "inferred" });
+  });
+  it("keeps a link the words state as stated", () => {
+    expect(withBasis("She replies to it directly", "stated")).toEqual({ why: "She replies to it directly", basis: "stated" });
   });
 });

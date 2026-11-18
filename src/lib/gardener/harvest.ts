@@ -40,7 +40,9 @@ export const MAX_KNOTS = 2;
 export const MAX_STAGES = 6;
 
 export type Proposal = {
-  temp: string; label: string; note: string; personId: string; originMessageId: string; quote: string | null;
+  temp: string; label: string; note: string; personId: string | null; originMessageId: string; quote: string | null;
+  /** "stated": the words themselves make the link; "inferred": the gardener's reading, shown as "Likely:". */
+  basis: "stated" | "inferred";
   evidence: { messageId: string; role: (typeof EVIDENCE_ROLES)[number] }[];
   parent: string; parentIsNew: boolean; nature: (typeof NATURES)[number] | null; why: string | null;
   merges: { target: string; isNew: boolean; why: string | null }[];
@@ -65,7 +67,7 @@ export function thoughtCandidatePrompt(input: HarvestInput): { system: string; u
   const messages = input.messages.map(m => `${m.ref} [${when(m.sentAt)}] ${m.speaker ?? "Unattributed"}: ${m.content.replace(/\s*\n\s*/g, " / ")}`).join("\n");
   const already = input.ideas.map(i => `${i.key}: ${i.label} (${clip(i.note, 100)})`).join("\n");
   return {
-    system: `You are the first-pass reader of a real recorded conversation. Extract individual consequential thought-events, NOT a topic summary and NOT a graph. Include distinct alternatives, objections to earlier ideas, constraints, meaningful revisions, explicit decisions and reported outcomes. Pure agreement without new content can be omitted. Quote the shortest verbatim continuous phrase of at most 20 words from the originating message; do not invent a quote or claim. Lines starting with ">" under "[quoting name]" are quoted from someone else: never quote them as this speaker's words. Keep the original chronological order. An opening question that only repeats the garden's root is not a new proposal. The second pass will determine influence and connections. Return JSON only: {"candidates":[{"origin":"m2","quote":"exact quoted words","kind":"proposal|alternative|objection|constraint|revision|decision|result","claim":"short faithful explanation"}]}. Up to 40; do not impose a minimum or fabricate ideas.`,
+    system: `You are the first-pass reader of real recorded thought: a conversation, a transcript, notes, an article, a copied page or loose fragments, in any format. Lines marked Unattributed have no known author; their ideas still count. Ignore page furniture (menus, counters, announcements, lists of other pages). Extract individual consequential thought-events, NOT a topic summary and NOT a graph. Include distinct alternatives, objections to earlier ideas, constraints, meaningful revisions, explicit decisions and reported outcomes. Pure agreement without new content can be omitted. Quote the shortest verbatim continuous phrase of at most 20 words from the originating message; do not invent a quote or claim. Lines starting with ">" under "[quoting name]" are quoted from someone else: never quote them as this speaker's words. Keep the original chronological order. An opening question that only repeats the garden's root is not a new proposal. The second pass will determine influence and connections. Return JSON only: {"candidates":[{"origin":"m2","quote":"exact quoted words","kind":"proposal|alternative|objection|constraint|revision|decision|result","claim":"short faithful explanation"}]}. Up to 40; do not impose a minimum or fabricate ideas.`,
     user: `Existing ideas (avoid re-proposing them verbatim):\n${already}\n\nConversation: ${input.conversationTitle}\nChronological messages:\n${messages}`,
   };
 }
@@ -85,7 +87,7 @@ export function checkThoughtCandidates(answer: unknown, input: HarvestInput): Th
     const claim = typeof r['claim'] === "string" ? r['claim'].trim().slice(0, 180) : "";
     const kind = r['kind'] as ThoughtCandidate["kind"];
     const source = byRef.get(origin);
-    if (!source?.personId || !quote || !claim || !CANDIDATE_KINDS.includes(kind)) continue;
+    if (!source || !quote || !claim || !CANDIDATE_KINDS.includes(kind)) continue;
     if (!ownWords(source.content).includes(quote) || quote.split(/\s+/).length > 22) continue;
     const key = `${origin}|${quote}`;
     if (seen.has(key)) continue;
@@ -97,7 +99,7 @@ export function checkThoughtCandidates(answer: unknown, input: HarvestInput): Th
 }
 
 const SYSTEM = `You are the gardener of a Ramus garden. Ramus believes the best ideas grow between people.
-You read a recorded group discussion and trace how the people's ideas grew out of each other: where an idea answered, refined, challenged or split from another, where two lines of thought merged, which ideas went quiet, and which questions the group settled.
+You read recorded thought in whatever shape it arrived (a group discussion, a transcript, notes, an article, a copied web page, fragments, or several of these together) and trace how its ideas grew out of each other: where an idea answered, refined, challenged or split from another, where two lines of thought merged, which ideas went quiet, and which questions the group settled.
 
 You never add ideas of your own and you never summarise. What you return goes straight onto the group's tree, and anyone can take it off again, so keep every branch checkable.
 
@@ -105,7 +107,7 @@ Messages are listed in the order they were said, across every source. Order is e
 
 1. Ideas belong to people.
 - An idea is something a person said that others could build on: a proposal, claim, question, option, decision, correction or explanation. Small talk, greetings, thanks and plain agreement are not ideas.
-- Every idea has an "origin": the ref of the message where it is first said. The author is whoever wrote that message: a person, or an AI that took part in the conversation (marked "(AI)"). You, the gardener, never add ideas of your own.
+- Every idea has an "origin": the ref of the message where it is first said. The author is whoever wrote that message: a person, or an AI that took part in the conversation (marked "(AI)"), or nobody known (marked "Unattributed": notes, articles, fragments). Never guess an author; unattributed ideas are kept and credited to no one. Words that are clearly page furniture (menus, post counters, announcements, lists of other topics) are not ideas. You, the gardener, never add ideas of your own.
 - "quote": the shortest exact words (at most 20) from the origin message that carry the idea, copied character for character. Lines starting with ">" (under "[quoting name]") are words the speaker quoted from someone else: never quote them as the speaker's own, and never treat them as a new idea of that speaker.
 - "label": the idea as a short name, not a sentence, in the language of the discussion: at most 12 Chinese characters or 5 English words (hard limit 24 characters).
 - "note": one sentence, at most 30 words, saying what the idea is in the speaker's own terms. Do not improve, extend or judge it.
@@ -114,7 +116,8 @@ Messages are listed in the order they were said, across every source. Order is e
 2. Lineage.
 - "parent": the single idea this one most directly grew from: the key of an existing idea in the garden, or the id of another idea you propose. Ideas that start a new thread grow from the garden's root.
 - "nature": how it relates to its parent: "answers", "refines", "challenges", "splits" (an alternative branching off) or "combines" (only with merges). Use null when there is no such relation, as when someone simply opens a new topic under the root; never say "answers" unless it really answers the parent.
-- "why": one checkable sentence on why this is the parent. Start with "Likely:" if it is a guess.
+- "why": one checkable sentence on why this is the parent.
+- "basis": "stated" when the words themselves make the link (a reply, a quote, "building on X", "I disagree with Y"); "inferred" when it is your reading of how the ideas relate. When unsure, say "inferred" rather than leaving the idea out or inventing evidence.
 - "merges": only when an idea explicitly combines earlier ideas: [{"with": key or id, "why": "..."}]. Similar topics are not a merge.
 - Never repeat an idea that is already in the garden; attach to it instead. The root is the opening QUESTION, not a proposal to duplicate as another node.
 - Keep the alternatives distinct. Three people proposing three different mechanisms for the same need are three competing branches, not one topic heading; merge them only when someone actually combines them.
@@ -139,7 +142,15 @@ Messages are listed in the order they were said, across every source. Order is e
 - Candidates from the first pass are only a grounded inventory to consider; read the source messages again and make independent judgments. Do not assume a first-pass claim or connection is correct.
 
 Return only JSON, exactly in this shape:
-{"stages":[{"n":1,"title":"..."}],"root":null,"returns":[],"reactions":[{"key":"existing-idea-key","m":"m5","role":"supports"}],"ideas":[{"id":"short-id","label":"...","note":"...","origin":"m3","quote":"...","evidence":[],"parent":"root-or-key-or-id","nature":null,"why":"...","merges":[],"status":"growing","knot":null,"stage":1}]}`;
+{"stages":[{"n":1,"title":"..."}],"root":null,"returns":[],"reactions":[{"key":"existing-idea-key","m":"m5","role":"supports"}],"ideas":[{"id":"short-id","label":"...","note":"...","origin":"m3","quote":"...","evidence":[],"parent":"root-or-key-or-id","nature":null,"why":"...","basis":"inferred","merges":[],"status":"growing","knot":null,"stage":1}]}`;
+
+/** How sure a link is: stated in the words, or the gardener's inference, which always reads "Likely: …". */
+export function withBasis(why: string, basis: string): { why: string | null; basis: "stated" | "inferred" } {
+  const guessed = basis === "inferred" || /^likely:/i.test(why.trim()) || !why.trim();
+  const plain = why.trim().replace(/^(?:likely|stated):\s*/i, "");
+  if (!guessed) return { why: clip(plain, 240), basis: "stated" };
+  return { why: plain ? clip(`Likely: ${plain}`, 240) : null, basis: "inferred" };
+}
 
 const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 
@@ -241,7 +252,7 @@ export function checkHarvest(answer: unknown, input: HarvestInput): Checked {
     const origin = byRef.get(str(r["origin"]));
     if (!origin) { dropped.push({ label, reason: "its origin is not a message in this conversation" }); continue; }
     // ideas belong to whoever said them in the conversation, a person or an AI taking part; never to the gardener
-    if (!origin.personId) { dropped.push({ label, reason: "its first words have no known speaker" }); continue; }
+    // words with no known author (notes, an article, a fragment) still carry ideas; they are credited to no one, never to a guessed person
     if (known.has(norm(label))) { dropped.push({ label, reason: "it is already in the garden" }); continue; }
     if (rootName?.originMessageId === origin.id && rootNameEquivalent(label, namedRootLabel)) {
       dropped.push({ label, reason: "it repeats the opening question" }); continue;
@@ -266,7 +277,7 @@ export function checkHarvest(answer: unknown, input: HarvestInput): Checked {
       temp, label, note: clip(str(r["note"]), 280), personId: origin.personId, originMessageId: origin.id,
       quote: quote && norm(ownWords(origin.content)).includes(norm(quote)) ? quote : null,
       evidence, parent: str(r["parent"]), parentIsNew: false, nature: nature && NATURES.includes(nature) ? nature : null,
-      why: clip(str(r["why"]), 240) || null,
+      ...withBasis(str(r["why"]), str(r["basis"])),
       merges: (Array.isArray(r["merges"]) ? (r["merges"] as Any[]) : []).map((x) => ({ target: str(x?.["with"]), isNew: false, why: clip(str(x?.["why"]), 240) || null })),
       status: str(r["status"]) === "dormant" ? "dormant" : "growing",
       knot: k && KNOT_KINDS.includes(kind) && settled ? { kind, settled, messageId: byRef.get(str(k["m"]))?.id ?? null } : null,
@@ -377,7 +388,7 @@ export function checkHarvest(answer: unknown, input: HarvestInput): Checked {
     if (!r || typeof r !== "object") continue;
     const key = str(r["key"]), msg = byRef.get(str(r["m"]));
     const role = str(r["role"]) as Reaction["role"];
-    if (!existing.has(key) || !msg?.personId || !EVIDENCE_ROLES.includes(role)) continue;
+    if (!existing.has(key) || !msg || !EVIDENCE_ROLES.includes(role)) continue;
     const token = `${key}|${msg.id}|${role}`;
     if (seenReactions.has(token)) continue;
     seenReactions.add(token);
