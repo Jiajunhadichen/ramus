@@ -4,7 +4,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 const setStatus = vi.fn(async () => ({}));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => (fn === "setStatus" ? setStatus : vi.fn(async () => ({}))), createServerFn: () => ({}) }));
 vi.mock("@tanstack/react-router", () => ({ Link: (p: { children: unknown }) => p.children }));
-vi.mock("@/lib/garden.functions", () => ({ addEvidence: "", editIdea: "", graftMerge: "", growBranch: "", reopenKnot: "", reviewSuggestion: "", reviewThought: "", setKnot: "", setStatus: "setStatus", setOutcome: "" }));
+vi.mock("@/lib/garden.functions", () => ({ addEvidence: "", editIdea: "", graftMerge: "", growBranch: "", reopenKnot: "", reviewSuggestion: "", reviewThought: "", setIdeaContributor: "", setKnot: "", setStatus: "setStatus", setOutcome: "" }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const { FieldNotes } = await import("./FieldNotes");
