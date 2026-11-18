@@ -104,6 +104,10 @@ function numericOrder(lines: Line[], fallback: "DMY" | "MDY"): "DMY" | "MDY" {
   return fallback;
 }
 
+/** Role lines that AI chat pages put before each turn when copied. */
+export const ROLE_MARK = /^(you|user|chatgpt|claude|gemini|copilot|assistant|你|我)\s*(?:said|wrote|说|說)\s*[:：]?$/i;
+const roleName = (r: string) => (/^(?:you|user|你|我)$/i.test(r) ? "You" : ({ chatgpt: "ChatGPT", claude: "Claude", gemini: "Gemini", copilot: "Copilot", assistant: "Assistant" } as Record<string, string>)[r.toLowerCase()] ?? r);
+
 export type ChatCopy = { units: Unit[]; headers: number; offsetLike: boolean; clockOnly: boolean };
 
 export function parseChatCopy(raw: string, tz: string, conversationDate: string | null, order: "DMY" | "MDY", known: Set<string> = new Set(), only: string[] = []): ChatCopy {
@@ -120,6 +124,9 @@ export function parseChatCopy(raw: string, tz: string, conversationDate: string 
     const t = txt[i]!;
     if (!t) continue;
     if (SELF.test(t) && /sent|skickade|发送/.test(t.toLowerCase())) { cands.set(i, { name: "You", when: null, shape: "self", span: 1 }); continue; }
+    // an AI chat page marks each turn with a role line ("You said:", "ChatGPT said:", "你说：")
+    const role = ROLE_MARK.exec(t);
+    if (role) { cands.set(i, { name: roleName(role[1]!), when: null, shape: "self", span: 1 }); continue; }
     const inl = inlineHead(t, ord);
     if (inl) { cands.set(i, { ...inl, span: 1 }); continue; }
     if (!nameLike(t)) continue;

@@ -1,3 +1,4 @@
+import type { Reconstruction } from "./reconstruct";
 export const PARSER_VERSION = "intake-1.0";
 export type Format = "whatsapp" | "vtt" | "srt" | "transcript" | "lines" | "notes" | "chatgpt" | "claude" | "slack" | "discourse";
 export const FORMAT_LABEL: Record<Format, string> = {
@@ -39,6 +40,13 @@ export type PrepareOptions = {
    * on notes says who wrote them (user_supplied); several names leave unlabeled words unattributed.
    */
   knownVoices?: string[] | undefined;
+  /** what the person said about the source ("between Me and ChatGPT"); its names join knownVoices */
+  context?: string | null | undefined;
+  /**
+   * Turns and voices reconstructed from loose text (src/lib/intake/reconstruct.ts), as previewed. prepare()
+   * re-checks it against the words and applies it exactly, so the server stores what the person saw.
+   */
+  reconstruction?: Reconstruction | null | undefined;
 };
 
 export type PrepareInput = { kind: "text" | "json"; text: string; fileName?: string | undefined; files?: { name: string; text: string }[] | undefined };

@@ -26,6 +26,13 @@ export const HEADING_WORDS = new Set([
   "citat", "bakgrund", "förslag", "beslut",
 ]);
 
+/** Labels a page shows on attachments and files ("CV.pdf" / "PDF", "Pasted text", "图片"): never a person. */
+const FILE_WORDS = new Set([
+  "pdf", "docx", "doc", "txt", "rtf", "odt", "png", "jpg", "jpeg", "gif", "webp", "heic", "svg", "csv", "tsv", "xlsx", "xls", "pptx", "ppt",
+  "zip", "md", "json", "html", "htm", "xml", "mp3", "mp4", "mov", "wav", "image", "images", "file", "files", "document", "attachment",
+  "attachments", "screenshot", "pasted", "pasted text", "pasted content", "text", "code", "artifact", "图片", "文件", "附件", "截图", "文档",
+]);
+
 const EN_STOP = new Set([
   "the", "a", "an", "is", "are", "was", "were", "be", "been", "to", "of", "and", "or", "for", "with", "in", "on", "at", "by", "not",
   "it", "its", "this", "that", "these", "those", "we", "you", "they", "i", "my", "our", "your", "their", "what", "why", "how", "which",
@@ -52,6 +59,8 @@ export function nameShape(label: string): NameShape {
   if (SENTENCE_PUNCT.test(s) || /https?:|www\.|@\S+\./.test(s)) return "no";
   if (/^[\d\s.:/-]+$/.test(s)) return "no";
   const key = s.toLowerCase();
+  // attachment cards and file names on a copied or printed chat page
+  if (FILE_WORDS.has(key) || /\.[a-z0-9]{2,5}$/i.test(s) || /^\d[\d.,]*\s*(?:kb|mb|gb|pages?|页|lines?)$/i.test(s)) return "no";
   if (HEADING_WORDS.has(key) || HEADING_WORDS.has(key.replace(/\s*\d+$/, "")) || /^(?:step|option|part|phase|point|第)\s*[\d一二三四五六七八九十a-z]{1,3}\s*(?:步|点|部分)?$/iu.test(s)) return "no";
   const han = s.match(HAN)?.length ?? 0;
   if (han) {
@@ -65,6 +74,8 @@ export function nameShape(label: string): NameShape {
   if (words.some((w) => EN_STOP.has(w.toLowerCase())) && words.length > 1) return "no";
   if (!/^[\p{L}]/u.test(s)) return "no";
   const capital = (w: string) => /^(?:\p{Lu}[\p{L}'’.-]*|(?:\p{L}\.)+\p{L}?\.?)$/u.test(w);
+  // an all-capital acronym (CV, MCP, RBAC) is far more often a term than a person: never a name on its own shape
+  if (words.length === 1 && /^\p{Lu}{2,6}$/u.test(s)) return "maybe";
   if (words.every(capital)) return "name";
   if (words.length === 1 && /^[\p{L}][\p{L}\d_.-]{1,30}$/u.test(s) && !EN_STOP.has(key)) return "maybe";
   return "no";

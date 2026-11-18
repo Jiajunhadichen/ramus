@@ -13,6 +13,8 @@ import { pageCopySigns, parseTopicUrl, type TopicAddress } from "@/lib/intake/di
 import { checkOverlap, createGarden, getAccessionContext, receiveBatch, whoAmI } from "@/lib/garden.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { grownLine, useGrow, type GrowProgress } from "./Gardener";
+import { reconstructSource } from "@/lib/reconstruct.functions";
+import { confirmVoices, contextVoices, mergeParts, worthReconstructing, type ReBlock, type ReVoice } from "@/lib/intake/reconstruct";
 import { Upright } from "@/components/epigraph/Epigraph";
 
 /**
@@ -36,6 +38,8 @@ type Item = {
   error: string | null; opening: boolean; extra: AutoExtra;
   /** set once it is kept, so trying again never keeps it twice */
   kept?: { batchId: string | null };
+  /** reconstructing turns and voices of loose text: for which words and context, and how far */
+  rebuild?: { key: string; status: "reading" | "done" | "failed"; part: number; of: number; error?: string } | undefined;
   /** a copied web page: what gave it away, and the discussion's own address when it shows one */
   page?: { signs: string[]; url: TopicAddress | null } | undefined;
   /** the person read the warning and chose to use it as it is */
@@ -92,6 +96,7 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
   const fetchTopic = useServerFn(fetchDiscussion);
   const gardenId = target.kind === "more" ? target.gardenId : plantedId;
   const grow = useGrow();
+  const rebuildPart = useServerFn(reconstructSource);
 
   // who is bringing it in, and who is already in the garden, so voices are recognised as they will be when kept
   useEffect(() => {
@@ -159,6 +164,44 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
     }
     return out;
   }, [items, ctx]);
+  // loose text (notes, unlabeled chats) is reconstructed into turns and voices before anything is kept,
+  // so what the person sees here is exactly what the server stores
+  const rebuildKey = (it: Item, raw: string) => `${raw.length}:${raw.slice(0, 40)}|${it.extra.context ?? ""}|${(it.extra.knownVoices ?? []).join(",")}`;
+  useEffect(() => {
+    for (const it of items) {
+      const a = prepared.get(it.id);
+      if (typeof a !== "object" || it.kept || it.extra.reconstruction) continue;
+      const kept = a.draft.kept.filter((m) => !m.hidden);
+      const named = new Set(a.draft.speakers.filter((x) => x.suggested.type !== "none").map((x) => x.label));
+      const attributed = kept.filter((m) => m.speakerLabel && named.has(m.speakerLabel)).length;
+      if (!worthReconstructing(a.draft.format, a.draft.raw, attributed, kept.length)) continue;
+      const key = rebuildKey(it, a.draft.raw);
+      if (it.rebuild?.key === key) continue;
+      void rebuild(it.id, key, a.draft.raw, it.extra.context ?? null, it.extra.knownVoices ?? []);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prepared]);
+  async function rebuild(id: string, key: string, raw: string, context: string | null, knownVoices: string[]) {
+    const mark = (r: Item["rebuild"], extra?: AutoExtra) => setItems((xs) => xs.map((x) => (x.id === id ? { ...x, rebuild: r, extra: extra ? { ...x.extra, ...extra } : x.extra } : x)));
+    mark({ key, status: "reading", part: 1, of: 1 });
+    try {
+      const parts: { blocks: ReBlock[]; voices: ReVoice[]; warnings: string[] }[] = [];
+      let voices: ReVoice[] = [], of = 1, model: string | null = null, participants: string[] = [];
+      for (let part = 0; part < of; part++) {
+        const r = await rebuildPart({ data: { text: raw, context, knownVoices, part, voices } });
+        of = r.parts; voices = r.voices; model = r.model ?? model; participants = r.participants;
+        parts.push(r);
+        mark({ key, status: "reading", part: Math.min(part + 2, of), of });
+      }
+      const reconstruction = mergeParts(parts, { context, participants: participants.length ? participants : [...new Set([...knownVoices, ...contextVoices(context)])], model });
+      mark({ key, status: "done", part: of, of }, { reconstruction });
+    } catch (e) {
+      // the words are still read and grown, unattributed: reconstruction helps, it never gates
+      mark({ key, status: "failed", part: 0, of: 0, error: (e as Error).message });
+    }
+  }
+  const rebuilding = items.some((it) => it.rebuild?.status === "reading");
+
   const warned = (it: Item) => { const a = prepared.get(it.id); return !!it.page || (typeof a === "object" && a.draft.warnings.length > 0); };
   const usable = items.filter((it) => { const a = prepared.get(it.id); return typeof a === "object" && a.draft.kept.some((m) => !m.hidden); });
   // warnings inform, never block: anything with words in it is read as best it can be
@@ -293,8 +336,9 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
         {!busy && (
           <div className="grid gap-2 border-t border-rule pt-3">
             {waiting > 0 && <p className="text-ui">{waiting === 1 ? "One source above is" : `${waiting} sources above are`} incomplete or copied off a page. It will still be read as it is; bring the discussion in from its address if you have it.</p>}
-            {/* warnings inform, never block: only nothing readable, or a file still opening, stops the gardener */}
-            <Button disabled={!ready.length || items.some((it) => it.opening)} onClick={go}>
+            {rebuilding && <p role="status" className="hand text-ui">Finding where each message begins and who says it…</p>}
+            {/* warnings inform, never block: only nothing readable, a file still opening, or a reading in progress stops the gardener */}
+            <Button disabled={!ready.length || items.some((it) => it.opening) || rebuilding} onClick={go}>
               {phase.kind === "failed" ? (keptAll ? "Let the gardener try again" : "Try again") : target.kind === "more" && !target.fresh ? "Add to the tree" : "That’s everything — grow the tree"}
             </Button>
             {phase.kind === "failed" && keptAll && gardenId && (
@@ -353,14 +397,15 @@ function Row({ item, auto, locked, onRemove, onExtra, onAccept, onFetch }: { ite
             {unattributed ? ` · ${unattributed} unattributed` : ""}
             {a.notes.length ? ` · ${a.notes.join(" · ")}` : ""}
           </span>
-          {LOOSE.has(a.draft.format) && (
+          {(LOOSE.has(a.draft.format) || item.extra.context) && (
             <label className="flex flex-wrap items-center gap-2 text-ui">
-              <span className="text-muted-foreground">Who speaks here? (optional)</span>
-              <input disabled={locked} placeholder="e.g. Me, Claude" className="h-8 min-w-0 flex-1 border border-input bg-transparent px-2"
-                defaultValue={(item.extra.knownVoices ?? []).join(", ")}
-                onBlur={(e) => { const v = e.target.value.split(/[,，、;]+/).map((x) => x.trim()).filter(Boolean); if (v.join() !== (item.extra.knownVoices ?? []).join()) onExtra({ knownVoices: v.length ? v : undefined }); }} />
+              <span className="text-muted-foreground">About this source (optional)</span>
+              <input disabled={locked} placeholder="e.g. This conversation is between Me and ChatGPT" className="h-8 min-w-0 flex-1 border border-input bg-transparent px-2"
+                defaultValue={item.extra.context ?? ""}
+                onBlur={(e) => { const v = e.target.value.trim(); if (v !== (item.extra.context ?? "")) onExtra({ context: v || undefined, reconstruction: undefined }); }} />
             </label>
           )}
+          <Rebuilt item={item} locked={locked} onExtra={onExtra} />
           {t?.kind === "span" && <span className="text-ui">{formatWhen(t.from)} – {formatWhen(t.to)}{t.all ? "" : " · lines without a time keep their place"}</span>}
           {t?.kind === "none" && <span className="text-ui text-muted-foreground">No times in it: kept in the order it was written.</span>}
           {t?.kind === "clock" && (
@@ -378,5 +423,40 @@ function Row({ item, auto, locked, onRemove, onExtra, onAccept, onFetch }: { ite
         </>
       )}
     </li>
+  );
+}
+
+/** What the reconstruction found, in plain words, and the one choice it may offer: naming the voices it heard. */
+function Rebuilt({ item, locked, onExtra }: { item: Item; locked: boolean; onExtra: (x: AutoExtra) => void }) {
+  const r = item.extra.reconstruction;
+  const b = item.rebuild;
+  if (b?.status === "reading") return <span className="hand text-ui">Reading who speaks{b.of > 1 ? ` (part ${b.part} of ${b.of})` : ""}…</span>;
+  if (b?.status === "failed") return <span className="text-ui text-muted-foreground">Ramus could not tell who speaks here ({b.error}). The words stay unattributed and still grow.</span>;
+  if (!r) return null;
+  const unnamed = r.voices.filter((v) => !v.name && r.blocks.some((x) => x.voice === v.id));
+  const offer = unnamed.filter((v) => v.suggested);
+  const names = new Set(r.voices.filter((v) => v.name).map((v) => v.name!));
+  return (
+    <div className="grid gap-1 text-ui">
+      {names.size > 0 && (
+        <span className="text-muted-foreground">
+          {r.voices.some((v) => v.basis === "inferred")
+            ? <>Read as {[...names].join(" and ")}: Ramus’s reading of the words. Not right? Say who speaks above, or change it on the tree.</>
+            : <>Voices: {[...names].join(", ")}{r.voices.some((v) => v.basis === "context") ? " (from what you said about the source)" : ""}.</>}
+        </span>
+      )}
+      {unnamed.length > 0 && (
+        <span className="text-muted-foreground">
+          {unnamed.length === 1 ? "One voice is" : `${unnamed.length} voices are`} not named: {unnamed.map((v) => `${v.id}${v.describe ? `, ${v.describe}` : ""}`).join("; ")}. Their words stay unattributed.
+        </span>
+      )}
+      {!locked && offer.length > 0 && new Set(offer.map((v) => v.suggested)).size === offer.length && (
+        <button type="button" className="justify-self-start text-ui underline underline-offset-4"
+          onClick={() => onExtra({ reconstruction: confirmVoices(r, Object.fromEntries(offer.map((v) => [v.id, v.suggested]))) })}>
+          They are {offer.map((v) => `${v.suggested} (${v.id})`).join(" and ")}
+        </button>
+      )}
+      {r.warnings.length > 0 && <span className="text-note text-muted-foreground">{r.warnings.join(" ")}</span>}
+    </div>
   );
 }

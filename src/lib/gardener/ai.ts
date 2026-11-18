@@ -5,6 +5,8 @@
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 /** Tried in order; a model the gateway does not know falls through to the next. */
 export const GARDENER_MODELS = ["google/gemini-3.7-flash", "openai/gpt-5.5"];
+/** Who said what is read once per source and decides every colour on the tree: the stronger model reads it first. */
+export const RECONSTRUCTION_MODELS = ["openai/gpt-5.5", "google/gemini-3.7-flash"];
 
 export class GardenerUnavailable extends Error {}
 
@@ -18,12 +20,12 @@ function textOf(body: unknown): string {
 }
 
 /** Ask once; returns the model's text and which model answered. Errors are plain sentences for people. */
-export async function askGardener(system: string, user: string, opts: { fetchImpl?: Fetch; apiKey?: string | undefined; timeoutMs?: number } = {}): Promise<{ text: string; model: string }> {
+export async function askGardener(system: string, user: string, opts: { fetchImpl?: Fetch; apiKey?: string | undefined; timeoutMs?: number; models?: string[] } = {}): Promise<{ text: string; model: string }> {
   const key = opts.apiKey ?? process.env["LOVABLE_API_KEY"];
   if (!key) throw new GardenerUnavailable("The gardener is not set up for this project yet: Lovable AI is not enabled, so there is no LOVABLE_API_KEY.");
   const doFetch = opts.fetchImpl ?? fetch;
   let lastProblem = "";
-  for (const model of GARDENER_MODELS) {
+  for (const model of opts.models?.length ? opts.models : GARDENER_MODELS) {
     for (const json of [true, false]) {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 150_000);

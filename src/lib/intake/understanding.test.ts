@@ -30,6 +30,7 @@ describe("speaker evidence", () => {
   it.each([
     ["三份方向分得很开", "no"], ["LLM 自己给的区间", "no"], ["论文没有试图打开黑箱，而是", "no"], ["理由", "no"], ["风险", "no"], ["模型评价", "no"],
     ["### 第一推荐", "no"], ["**引用", "no"], ["Forum-wide notice", "no"], ["Reason", "no"], ["Step 2", "no"], ["The criteria were provided", "no"],
+    ["PDF", "no"], ["CV_Jiajun_Chen_AI.pdf", "no"], ["Pasted text", "no"], ["图片", "no"], ["2 pages", "no"], ["MCP", "maybe"], ["RBAC", "maybe"],
     ["Pradyun Gedam", "name"], ["C.A.M. Gerlach", "name"], ["Me", "name"], ["Claude", "name"], ["Ana Lind", "name"], ["张三", "maybe"], ["ana_l", "maybe"],
   ])("%s → %s", (label, shape) => expect(nameShape(label)).toBe(shape));
 });
@@ -127,6 +128,16 @@ describe("acceptance: who speaks", () => {
       const d = prepareAuto({ kind: "text", text: fx(f), fileName: f }, env, ctx).draft;
       for (const name of contributors(d)) expect(name, `${f}: ${name}`).not.toMatch(mentioned);
     }
+  });
+
+  it("a printed Claude chat (PDF text): attachment cards (“PDF”) never become a speaker, and paragraphs stay apart", () => {
+    // this was the user's test: every message after the CVs was credited to a contributor called “PDF”
+    const d = read("claude-print.txt");
+    expect(contributors(d)).toEqual([]);
+    expect(d.format).toBe("notes");
+    expect(d.kept.length).toBeGreaterThanOrEqual(10);
+    expect(d.kept.some((m) => m.content.startsWith("这是我的三个简历") && !m.content.includes("看了三份简历"))).toBe(true);
+    wordsKept(d);
   });
 
   it("Discourse topic 14111 (saved from the public API): 39 posts, 12 people, times from the forum, no AI involved", () => {

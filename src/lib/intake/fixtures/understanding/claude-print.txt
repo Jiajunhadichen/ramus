@@ -1,0 +1,28 @@
+硕士论文选题与定位 - Claude
+
+我在斯德哥尔摩读数据科学硕士，下面是三个论文题目，帮我看看哪个最适合我。
+
+CV_Jiajun_Chen_Data.pdf
+PDF
+
+CV_Jiajun_Chen_Cloud.pdf
+PDF
+
+CV_Jiajun_Chen_AI.pdf
+PDF
+
+这是我的三个简历
+
+看了三份简历，我对选题的判断要调整一下。你的实际技能比“IT 支持/云运维”宽：AI agent、MCP、人在回路的审批流程、Azure 网络与 RBAC、部署排错都有。
+
+调整后的排序
+1. Aron Larsson – Multi-criteria decision modelling with LLMs（上次排第三，现在升为第一）
+2. Aron Larsson – Travel-time and accessibility calculations
+
+https://claude.ai/chat/7f3c2a10-1b2c-4d5e-8f90-123456789abc 1/3
+
+那 Aron 的这篇论文还有什么没解决的问题？
+
+作者只做了一次运行和一个案例。31 个明确高低关系和专家组一致。值得研究的是可复现性、证据表核验、准则自动发现。
+
+https://claude.ai/chat/7f3c2a10-1b2c-4d5e-8f90-123456789abc 2/3

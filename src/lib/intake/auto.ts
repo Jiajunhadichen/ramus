@@ -1,3 +1,4 @@
+import type { Reconstruction } from "./reconstruct";
 import { prepare, type Draft, type Format, type PrepareContext, type PrepareInput, type PrepareOptions } from "./prepare";
 
 /**
@@ -10,6 +11,10 @@ export type AutoExtra = {
   conversationDate?: string | null | undefined; recordingStart?: string | null | undefined;
   /** who speaks in this source, if the person cares to say (restricts voices; never assigns words without evidence) */
   knownVoices?: string[] | undefined;
+  /** what the person said about the source, e.g. "This conversation is between Me and ChatGPT" */
+  context?: string | null | undefined;
+  /** turns and voices reconstructed by the gardener for loose text, as previewed */
+  reconstruction?: Reconstruction | null | undefined;
 };
 export type Auto = { draft: Draft; options: PrepareOptions; notes: string[] };
 
@@ -21,6 +26,8 @@ export function prepareAuto(input: PrepareInput, env: AutoEnv, ctx: PrepareConte
   if (extra.recordingStart) options.recordingStart = extra.recordingStart;
   const known = (extra.knownVoices ?? []).map((v) => v.trim()).filter(Boolean).slice(0, 20);
   if (known.length) options.knownVoices = known;
+  if (extra.context?.trim()) options.context = extra.context.trim().slice(0, 500);
+  if (extra.reconstruction) options.reconstruction = extra.reconstruction;
   const notes: string[] = [];
   let draft = prepare(input, options, ctx);
   // an AI-assistant export: its conversations, or the most recent ones when there are many

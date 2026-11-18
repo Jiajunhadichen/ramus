@@ -1,8 +1,9 @@
 import { parseChatCopy } from "./chat";
 import { deepMap, readJson, type JsonSource } from "./json";
-import { GENERIC, OFTEN_NOT_PEOPLE, nameLines, parseLines, parseNotes, parseTranscript, parseVtt, parseWhatsApp, speakerSet, statedRecordingStart, transcriptShape, waDateOrder, waHeader, waOrderByTime, waWhen, type Unit } from "./text";
+import { GENERIC, OFTEN_NOT_PEOPLE, close, nameLines, noTime, parseLines, parseNotes, parseTranscript, parseVtt, parseWhatsApp, speakerSet, statedRecordingStart, transcriptShape, waDateOrder, waHeader, waOrderByTime, waWhen, type Unit } from "./text";
 import { PARSER_VERSION, type Draft, type DraftMessage, type Format, type Hidden, type PrepareContext, type PrepareInput, type PrepareOptions, type Question, type Segment, type SpeakerInfo, type Voice } from "./types";
 import { findPrivate, hash, localStringToUtc, maskText, toLines, validTimeZone } from "./util";
+import { contextVoices, validateReconstruction } from "./reconstruct";
 
 export * from "./types";
 const TEXT_FORMATS: Format[] = ["whatsapp", "vtt", "srt", "transcript", "lines", "notes"];
@@ -83,6 +84,8 @@ function suggestVoice(label: string, format: Format, ctx: PrepareContext, author
 
 /** Prepare a received original. Same input + options → same draft, in the browser and on the server. */
 export function prepare(input: PrepareInput, options: PrepareOptions, ctx: PrepareContext): Draft {
+  // who the person said takes part: their list and the names in their description of the source (restrictive only)
+  const named = [...new Set([...(options.knownVoices ?? []), ...contextVoices(options.context)].map((v) => v.trim()).filter(Boolean))];
   const tz = validTimeZone(options.timeZone) ? options.timeZone : "UTC";
   const masked = { phone: 0, email: 0 };
   const recordingIso = localStringToUtc(options.recordingStart, tz);
@@ -128,7 +131,13 @@ export function prepare(input: PrepareInput, options: PrepareOptions, ctx: Prepa
     if (options.mask) { const r = maskText(raw, options.mask); raw = r.text; masked.phone = r.phone; masked.email = r.email; privacy = findPrivate(raw); }
     readAs = detect(raw);
     format = options.readAs && TEXT_FORMATS.includes(options.readAs) ? options.readAs : (readAs[0]?.format ?? "notes");
-    if (format === "whatsapp") {
+    // turns and voices reconstructed from loose text, as the person previewed them (checked again against these words)
+    const rebuilt = validateReconstruction(raw, options.reconstruction);
+    if (rebuilt) {
+      format = "transcript";
+      const lines = toLines(raw);
+      units = rebuilt.blocks.map((b) => close(raw, lines, b.from, b.to, lines[b.from]!.start, { speakerLabel: b.speaker, ...noTime }));
+    } else if (format === "whatsapp") {
       const heads = toLines(raw).map((l) => waHeader(l.text)).filter((h) => h !== null);
       // a day above 12 settles it; otherwise the chat's own forward order does; only then is the person asked
       const found = waDateOrder(heads) ?? waOrderByTime(heads);
@@ -144,7 +153,7 @@ export function prepare(input: PrepareInput, options: PrepareOptions, ctx: Prepa
       if (!recordingIso) questions.push({ kind: "recording-start", unsure: 0.5, text: "When did the recording start? Without it, times stay as offsets into the recording." });
     } else if (format === "transcript" && chatCopyWins(raw, transcriptShape(raw)?.count ?? 0)) {
       const known = new Set([...ctx.contributors.map((c) => c.name.toLowerCase()), ...ctx.aliases.map((a) => a.alias.toLowerCase())]);
-      const c = parseChatCopy(raw, tz, date, options.dateOrder ?? "DMY", known, options.knownVoices ?? []);
+      const c = parseChatCopy(raw, tz, date, options.dateOrder ?? "DMY", known, named);
       units = c.units;
       if (c.clockOnly && !date) questions.push({ kind: "conversation-date", unsure: 0.5, text: "The lines carry clock times but no full date. On which day was this? Without it, times stay unknown." });
     } else if (format === "transcript") {
@@ -157,7 +166,7 @@ export function prepare(input: PrepareInput, options: PrepareOptions, ctx: Prepa
       if (t.clockOnly && !date) questions.push({ kind: "conversation-date", unsure: 0.5, text: "The lines carry clock times but no date. On which day was this? Without it, times stay unknown." });
     } else if (format === "lines") {
       const known = new Set([...ctx.contributors.map((c) => c.name.toLowerCase()), ...ctx.aliases.map((a) => a.alias.toLowerCase())]);
-      const s = speakerSet(raw, known, options.arePeople ?? [], options.notAPerson ?? [], options.knownVoices ?? []);
+      const s = speakerSet(raw, known, options.arePeople ?? [], options.notAPerson ?? [], named);
       for (const d of s.doubtful) questions.push({ kind: "not-a-person", unsure: 0.7, text: `Is “${d}” a person?`, label: d });
       units = parseLines(raw, s.speakers, tz, date);
       if (!date && units.some((u) => u.clock)) questions.push({ kind: "conversation-date", unsure: 0.5, text: "The lines carry clock times but no date. On which day was this? Without it, times stay unknown." });
@@ -207,7 +216,7 @@ export function prepare(input: PrepareInput, options: PrepareOptions, ctx: Prepa
     byLabel.set(key, [...(byLabel.get(key) ?? []), m]);
   }
   for (const [label, ms] of byLabel) if (ms.every((m) => m.hidden === "system")) byLabel.delete(label);
-  const knownVoices = (options.knownVoices ?? []).map((v) => v.trim()).filter(Boolean);
+  const knownVoices = named;
   const author = format === "notes" && knownVoices.length === 1 ? knownVoices[0]! : null;
   const speakers: SpeakerInfo[] = [...byLabel.entries()].map(([label, ms]) => {
     const s = suggestVoice(label, format, ctx, author);
