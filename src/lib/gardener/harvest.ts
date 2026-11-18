@@ -27,13 +27,15 @@ export type HarvestInput = {
   resumeFrom?: string | null | undefined;
   /** what the people told the gardener about these messages, in their words */
   told?: string | null | undefined;
+  /** First-pass, source-checked statements; guidance, never evidence by themselves. */
+  candidates?: ThoughtCandidate[] | undefined;
 };
 
 export const NATURES = ["refines", "answers", "challenges", "splits", "combines"] as const;
 export const KNOT_KINDS = ["decision", "result", "ruled_out", "conclusion"] as const;
 export const EVIDENCE_ROLES = ["restated", "supports", "challenges"] as const;
-export const MAX_PROPOSALS = 15;
-export const MAX_KNOTS = 4;
+export const MAX_PROPOSALS = 20;
+export const MAX_KNOTS = 2;
 export const MAX_STAGES = 6;
 
 export type Proposal = {
@@ -46,7 +48,52 @@ export type Proposal = {
 export type RootName = { label: string; note: string; personId: string | null; originMessageId: string | null };
 /** The group went back to an earlier idea and grew again from there. */
 export type Return = { to: string; messageId: string | null; personId: string | null; why: string | null; setAside: string[] };
-export type Checked = { proposals: Proposal[]; stages: { n: number; title: string }[]; dropped: { label: string; reason: string }[]; root: RootName | null; returns: Return[] };
+export type Reaction = { key: string; messageId: string; role: (typeof EVIDENCE_ROLES)[number] };
+export type Checked = { proposals: Proposal[]; stages: { n: number; title: string }[]; dropped: { label: string; reason: string }[]; root: RootName | null; returns: Return[]; reactions: Reaction[] };
+
+/** One person-level thought event, before the graph is inferred. */
+export type ThoughtCandidate = {
+  origin: string; quote: string; kind: "proposal" | "alternative" | "objection" | "constraint" | "revision" | "decision" | "result";
+  claim: string;
+};
+const CANDIDATE_KINDS: ThoughtCandidate["kind"][] = ["proposal", "alternative", "objection", "constraint", "revision", "decision", "result"];
+const MAX_CANDIDATES = 40;
+
+/** Stage 1: extract atomic, verbatim-grounded claims without inventing their causal relationships. */
+export function thoughtCandidatePrompt(input: HarvestInput): { system: string; user: string } {
+  const messages = input.messages.map(m => `${m.ref} [${when(m.sentAt)}] ${m.speaker ?? "Unattributed"}: ${m.content.replace(/\s*\n\s*/g, " / ")}`).join("\n");
+  const already = input.ideas.map(i => `${i.key}: ${i.label} (${clip(i.note, 100)})`).join("\n");
+  return {
+    system: `You are the first-pass reader of a real recorded conversation. Extract individual consequential thought-events, NOT a topic summary and NOT a graph. Include distinct alternatives, objections to earlier ideas, constraints, meaningful revisions, explicit decisions and reported outcomes. Pure agreement without new content can be omitted. Quote the shortest verbatim continuous phrase of at most 20 words from the originating message; do not invent a quote or claim. Keep the original chronological order. An opening question that only repeats the garden's root is not a new proposal. The second pass will determine influence and connections. Return JSON only: {"candidates":[{"origin":"m2","quote":"exact quoted words","kind":"proposal|alternative|objection|constraint|revision|decision|result","claim":"short faithful explanation"}]}. Up to 40; do not impose a minimum or fabricate ideas.`,
+    user: `Existing ideas (avoid re-proposing them verbatim):\n${already}\n\nConversation: ${input.conversationTitle}\nChronological messages:\n${messages}`,
+  };
+}
+
+/** Candidate fields are hints, not evidence: every quote is checked against the source. */
+export function checkThoughtCandidates(answer: unknown, input: HarvestInput): ThoughtCandidate[] {
+  const obj = answer && typeof answer === "object" ? answer as Record<string, unknown> : {};
+  const rows = Array.isArray(obj["candidates"]) ? obj["candidates"] : [];
+  const byRef = new Map(input.messages.map(m => [m.ref, m]));
+  const out: ThoughtCandidate[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    const r = row as Record<string, unknown>;
+    const origin = typeof r['origin'] === "string" ? r['origin'].trim() : "";
+    const quote = typeof r['quote'] === "string" ? r['quote'].trim() : "";
+    const claim = typeof r['claim'] === "string" ? r['claim'].trim().slice(0, 180) : "";
+    const kind = r['kind'] as ThoughtCandidate["kind"];
+    const source = byRef.get(origin);
+    if (!source?.personId || !quote || !claim || !CANDIDATE_KINDS.includes(kind)) continue;
+    if (!source.content.includes(quote) || quote.split(/\s+/).length > 22) continue;
+    const key = `${origin}|${quote}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ origin, quote, claim, kind });
+    if (out.length >= MAX_CANDIDATES) break;
+  }
+  return out;
+}
 
 const SYSTEM = `You are the gardener of a Ramus garden. Ramus believes the best ideas grow between people.
 You read a recorded group discussion and trace how the people's ideas grew out of each other: where an idea answered, refined, challenged or split from another, where two lines of thought merged, which ideas went quiet, and which questions the group settled.
@@ -68,24 +115,30 @@ Messages are listed in the order they were said, across every source. Order is e
 - "nature": how it relates to its parent: "answers", "refines", "challenges", "splits" (an alternative branching off) or "combines" (only with merges). Use null when there is no such relation, as when someone simply opens a new topic under the root; never say "answers" unless it really answers the parent.
 - "why": one checkable sentence on why this is the parent. Start with "Likely:" if it is a guess.
 - "merges": only when an idea explicitly combines earlier ideas: [{"with": key or id, "why": "..."}]. Similar topics are not a merge.
-- Never repeat an idea that is already in the garden; attach to it instead.
+- Never repeat an idea that is already in the garden; attach to it instead. The root is the opening QUESTION, not a proposal to duplicate as another node.
+- Keep the alternatives distinct. Three people proposing three different mechanisms for the same need are three competing branches, not one topic heading; merge them only when someone actually combines them.
+- A new node must be an attributable, genuinely new argument/proposal/revision/decision. When a person merely supports, restates or challenges an already-existing idea and adds no new proposal, put the evidence in "reactions" instead of inventing a new child.
+- Do not confuse chronology with causal influence. For parent and merge relations, explain the actual connection with an evidence-grounded "why". Branches with no established relationship may grow from the root; do not invent merges or links simply to make a prettier tree.
+- When people converge on a distinct practical solution, capture the agreed decision and actual implementation, but only if the words state them.
 
 3. Rest and clicks.
 - "status": "dormant" when an idea was raised and then dropped or never taken up; otherwise "growing". Quiet ideas matter; keep them.
 - "knot": a click, a sub-question the group clearly settled: an explicit decision, a confirmed result, an option ruled out, or a conclusion others then built on. Give {"kind": "decision" | "result" | "ruled_out" | "conclusion", "settled": "one sentence on what is now settled", "m": the ref of the message where it was settled}; otherwise null. Be strict: most discussions have 0 to 3.
 
 4. Time.
-- "stages": 1 to 6 natural turns of the discussion, in the order they happened, each {"n": 1, "title": "at most 6 words"}. Each idea has "stage": the stage where it first appears.
+- "stages": 1 to 3 natural turns WITHIN THIS BATCH, in the order they happened, each {"n": 1, "title": "at most 6 words"}. Each idea has "stage": the stage where it first appears.
 
 5. Going back.
 - Groups often go back to an earlier point: a result is turned down (the cost will not come down, a client says no, a test fails) and they return to an idea they had before and branch out again from there. When the messages go back like this, give "returns": [{"to": the key of the earlier idea in the garden they go back to, "m": the ref of the message where they go back, "why": the reason in a few words, as they put it, "set_aside": keys of ideas in the garden they now leave behind}]. Their new ideas then grow from that earlier idea (or from what grows out of it), never from what they set aside.
 - Only a clear return; most readings have none; at most 3. Otherwise "returns": [].
 
 6. Honesty.
-- Use only what is in the messages. Prefer fewer, well-grounded ideas over many thin ones: at most 15. Unrelated chatter is not a thread; leave it out.
+- Use only what is in the messages. Do not reduce multiple distinguishable proposals, serious objections or meaningful refinements to a few vague topic headings. Aim to preserve each consequential contribution, up to 20 in this batch. Do not force a quota, and omit irrelevant chatter.
+- Return "reactions" for later messages that support, restate or challenge an idea that ALREADY EXISTS in the garden, using its exact existing key. This is how a new speaker can influence an earlier branch without having to invent another idea.
+- Candidates from the first pass are only a grounded inventory to consider; read the source messages again and make independent judgments. Do not assume a first-pass claim or connection is correct.
 
 Return only JSON, exactly in this shape:
-{"stages":[{"n":1,"title":"..."}],"root":null,"returns":[],"ideas":[{"id":"short-id","label":"...","note":"...","origin":"m3","quote":"...","evidence":[],"parent":"root-or-key-or-id","nature":null,"why":"...","merges":[],"status":"growing","knot":null,"stage":1}]}`;
+{"stages":[{"n":1,"title":"..."}],"root":null,"returns":[],"reactions":[{"key":"existing-idea-key","m":"m5","role":"supports"}],"ideas":[{"id":"short-id","label":"...","note":"...","origin":"m3","quote":"...","evidence":[],"parent":"root-or-key-or-id","nature":null,"why":"...","merges":[],"status":"growing","knot":null,"stage":1}]}`;
 
 const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 
@@ -119,6 +172,9 @@ This garden is new: its root "${input.rootKey}" is only a placeholder. Also retu
     ? `\n\nThe people say these messages pick up again from "${input.resumeFrom}". Unless the words clearly say otherwise, record that return in "returns" and grow the new ideas from there.` : "";
   const told = input.told?.trim() ? `\n\nThe people told the gardener about these messages: “${clip(input.told.trim(), 600)}”` : "";
   const part = input.part && input.part.of > 1 ? ` (part ${input.part.n} of ${input.part.of}; the ideas of earlier parts are already in the garden above)` : "";
+  const inventory = input.candidates?.length
+    ? `\n\nFirst-pass source-verified statements to consider (not final ideas):\n${input.candidates.map(c => `- ${c.origin}: [${c.kind}] ${c.claim} | exact words: “${c.quote}”`).join("\n")}`
+    : "";
   const user = `Garden: ${input.gardenTitle}
 The root (the group's question) is "${input.rootKey}".${root}${resume}${told}
 
@@ -127,7 +183,7 @@ ${tree || "(only the root)"}
 
 ${several ? "Conversations" : "Conversation"}: ${input.conversationTitle}${part}${input.skipped ? ` (the ${input.skipped} earliest messages are not shown)` : ""}
 Times are UTC. Messages in the order they were said:
-${msgs}`;
+${msgs}${inventory}`;
   return { system: SYSTEM, user };
 }
 
@@ -141,6 +197,19 @@ export function parseAnswer(text: string): unknown {
 }
 
 const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+/** A deliberately conservative near-duplicate check for two short names of the SAME idea.
+ * It is only applied to a named root when the origin message is identical. */
+export function rootNameEquivalent(a: string, b: string): boolean {
+  if (norm(a) === norm(b)) return true;
+  const stop = new Set(["a", "an", "the", "of", "for", "to", "on", "in", "with", "and", "how", "we", "our"]);
+  const words = (s: string) => [...new Set((s.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [])
+    .filter(w => !stop.has(w)).map(w => w.endsWith("s") && w.length > 3 ? w.slice(0, -1) : w)
+    .map(w => w.length > 6 ? w.slice(0, 6) : w))];
+  const wa = words(a), wb = words(b);
+  if (wa.length < 2 || wb.length < 2) return false;
+  const common = wa.filter(w => wb.includes(w)).length;
+  return common >= 2 && common / Math.max(wa.length, wb.length) >= 0.8;
+}
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 type Any = Record<string, unknown>;
 
@@ -150,7 +219,10 @@ export function checkHarvest(answer: unknown, input: HarvestInput): Checked {
   const rawIdeas = Array.isArray(a["ideas"]) ? (a["ideas"] as Any[]) : [];
   const byRef = new Map(input.messages.map((m) => [m.ref, m]));
   const existing = new Map(input.ideas.map((i) => [i.key, i]));
+  const rootName = readRoot(a["root"], input, byRef);
+  const namedRootLabel = rootName?.label ?? existing.get(input.rootKey)?.label ?? "";
   const known = new Set(input.ideas.map((i) => norm(i.label)));
+  if (rootName) known.add(norm(rootName.label));
   const dropped: Checked["dropped"] = [];
   const stagesIn = Array.isArray(a["stages"]) ? (a["stages"] as Any[]) : [];
   const stages = stagesIn.slice(0, MAX_STAGES).map((s, i) => ({ n: i + 1, title: clip(str(s["title"]) || `Part ${i + 1}`, 60) }));
@@ -170,6 +242,9 @@ export function checkHarvest(answer: unknown, input: HarvestInput): Checked {
     // ideas belong to whoever said them in the conversation, a person or an AI taking part; never to the gardener
     if (!origin.personId) { dropped.push({ label, reason: "its first words have no known speaker" }); continue; }
     if (known.has(norm(label))) { dropped.push({ label, reason: "it is already in the garden" }); continue; }
+    if (rootName?.originMessageId === origin.id && rootNameEquivalent(label, namedRootLabel)) {
+      dropped.push({ label, reason: "it repeats the opening question" }); continue;
+    }
     let temp = str(r["id"]) || `new-${out.length + 1}`;
     while (temps.has(temp) || existing.has(temp)) temp += "'";
     temps.add(temp);
@@ -294,7 +369,20 @@ export function checkHarvest(answer: unknown, input: HarvestInput): Checked {
   }
   const used = new Set(ordered.map((p) => p.stage));
 
-  return { proposals: ordered, stages: usedTitles.filter((s) => used.has(s.n)), dropped, root: readRoot(a["root"], input, byRef), returns };
+  const reactions: Reaction[] = [];
+  const seenReactions = new Set<string>();
+  const rawReactions = Array.isArray(a["reactions"]) ? a["reactions"] as Any[] : [];
+  for (const r of rawReactions.slice(0, 120)) {
+    if (!r || typeof r !== "object") continue;
+    const key = str(r["key"]), msg = byRef.get(str(r["m"]));
+    const role = str(r["role"]) as Reaction["role"];
+    if (!existing.has(key) || !msg?.personId || !EVIDENCE_ROLES.includes(role)) continue;
+    const token = `${key}|${msg.id}|${role}`;
+    if (seenReactions.has(token)) continue;
+    seenReactions.add(token);
+    reactions.push({ key, messageId: msg.id, role });
+  }
+  return { proposals: ordered, stages: usedTitles.filter((s) => used.has(s.n)), dropped, root: rootName, returns, reactions };
 }
 
 /**

@@ -7,7 +7,7 @@ import { validateGarden, formatError, MAX_LABEL } from "./stam/validate";
 import type { StamGarden, ValidationError } from "./stam/types";
 import { prepare, checkDraft, resolveVoices, isRealName, type PrepareInput, type PrepareOptions, type Format } from "./intake";
 import { nextColor } from "./stam/palette";
-import { checkHarvest, harvestPrompt, parseAnswer } from "./gardener/harvest";
+import { checkHarvest, harvestPrompt, parseAnswer, thoughtCandidatePrompt, checkThoughtCandidates } from "./gardener/harvest";
 import { inTimeOrder, parts } from "./gardener/order";
 import { askGardener } from "./gardener/ai";
 import sample from "../../docs/sample-garden.json";
@@ -595,7 +595,8 @@ export const growTree = createServerFn({ method: "POST" })
     const visible = rows.filter((m) => !m.hidden_reason && m.content.trim());
     if (!visible.length) fail("There are no words to read in what was brought in.");
     const stream = inTimeOrder(visible.map((m) => ({ ...m, sentAt: m.sent_at, precision: m.time_precision })));
-    const all = parts(stream);
+    // Bounded chronological readings: smaller discussions no longer become one generic summary.
+    const all = parts(stream, 24000, 14);
     const range = all[data.part];
     if (!range) return { grown: 0, dropped: [], part: data.part, parts: all.length, read: 0, model: null, root: null };
     const slice = stream.slice(range.from, range.to);
@@ -623,9 +624,15 @@ export const growTree = createServerFn({ method: "POST" })
     const resumeFrom = data.part === 0 && data.resumeFrom && live.some((i) => i.key === data.resumeFrom) ? data.resumeFrom : null;
     const input = { gardenTitle: garden.title, conversationTitle: titles.join("; "), rootKey: root.key, ideas, messages, skipped: 0, part: { n: data.part + 1, of: all.length }, nameRoot, resumeFrom, told: data.part === 0 ? data.told ?? null : null };
 
-    const prompt = harvestPrompt(input);
+    // Pass 1 independently inventories exact-quote-grounded statements.
+    // If inventory extraction fails, the original reading still runs (no loss of imports).
+    const inventory = thoughtCandidatePrompt(input);
+    const candidates = await askGardener(inventory.system, inventory.user)
+      .then(r => checkThoughtCandidates(parseAnswer(r.text), input)).catch(() => []);
+    // Pass 2 reconstructs links, proposals, objections and outcomes from the actual words.
+    const prompt = harvestPrompt({ ...input, candidates });
     const asked = await askGardener(prompt.system, prompt.user).catch((e) => fail((e as Error).message));
-    const { proposals, stages, dropped, root: rootName, returns } = checkHarvest(parseAnswer(asked.text), input);
+    const { proposals, stages, dropped, root: rootName, returns, reactions } = checkHarvest(parseAnswer(asked.text), input);
     const sentOf = new Map(slice.map((m) => [m.id, m.time_precision !== "unknown" ? { at: m.sent_at, precision: m.time_precision } : null]));
     const orderOf = new Map(slice.map((m, i) => [m.id, i]));
     const speakerOf = new Map(slice.map((m) => [m.id, m.contributor_id]));
@@ -634,6 +641,27 @@ export const growTree = createServerFn({ method: "POST" })
       return { row: { ...t, garden_id: data.gardenId, origin: "ai", confirmed: false, recorded_by: userId, occurred_at: when?.at ?? null, time_precision: when?.precision ?? "unknown" } as ThoughtRow, messageId, order: messageId ? orderOf.get(messageId) ?? 1e9 : 1e9 };
     };
     const thoughts: ReturnType<typeof thoughtFor>[] = [];
+
+    // Replies in this batch can support or challenge existing ideas without producing
+    // fake child branches. Keep the evidence tied to its actual source message.
+    const existingByKey = new Map(live.map(i => [i.key, i.id]));
+    if (reactions.length) {
+      // the same message may already rest on that idea in that role (unique); skip those rows
+      const ids = [...new Set(reactions.map((r) => existingByKey.get(r.key)).filter((x): x is string => !!x))];
+      const had = new Set(check(await supabase.from("idea_evidence").select("idea_id,message_id,role").in("idea_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"])).map((e) => `${e.idea_id}|${e.message_id}|${e.role}`));
+      const fresh = reactions.filter((r) => { const id = existingByKey.get(r.key); return id && !had.has(`${id}|${r.messageId}|${r.role}`); });
+      if (fresh.length) check(await supabase.from("idea_evidence").insert(fresh.flatMap(r => {
+        const id = existingByKey.get(r.key);
+        return id ? [{ garden_id: data.gardenId, idea_id: id, message_id: r.messageId,
+          role: r.role, note: null, created_by: userId }] : [];
+      })));
+      for (const r of fresh.filter(r => r.role === "challenges")) {
+        const id = existingByKey.get(r.key);
+        if (id) thoughts.push(thoughtFor({ type: "challenged", idea_id: id,
+          person_id: speakerOf.get(r.messageId) ?? null,
+          rationale: "The reply challenged an existing idea." }, r.messageId));
+      }
+    }
 
     // a new garden's root, named from the conversation
     if (rootName) {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { checkHarvest, fitMessages, harvestPrompt, parseAnswer, type HarvestInput, shorten } from "./harvest";
+import { checkHarvest, checkThoughtCandidates, thoughtCandidatePrompt, rootNameEquivalent, fitMessages, harvestPrompt, parseAnswer, type HarvestInput, shorten } from "./harvest";
 import { askGardener, GardenerUnavailable } from "./ai";
 
 const msg = (n: number, speaker: string, content: string, human = true) => ({
@@ -19,6 +19,36 @@ const input: HarvestInput = {
 const idea = (o: Record<string, unknown>) => ({ id: "x", label: "L", note: "n", origin: "m1", quote: null, evidence: [], parent: "root", nature: "answers", why: "w", merges: [], status: "growing", knot: null, stage: 1, ...o });
 
 describe("checking what the gardener proposes", () => {
+  it("collects grounded thought candidates before inferring relationships", () => {
+    const first = input.messages[0]!;
+    const prompt = thoughtCandidatePrompt(input);
+    expect(prompt.system).toContain("NOT a graph");
+    const result = checkThoughtCandidates({ candidates: [
+      { origin: first.ref, quote: first.content.slice(0, 18), kind: "proposal", claim: "Repair the dryers" },
+      { origin: first.ref, quote: "something not in the message", kind: "proposal", claim: "Invented" },
+      { origin: "m99", quote: "nonsense", kind: "proposal", claim: "Ghost" },
+    ] }, input);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.origin).toBe(first.ref);
+  });
+  it("can attach later support or challenge to an existing earlier idea", () => {
+    const checked = checkHarvest({ ideas: [], reactions: [
+      { key: "root", m: "m2", role: "supports" },
+      { key: "root", m: "m3", role: "challenges" },
+      { key: "not-existing", m: "m2", role: "supports" },
+    ] }, input);
+    expect(checked.reactions.map(r => r.role)).toEqual(["supports", "challenges"]);
+  });
+  it("does not repeat the newly named question as a second descendant", () => {
+    expect(rootNameEquivalent("Packaging PEP discovery", "Discover packaging PEPs")).toBe(true);
+    const fresh = { ...input, nameRoot: true };
+    const checked = checkHarvest({
+      root: { label: "Dryer complaints", origin: "m1" },
+      ideas: [idea({ label: "Dryer complaints", origin: "m1" }), idea({ id: "repair", label: "Fault report", origin: "m2" })],
+    }, fresh);
+    expect(checked.proposals.map(p => p.label)).toEqual(["Fault report"]);
+  });
+
   it("ideas belong to whoever said them, whatever the model claims", () => {
     const c = checkHarvest({ ideas: [idea({ id: "complain", label: "How to complain", origin: "m1", by: "Benjamin" })] }, input);
     expect(c.proposals[0]).toMatchObject({ label: "How to complain", personId: "p-Saloni", originMessageId: "id-1", parent: "root" });

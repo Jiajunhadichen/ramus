@@ -40,12 +40,12 @@ export function inTimeOrder<T extends StreamMessage>(messages: T[]): T[] {
 }
 
 /** Parts of the stream that fit one reading each, in order; every message is read exactly once. */
-export function parts<T extends { content: string }>(messages: T[], budget = 90000): { from: number; to: number }[] {
+export function parts<T extends { content: string }>(messages: T[], budget = 90000, maxMessages = Infinity): { from: number; to: number }[] {
   const out: { from: number; to: number }[] = [];
   let from = 0, size = 0;
   messages.forEach((m, i) => {
     const n = m.content.length + 40;
-    if (i > from && size + n > budget) { out.push({ from, to: i }); from = i; size = 0; }
+    if (i > from && (size + n > budget || i - from >= maxMessages)) { out.push({ from, to: i }); from = i; size = 0; }
     size += n;
   });
   if (from < messages.length) out.push({ from, to: messages.length });

@@ -31,4 +31,10 @@ describe("one stream in the order things were said", () => {
     expect(p).toEqual([{ from: 0, to: 3 }, { from: 3, to: 6 }, { from: 6, to: 9 }, { from: 9, to: 10 }]);
     expect(parts([], 300)).toEqual([]);
   });
+  it("reads all 39 source messages in short chronological batches, without gaps", () => {
+    const data = Array.from({ length: 39 }, (_, i) => ({ content: `Post ${i + 1}`, n: i + 1 }));
+    const segments = parts(data, 24000, 14);
+    expect(segments).toEqual([{ from: 0, to: 14 }, { from: 14, to: 28 }, { from: 28, to: 39 }]);
+    expect(segments.flatMap(x => data.slice(x.from, x.to).map(p => p.n))).toEqual(data.map(p => p.n));
+  });
 });
