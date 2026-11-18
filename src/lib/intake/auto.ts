@@ -52,7 +52,7 @@ export function timeLine(draft: Draft): TimeLine {
 
 export const KIND_LABEL: Record<Format, string> = {
   whatsapp: "WhatsApp chat", slack: "Slack", chatgpt: "ChatGPT conversation", claude: "Claude conversation",
-  transcript: "Chat or transcript", lines: "Chat", vtt: "Recording transcript", srt: "Recording transcript", notes: "Notes",
+  transcript: "Chat or transcript", lines: "Chat", vtt: "Recording transcript", srt: "Recording transcript", notes: "Notes", discourse: "Discussion",
 };
 
 const EXPORT_PREFIX = /^(?:whatsapp[ -]chat(?:t)?(?:\s+(?:with|med|mit|avec|con))?|whatsapp chat\s*-|与)\s*[-:]?\s*/i;
@@ -61,6 +61,6 @@ const EXPORT_PREFIX = /^(?:whatsapp[ -]chat(?:t)?(?:\s+(?:with|med|mit|avec|con)
 export function gardenTitle(fileName: string | null, draft: Draft): { title: string; placeholder: boolean } {
   const fromFile = fileName ? fileName.replace(/\.[^.]+$/, "").replace(/[_]+/g, " ").replace(EXPORT_PREFIX, "").replace(/\s*的\s*WhatsApp\s*聊天$/i, "").trim() : "";
   if (fromFile && !/^(?:_?chat|conversations?|messages?|transcript)$/i.test(fromFile)) return { title: fromFile.slice(0, 80), placeholder: false };
-  if (draft.title && (draft.format === "chatgpt" || draft.format === "claude" || draft.format === "slack")) return { title: draft.title.slice(0, 80), placeholder: false };
+  if (draft.title && (draft.format === "chatgpt" || draft.format === "claude" || draft.format === "slack" || draft.format === "discourse")) return { title: draft.title.slice(0, 80), placeholder: false };
   return { title: "A conversation", placeholder: true };
 }

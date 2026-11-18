@@ -440,7 +440,7 @@ export const setOutcome = createServerFn({ method: "POST" })
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_MESSAGES = 20000;
 const SOURCE_OF: Record<Format, "meeting" | "chat" | "notes" | "other"> = {
-  whatsapp: "chat", slack: "chat", chatgpt: "chat", claude: "chat", lines: "chat", transcript: "meeting", vtt: "meeting", srt: "meeting", notes: "notes",
+  whatsapp: "chat", slack: "chat", chatgpt: "chat", claude: "chat", lines: "chat", transcript: "meeting", vtt: "meeting", srt: "meeting", notes: "notes", discourse: "chat",
 };
 
 /** The importer's own name if they gave one; never derived from their email address, which other members would see. */

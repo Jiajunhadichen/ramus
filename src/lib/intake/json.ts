@@ -1,10 +1,13 @@
 import type { ConversationChoice } from "./types";
 import type { Unit } from "./text";
 import { hash } from "./util";
+import { completeness, isTopic, topicMessages } from "./discourse";
 
 type Any = any; // source exports are untyped JSON
 export type JsonSource = {
-  format: "chatgpt" | "claude" | "slack";
+  format: "chatgpt" | "claude" | "slack" | "discourse";
+  /** what the source says is missing */
+  warnings?: string[];
   conversations: ConversationChoice[];
   /** the chosen conversations, as received */
   pick: (ids: string[]) => Any[];
@@ -29,6 +32,27 @@ const chatgptText = (m: Any) => (Array.isArray(m?.content?.parts) ? m.content.pa
 const cid = (c: Any, i: number) => String(c.id ?? c.conversation_id ?? c.uuid ?? `c${i}-${hash(JSON.stringify(c.title ?? c.name ?? ""))}`);
 
 export function readJson(value: unknown, files?: { name: string; text: string }[]): JsonSource | null {
+  // a Discourse topic, as fetched by Ramus (one topic) or kept as [topic]
+  const one = Array.isArray(value) && value.length === 1 ? value[0] : value;
+  if (isTopic(one)) {
+    const t: Any = one;
+    const c = completeness(t);
+    const warnings = c.missing.length || c.received < c.expected
+      ? [`Only ${c.received} of ${c.expected} posts in this discussion were received; ${c.expected - c.received} are missing.`] : [];
+    return {
+      format: "discourse", warnings,
+      conversations: [{ id: `discourse:${t.id}`, title: String(t.title), date: isoStr(t.created_at), count: c.received }],
+      pick: () => [t],
+      build: (chosen) => {
+        const topic = chosen[0] ?? t;
+        const ms = topicMessages(topic);
+        return {
+          units: ms.map((m) => unit(m.label, m.content, m.sentAt, m.externalId, m.parent, m.hidden)),
+          otherBranches: 0, received: ms.map((m) => ({ role: m.label, text: m.content })), title: String(topic.title ?? "") || null,
+        };
+      },
+    };
+  }
   const list = Array.isArray(value) ? value : value && typeof value === "object" ? [value] : [];
   if (list.length && list.every((c: Any) => c && typeof c === "object" && c.mapping)) {
     return {

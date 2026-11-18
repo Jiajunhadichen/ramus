@@ -87,11 +87,13 @@ export function prepare(input: PrepareInput, options: PrepareOptions, ctx: Prepa
   let otherBranches = 0;
   let title: string | null = input.fileName ? input.fileName.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || null : null;
   let privacy = [] as ReturnType<typeof findPrivate>;
+  let warnings: string[] = [];
 
   const parsed = tryJson(input);
   const src: JsonSource | null = parsed !== undefined ? readJson(parsed, input.files) : null;
   if (src) {
     format = src.format;
+    warnings = src.warnings ?? [];
     readAs = [{ format, confidence: 0.99 }];
     conversations = src.conversations;
     const ids = options.conversations ?? (conversations.length === 1 ? [conversations[0]!.id] : []);
@@ -214,7 +216,7 @@ export function prepare(input: PrepareInput, options: PrepareOptions, ctx: Prepa
   questions.sort((a, b) => b.unsure - a.unsure);
   return {
     format, readAs, raw, sendable, messages, kept, speakers, segments, conversations, received, questions,
-    title, happened: times[0] ? localDate(times[0], tz) : date,
+    title, happened: times[0] ? localDate(times[0], tz) : date, warnings,
     report: {
       parser: PARSER_VERSION, format, messages: messages.length, kept: kept.length, setAside, voices: speakers.length,
       firstAt: times[0] ?? null, lastAt: times[times.length - 1] ?? null, otherBranches,

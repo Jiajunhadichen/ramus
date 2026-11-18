@@ -1,0 +1,4 @@
+alter table public.conversations drop constraint if exists conversations_source_format_check;
+alter table public.conversations add constraint conversations_source_format_check check (source_format in ('paste','lines','whatsapp','vtt','srt','transcript','notes','slack','chatgpt','claude','discourse','other'));
+alter table public.intake_batches drop constraint if exists intake_batches_source_format_check;
+alter table public.intake_batches add constraint intake_batches_source_format_check check (source_format in ('paste','lines','whatsapp','vtt','srt','transcript','notes','slack','chatgpt','claude','discourse','other'));

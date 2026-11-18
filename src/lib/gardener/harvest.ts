@@ -1,3 +1,4 @@
+import { ownWords } from "../intake/discourse";
 import { MAX_LABEL, validateGarden } from "@/lib/stam/validate";
 
 /**
@@ -64,7 +65,7 @@ export function thoughtCandidatePrompt(input: HarvestInput): { system: string; u
   const messages = input.messages.map(m => `${m.ref} [${when(m.sentAt)}] ${m.speaker ?? "Unattributed"}: ${m.content.replace(/\s*\n\s*/g, " / ")}`).join("\n");
   const already = input.ideas.map(i => `${i.key}: ${i.label} (${clip(i.note, 100)})`).join("\n");
   return {
-    system: `You are the first-pass reader of a real recorded conversation. Extract individual consequential thought-events, NOT a topic summary and NOT a graph. Include distinct alternatives, objections to earlier ideas, constraints, meaningful revisions, explicit decisions and reported outcomes. Pure agreement without new content can be omitted. Quote the shortest verbatim continuous phrase of at most 20 words from the originating message; do not invent a quote or claim. Keep the original chronological order. An opening question that only repeats the garden's root is not a new proposal. The second pass will determine influence and connections. Return JSON only: {"candidates":[{"origin":"m2","quote":"exact quoted words","kind":"proposal|alternative|objection|constraint|revision|decision|result","claim":"short faithful explanation"}]}. Up to 40; do not impose a minimum or fabricate ideas.`,
+    system: `You are the first-pass reader of a real recorded conversation. Extract individual consequential thought-events, NOT a topic summary and NOT a graph. Include distinct alternatives, objections to earlier ideas, constraints, meaningful revisions, explicit decisions and reported outcomes. Pure agreement without new content can be omitted. Quote the shortest verbatim continuous phrase of at most 20 words from the originating message; do not invent a quote or claim. Lines starting with ">" under "[quoting name]" are quoted from someone else: never quote them as this speaker's words. Keep the original chronological order. An opening question that only repeats the garden's root is not a new proposal. The second pass will determine influence and connections. Return JSON only: {"candidates":[{"origin":"m2","quote":"exact quoted words","kind":"proposal|alternative|objection|constraint|revision|decision|result","claim":"short faithful explanation"}]}. Up to 40; do not impose a minimum or fabricate ideas.`,
     user: `Existing ideas (avoid re-proposing them verbatim):\n${already}\n\nConversation: ${input.conversationTitle}\nChronological messages:\n${messages}`,
   };
 }
@@ -85,7 +86,7 @@ export function checkThoughtCandidates(answer: unknown, input: HarvestInput): Th
     const kind = r['kind'] as ThoughtCandidate["kind"];
     const source = byRef.get(origin);
     if (!source?.personId || !quote || !claim || !CANDIDATE_KINDS.includes(kind)) continue;
-    if (!source.content.includes(quote) || quote.split(/\s+/).length > 22) continue;
+    if (!ownWords(source.content).includes(quote) || quote.split(/\s+/).length > 22) continue;
     const key = `${origin}|${quote}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -105,7 +106,7 @@ Messages are listed in the order they were said, across every source. Order is e
 1. Ideas belong to people.
 - An idea is something a person said that others could build on: a proposal, claim, question, option, decision, correction or explanation. Small talk, greetings, thanks and plain agreement are not ideas.
 - Every idea has an "origin": the ref of the message where it is first said. The author is whoever wrote that message: a person, or an AI that took part in the conversation (marked "(AI)"). You, the gardener, never add ideas of your own.
-- "quote": the shortest exact words (at most 20) from the origin message that carry the idea, copied character for character.
+- "quote": the shortest exact words (at most 20) from the origin message that carry the idea, copied character for character. Lines starting with ">" (under "[quoting name]") are words the speaker quoted from someone else: never quote them as the speaker's own, and never treat them as a new idea of that speaker.
 - "label": the idea as a short name, not a sentence, in the language of the discussion: at most 12 Chinese characters or 5 English words (hard limit 24 characters).
 - "note": one sentence, at most 30 words, saying what the idea is in the speaker's own terms. Do not improve, extend or judge it.
 - "evidence": other messages that restate, support or challenge the idea: [{"m": "m12", "role": "restated" | "supports" | "challenges"}].
@@ -263,7 +264,7 @@ export function checkHarvest(answer: unknown, input: HarvestInput): Checked {
     const nature = str(r["nature"]) as Proposal["nature"];
     out.push({
       temp, label, note: clip(str(r["note"]), 280), personId: origin.personId, originMessageId: origin.id,
-      quote: quote && norm(origin.content).includes(norm(quote)) ? quote : null,
+      quote: quote && norm(ownWords(origin.content)).includes(norm(quote)) ? quote : null,
       evidence, parent: str(r["parent"]), parentIsNew: false, nature: nature && NATURES.includes(nature) ? nature : null,
       why: clip(str(r["why"]), 240) || null,
       merges: (Array.isArray(r["merges"]) ? (r["merges"] as Any[]) : []).map((x) => ({ target: str(x?.["with"]), isNew: false, why: clip(str(x?.["why"]), 240) || null })),

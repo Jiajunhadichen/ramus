@@ -4,6 +4,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 vi.mock("@tanstack/react-start", () => ({ useServerFn: () => vi.fn(async () => ({ name: "Jiajun" })), createServerFn: () => ({}) }));
 vi.mock("@/lib/garden.functions", () => ({ checkOverlap: {}, createGarden: {}, getAccessionContext: {}, receiveBatch: {}, whoAmI: {}, growTree: {}, reviewAllSuggestions: {} }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
+vi.mock("@/lib/sources.functions", () => ({ fetchDiscussion: {} }));
 vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
 
 const { BringInWindow } = await import("./BringInWindow");

@@ -1,8 +1,8 @@
 export const PARSER_VERSION = "intake-1.0";
-export type Format = "whatsapp" | "vtt" | "srt" | "transcript" | "lines" | "notes" | "chatgpt" | "claude" | "slack";
+export type Format = "whatsapp" | "vtt" | "srt" | "transcript" | "lines" | "notes" | "chatgpt" | "claude" | "slack" | "discourse";
 export const FORMAT_LABEL: Record<Format, string> = {
   whatsapp: "WhatsApp export", vtt: "WebVTT transcript", srt: "SubRip transcript", transcript: "Transcript blocks",
-  lines: "Name lines", notes: "Notes", chatgpt: "ChatGPT export", claude: "Claude export", slack: "Slack export",
+  lines: "Name lines", notes: "Notes", chatgpt: "ChatGPT export", claude: "Claude export", slack: "Slack export", discourse: "Discourse discussion",
 };
 export type Hidden = "system" | "media" | "deleted" | "empty";
 export type Precision = "second" | "minute" | "day" | "unknown";
@@ -97,6 +97,8 @@ export type Draft = {
   title: string | null;
   happened: string | null;
   report: Report;
+  /** what the source itself says is missing (e.g. posts a discussion lists but did not send) */
+  warnings: string[];
 };
 
 export type Report = {

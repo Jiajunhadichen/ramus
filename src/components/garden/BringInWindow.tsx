@@ -8,6 +8,8 @@ import { KIND_LABEL, gardenTitle, prepareAuto, timeLine, type Auto, type AutoExt
 import { browserDateOrder, formatWhen } from "@/lib/intake/display";
 import type { PrepareContext, PrepareInput } from "@/lib/intake";
 import { shorten } from "@/lib/gardener/harvest";
+import { fetchDiscussion } from "@/lib/sources.functions";
+import { pageCopySigns, parseTopicUrl, type TopicAddress } from "@/lib/intake/discourse";
 import { checkOverlap, createGarden, getAccessionContext, receiveBatch, whoAmI } from "@/lib/garden.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { grownLine, useGrow, type GrowProgress } from "./Gardener";
@@ -34,6 +36,10 @@ type Item = {
   error: string | null; opening: boolean; extra: AutoExtra;
   /** set once it is kept, so trying again never keeps it twice */
   kept?: { batchId: string | null };
+  /** a copied web page: what gave it away, and the discussion's own address when it shows one */
+  page?: { signs: string[]; url: TopicAddress | null } | undefined;
+  /** the person read the warning and chose to use it as it is */
+  accepted?: boolean | undefined;
 };
 type Phase =
   | { kind: "collecting" }
@@ -41,7 +47,7 @@ type Phase =
   | { kind: "reading"; progress: GrowProgress }
   | { kind: "failed"; message: string };
 
-const JSON_FORMATS = new Set(["chatgpt", "claude", "slack"]);
+const JSON_FORMATS = new Set(["chatgpt", "claude", "slack", "discourse"]);
 const uid = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 const env = () => ({ timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", dateOrder: browserDateOrder() });
 
@@ -81,6 +87,7 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
   const create = useServerFn(createGarden);
   const keep = useServerFn(receiveBatch);
   const overlap = useServerFn(checkOverlap);
+  const fetchTopic = useServerFn(fetchDiscussion);
   const gardenId = target.kind === "more" ? target.gardenId : plantedId;
   const grow = useGrow();
 
@@ -100,10 +107,26 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, incoming]);
 
+  async function addDiscussion(a: TopicAddress, replacing?: string) {
+    const id = uid();
+    const host = new URL(a.origin).hostname;
+    setItems((xs) => [...xs.filter((x) => x.id !== replacing), { id, name: `Discussion · ${host}`, fileName: null, input: null, file: null, error: null, opening: true, extra: {} }]);
+    let patch: Partial<Item>;
+    try {
+      const r = await fetchTopic({ data: { url: a.url } });
+      patch = { name: `${r.title} · ${host}`, input: { kind: "json", text: r.text } };
+    } catch (e) { patch = { error: (e as Error).message }; }
+    setItems((xs) => xs.map((x) => (x.id === id ? { ...x, ...patch, opening: false } : x)));
+  }
   function addText(t: string) {
     if (!t.trim()) return;
+    // a discussion's address: read the whole discussion from the forum itself
+    const lone = t.trim();
+    const topic = /^\S+$/.test(lone) ? parseTopicUrl(lone) : null;
+    if (topic) { void addDiscussion(topic); return; }
+    const signs = pageCopySigns(t);
     const lines = t.split(/\r?\n/).filter((l) => l.trim()).length;
-    setItems((xs) => [...xs, { id: uid(), name: `Pasted text · ${lines} line${lines === 1 ? "" : "s"}`, fileName: null, input: { kind: "text", text: t }, file: null, error: null, opening: false, extra: {} }]);
+    setItems((xs) => [...xs, { id: uid(), name: `Pasted text · ${lines} line${lines === 1 ? "" : "s"}`, fileName: null, input: { kind: "text", text: t }, file: null, error: null, opening: false, extra: {}, page: signs.looksLikePage ? { signs: signs.signs, url: signs.url } : undefined }]);
   }
   async function addFiles(files: File[]) {
     // a folder of .json files is one Slack export; anything else is one item per file
@@ -134,7 +157,11 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
     }
     return out;
   }, [items, ctx]);
-  const ready = items.filter((it) => { const a = prepared.get(it.id); return typeof a === "object" && a.draft.kept.some((m) => !m.hidden); });
+  const warned = (it: Item) => { const a = prepared.get(it.id); return !!it.page || (typeof a === "object" && a.draft.warnings.length > 0); };
+  const usable = items.filter((it) => { const a = prepared.get(it.id); return typeof a === "object" && a.draft.kept.some((m) => !m.hidden); });
+  // nothing incomplete or copied off a page is read until the person has seen why and chosen to use it
+  const ready = usable.filter((it) => !warned(it) || it.accepted);
+  const waiting = usable.length - ready.length;
   const busy = phase.kind === "keeping" || phase.kind === "reading";
 
   function reset() { setItems([]); setTyped(""); setTold(""); setPhase({ kind: "collecting" }); setPlantedId(null); setPartsDone(0); }
@@ -246,7 +273,9 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
 
         {items.length > 0 && (
           <ol aria-label="Brought in" className="grid gap-2">
-            {items.map((it) => <Row key={it.id} item={it} auto={prepared.get(it.id)} locked={busy || !!it.kept} onRemove={() => remove(it.id)} onExtra={(x) => setExtra(it.id, x)} />)}
+            {items.map((it) => <Row key={it.id} item={it} auto={prepared.get(it.id)} locked={busy || !!it.kept} onRemove={() => remove(it.id)} onExtra={(x) => setExtra(it.id, x)}
+              onAccept={() => setItems((xs) => xs.map((x) => (x.id === it.id ? { ...x, accepted: true } : x)))}
+              onFetch={(a) => void addDiscussion(a, it.id)} />)}
           </ol>
         )}
 
@@ -261,7 +290,8 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
 
         {!busy && (
           <div className="grid gap-2 border-t border-rule pt-3">
-            <Button disabled={!ready.length || items.some((it) => it.opening)} onClick={go}>
+            {waiting > 0 && <p className="text-ui">{waiting === 1 ? "One source above is" : `${waiting} sources above are`} incomplete or copied off a page. Bring the discussion in from its address, or choose to use it as it is.</p>}
+            <Button disabled={!ready.length || waiting > 0 || items.some((it) => it.opening)} onClick={go}>
               {phase.kind === "failed" ? (keptAll ? "Let the gardener try again" : "Try again") : target.kind === "more" && !target.fresh ? "Add to the tree" : "That’s everything — grow the tree"}
             </Button>
             {phase.kind === "failed" && keptAll && gardenId && (
@@ -275,7 +305,8 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
   );
 }
 
-function Row({ item, auto, locked, onRemove, onExtra }: { item: Item; auto: Auto | string | undefined; locked: boolean; onRemove: () => void; onExtra: (x: AutoExtra) => void }) {
+function Row({ item, auto, locked, onRemove, onExtra, onAccept, onFetch }: { item: Item; auto: Auto | string | undefined; locked: boolean; onRemove: () => void; onExtra: (x: AutoExtra) => void; onAccept: () => void; onFetch: (a: TopicAddress) => void }) {
+  const [address, setAddress] = useState("");
   const a = typeof auto === "object" ? auto : null;
   const problem = item.error ?? (typeof auto === "string" ? auto : a && !a.draft.kept.some((m) => !m.hidden) ? "No messages were found in this." : null);
   const t = a ? timeLine(a.draft) : null;
@@ -288,6 +319,24 @@ function Row({ item, auto, locked, onRemove, onExtra }: { item: Item; auto: Auto
         {!locked && <button type="button" aria-label={`Remove ${item.name}`} className="text-muted-foreground hover:text-foreground" onClick={onRemove}>×</button>}
       </div>
       {item.opening && <span className="text-ui text-muted-foreground">Opening…</span>}
+      {!locked && !item.accepted && (item.page || (a && a.draft.warnings.length > 0)) && (
+        <div role="alert" className="grid gap-1.5 border-t border-rule pt-1.5 text-ui">
+          {a?.draft.warnings.map((w) => <span key={w}>{w}</span>)}
+          {item.page && <span>This looks copied from a web page, not a whole conversation: it has {item.page.signs.join(", ")}. Read as it is, page text could be taken for messages, and posts the page did not show would be missing.</span>}
+          <div className="flex flex-wrap items-center gap-3">
+            {item.page?.url
+              ? <Button size="sm" onClick={() => onFetch(item.page!.url!)}>Bring in the whole discussion from {new URL(item.page.url.origin).hostname}</Button>
+              : item.page && (
+                <form className="flex flex-1 items-center gap-2" onSubmit={(e) => { e.preventDefault(); const t = parseTopicUrl(address); if (t) onFetch(t); else toast("That is not the address of a Discourse discussion (https://…/t/…)."); }}>
+                  <input aria-label="The discussion's address" placeholder="Its address, e.g. https://discuss.python.org/t/14111" value={address} onChange={(e) => setAddress(e.target.value)}
+                    className="h-9 min-w-0 flex-1 border border-rule bg-transparent px-3 text-ui outline-none focus:border-ink" />
+                  <Button size="sm" variant="outline" type="submit">Bring it in</Button>
+                </form>
+              )}
+            {a && <button type="button" className="text-ui underline underline-offset-4" onClick={onAccept}>Use it as it is</button>}
+          </div>
+        </div>
+      )}
       {problem && <span className="text-ui">{problem}</span>}
       {a && !problem && (
         <>

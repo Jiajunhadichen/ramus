@@ -57,6 +57,13 @@
       "when": 1794953330466,
       "tag": "0007_garden_trash",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794962320528,
+      "tag": "0008_discourse_source_format",
+      "breakpoints": true
     }
   ]
 }
