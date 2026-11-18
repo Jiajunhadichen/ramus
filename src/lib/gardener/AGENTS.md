@@ -1,0 +1,2 @@
+## Source-agnostic understanding (v2.9)
+- Format readers (src/lib/intake) are optimisations, never gates: anything with words in it can be grown; warnings inform and never block the grow button; unattributed words (notes, articles, fragments) yield ideas credited to no one (contributor_id null), never to a guessed person; every gardener link carries basis stated|inferred and inferred rationales read "Likely: …" (withBasis in harvest.ts). Why: Ramus reconstructs how ideas evolved from any source, not only well-formed conversations.

@@ -83,5 +83,3 @@ use the editor.
 - Taking a branch off (reviewSuggestion accept=false) sets rejected_at on it and the gardener's branches growing from it, rejects their open gardener thought events via review_thought_event, and refuses when people have grown their own branches from it. Older unconfirmed suggestions can still be accepted. getGarden hides rejected ideas; exports and specimen counts include only confirmed ideas.
 
 
-## Source-agnostic understanding (v2.9)
-- Format readers (src/lib/intake) are optimisations, never gates: anything with words in it can be grown; warnings inform and never block the grow button; unattributed words (notes, articles, fragments) yield ideas credited to no one (contributor_id null), never to a guessed person; every gardener link carries basis stated|inferred and inferred rationales read "Likely: …" (withBasis in harvest.ts). Why: Ramus reconstructs how ideas evolved from any source, not only well-formed conversations.
