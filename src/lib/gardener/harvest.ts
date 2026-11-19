@@ -136,7 +136,7 @@ Messages are listed in the order they were said, across every source. Order is e
 - Keep the alternatives distinct. Three people proposing three different mechanisms for the same need are three competing branches, not one topic heading; merge them only when someone actually combines them.
 - Fine grain. When one message offers several options, directions, candidates or a ranking, each is its own idea, siblings under the same parent; the ones not taken forward are "dormant". A concept the discussion leans on (a theory, a method, a principle that is named and then used) is an idea. A long answer usually holds three to six ideas.
 - Deep lineage. An idea grows from the latest idea it continues (the one it refines, answers, applies or objects to), not from the root, unless it really opens a new thread. Real discussions run in long lines: question → options → the chosen one → its refinement → what it is applied to.
-- Sub-questions. When someone raises a sub-question or an agenda item ("what power source?", "next, the look and feel", "who is it for?"), that question is an idea of the person who raised it, and the options and decisions about it grow from it. The root usually has only a handful of direct children (sub-questions or main directions), rarely more than eight; if many ideas would grow straight from the root, find the sub-question each one answers.
+- Sub-questions. When someone raises a sub-question or an agenda item ("what power source?", "next, the look and feel", "who is it for?"), that question is an idea of the person who raised it, and the options and decisions about it grow from it. Ideas raised together as parallel answers to the main question may all grow from the root (real divergence is not an error); but when the discussion moves through sub-questions, each idea grows from the one it answers.
 - When a later idea draws on two or more earlier ideas (builds on both, joins them, finds they share one shape), give "merges"; in a real discussion this happens several times.
 - A new node must be an attributable, genuinely new argument/proposal/revision/decision. When a person merely supports, restates or challenges an already-existing idea and adds no new proposal, put the evidence in "reactions" instead of inventing a new child.
 - Do not confuse chronology with causal influence. For parent and merge relations, explain the actual connection with an evidence-grounded "why". Branches with no established relationship may grow from the root; do not invent merges or links simply to make a prettier tree.
@@ -475,7 +475,43 @@ export function crowdedRoot(proposals: Proposal[], rootKey: string): Proposal[] 
   return proposals.filter((p) => p.parent === rootKey && !p.parentIsNew && !p.merges.length);
 }
 
-/** What the gardener is told when a reading came back as a broom: group the ideas under what they answer. */
-export function regrowNote(crowd: Proposal[]): string {
-  return `\n\nYour previous answer grew ${crowd.length} ideas straight from the root (${crowd.map((p) => `“${p.label}”`).join(", ")}). That is a broom, not a tree. Read the messages again: find the sub-questions, agenda items or main directions these ideas answer (raise them as ideas where someone actually raised them), and give each idea the parent it continues. Keep every idea that is grounded in the words; return the complete answer again.`;
+/**
+ * A broom is not wrong in itself: ideas raised together in answer to the question, which nobody took further, are
+ * a real divergence and stay on the root. It is wrong when the discussion had structure that the reading lost:
+ * the ideas were raised across many turns, the gardener itself marked them as refining or challenging something,
+ * or an agenda item / sub-question that they answer was not kept. Only then is the gardener asked again.
+ */
+export function brokenBroom(proposals: Proposal[], input: HarvestInput): { crowd: Proposal[]; reasons: string[] } {
+  const crowd = crowdedRoot(proposals, input.rootKey);
+  if (crowd.length <= ROOT_CROWD) return { crowd, reasons: [] };
+  const reasons: string[] = [];
+  const pos = new Map(input.messages.map((m, i) => [m.id, i]));
+  // 1. raised across the discussion, not in one burst
+  const byStage = new Map<number, number>();
+  for (const p of crowd) byStage.set(p.stage, (byStage.get(p.stage) ?? 0) + 1);
+  const at = crowd.map((p) => pos.get(p.originMessageId) ?? 0);
+  const span = (Math.max(...at) - Math.min(...at) + 1) / Math.max(1, input.messages.length);
+  if (byStage.size >= 3 && Math.max(...byStage.values()) / crowd.length < 0.6 && span > 0.5) reasons.push(`they were raised in ${byStage.size} different turns of the discussion, not together`);
+  // 2. the gardener itself said they continue something
+  const continuing = crowd.filter((p) => p.nature === "refines" || p.nature === "challenges" || p.nature === "combines");
+  if (continuing.length >= 2) reasons.push(`${continuing.map((p) => `“${p.label}”`).join(", ")} were marked as refining or challenging something, yet grew from the root`);
+  // 3. an agenda item or sub-question that some of them answer is not an idea (answering the main question itself does not count)
+  const origins = new Set(proposals.map((p) => p.originMessageId));
+  const AGENDA = /[?？]\s*$|^(?:next|now|moving on|let'?s (?:talk|move|discuss|look)|what about|how about|接下来|下一个|然后说|再说|关于|那么)/i;
+  const agenda = input.messages.map((m, i) => ({ m, i })).filter(({ m }) => !origins.has(m.id) && AGENDA.test(m.content.trim()));
+  for (const [n, { m, i }] of agenda.entries()) {
+    // what follows it, up to the next agenda item
+    const until = agenda[n + 1]?.i ?? input.messages.length;
+    const answered = crowd.filter((p) => { const k = pos.get(p.originMessageId) ?? -1; return k > i && k < until; });
+    if (answered.length >= 2 && answered.length <= crowd.length * 0.6) {
+      reasons.push(`${m.ref} (“${clip(m.content.trim(), 60)}”) raises a sub-question that ${answered.map((p) => `“${p.label}”`).join(", ")} answer, but it is not an idea`);
+      break;
+    }
+  }
+  return { crowd, reasons };
+}
+
+/** What the gardener is told when a reading lost the discussion's structure: why, and that real divergence may stay. */
+export function regrowNote(crowd: Proposal[], reasons: string[] = []): string {
+  return `\n\nYour previous answer grew ${crowd.length} ideas straight from the root (${crowd.map((p) => `“${p.label}”`).join(", ")}).${reasons.length ? ` But ${reasons.join("; ")}.` : ""} Read the messages again: find the sub-questions, agenda items or ideas these continue (raise a sub-question as an idea where someone actually raised it), and give each idea the parent it continues. Ideas that really were raised together as parallel answers to the main question, and not taken further, may stay on the root. Keep every idea that is grounded in the words; return the complete answer again.`;
 }
