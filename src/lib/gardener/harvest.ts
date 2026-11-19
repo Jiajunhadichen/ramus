@@ -47,8 +47,8 @@ export const NATURES = ["refines", "answers", "challenges", "splits", "combines"
 export const KNOT_KINDS = ["decision", "result", "ruled_out", "conclusion"] as const;
 export const EVIDENCE_ROLES = ["restated", "supports", "challenges"] as const;
 export const MAX_PROPOSALS = 20;
-export const MAX_KNOTS = 2;
-export const MAX_STAGES = 6;
+export const MAX_KNOTS = 4;
+export const MAX_STAGES = 10;
 
 export type Proposal = {
   temp: string; label: string; note: string; personId: string | null; originMessageId: string; quote: string | null;
@@ -71,14 +71,14 @@ export type ThoughtCandidate = {
   claim: string;
 };
 const CANDIDATE_KINDS: ThoughtCandidate["kind"][] = ["proposal", "alternative", "objection", "constraint", "revision", "decision", "result"];
-const MAX_CANDIDATES = 40;
+const MAX_CANDIDATES = 60;
 
 /** Stage 1: extract atomic, verbatim-grounded claims without inventing their causal relationships. */
 export function thoughtCandidatePrompt(input: HarvestInput): { system: string; user: string } {
   const messages = input.messages.map(m => `${m.ref} [${when(m.sentAt)}] ${voiceLine(m)}: ${m.content.replace(/\s*\n\s*/g, " / ")}`).join("\n");
   const already = input.ideas.map(i => `${i.key}: ${i.label} (${clip(i.note, 100)})`).join("\n");
   return {
-    system: `You are the first-pass reader of real recorded thought: a conversation, a transcript, notes, an article, a copied page or loose fragments, in any format. Lines marked Unattributed have no known author; their ideas still count. "(possibly X, unconfirmed)" is only a hint about who may have said it: never treat it as the author. Lines marked [heading] or [quote] are titles or quoted words, not new claims by the speaker. People who are only talked about or cited are not speakers. Ignore page furniture (menus, counters, announcements, lists of other pages). Extract individual consequential thought-events, NOT a topic summary and NOT a graph. Include distinct alternatives, objections to earlier ideas, constraints, meaningful revisions, explicit decisions and reported outcomes. Pure agreement without new content can be omitted. Quote the shortest verbatim continuous phrase of at most 20 words from the originating message; do not invent a quote or claim. Lines starting with ">" under "[quoting name]" are quoted from someone else: never quote them as this speaker's words. Keep the original chronological order. An opening question that only repeats the garden's root is not a new proposal. The second pass will determine influence and connections. Return JSON only: {"candidates":[{"origin":"m2","quote":"exact quoted words","kind":"proposal|alternative|objection|constraint|revision|decision|result","claim":"short faithful explanation"}]}. Up to 40; do not impose a minimum or fabricate ideas.`,
+    system: `You are the first-pass reader of real recorded thought: a conversation, a transcript, notes, an article, a copied page or loose fragments, in any format. Lines marked Unattributed have no known author; their ideas still count. "(possibly X, unconfirmed)" is only a hint about who may have said it: never treat it as the author. Lines marked [heading] or [quote] are titles or quoted words, not new claims by the speaker. People who are only talked about or cited are not speakers. Ignore page furniture (menus, counters, announcements, lists of other pages). Extract individual consequential thought-events, NOT a topic summary and NOT a graph. Include distinct alternatives, objections to earlier ideas, constraints, meaningful revisions, explicit decisions and reported outcomes. When one message lists several options, directions, candidates or ranked choices, each one is its own thought-event. Concepts the discussion leans on (a theory, method or principle that is named and then used) are thought-events too. A long answer usually holds three to six. Pure agreement without new content can be omitted. Quote the shortest verbatim continuous phrase of at most 20 words from the originating message; do not invent a quote or claim. Lines starting with ">" under "[quoting name]" are quoted from someone else: never quote them as this speaker's words. Keep the original chronological order. An opening question that only repeats the garden's root is not a new proposal. The second pass will determine influence and connections. Return JSON only: {"candidates":[{"origin":"m2","quote":"exact quoted words","kind":"proposal|alternative|objection|constraint|revision|decision|result","claim":"short faithful explanation"}]}. Up to 40; do not impose a minimum or fabricate ideas.`,
     user: `Existing ideas (avoid re-proposing them verbatim):\n${already}\n\nConversation: ${input.conversationTitle}\nChronological messages:\n${messages}`,
   };
 }
@@ -132,25 +132,34 @@ Messages are listed in the order they were said, across every source. Order is e
 - "merges": only when an idea explicitly combines earlier ideas: [{"with": key or id, "why": "..."}]. Similar topics are not a merge.
 - Never repeat an idea that is already in the garden; attach to it instead. The root is the opening QUESTION, not a proposal to duplicate as another node.
 - Keep the alternatives distinct. Three people proposing three different mechanisms for the same need are three competing branches, not one topic heading; merge them only when someone actually combines them.
+- Fine grain. When one message offers several options, directions, candidates or a ranking, each is its own idea, siblings under the same parent; the ones not taken forward are "dormant". A concept the discussion leans on (a theory, a method, a principle that is named and then used) is an idea. A long answer usually holds three to six ideas.
+- Deep lineage. An idea grows from the latest idea it continues (the one it refines, answers, applies or objects to), not from the root, unless it really opens a new thread. Real discussions run in long lines: question → options → the chosen one → its refinement → what it is applied to.
+- When a later idea draws on two or more earlier ideas (builds on both, joins them, finds they share one shape), give "merges"; in a real discussion this happens several times.
 - A new node must be an attributable, genuinely new argument/proposal/revision/decision. When a person merely supports, restates or challenges an already-existing idea and adds no new proposal, put the evidence in "reactions" instead of inventing a new child.
 - Do not confuse chronology with causal influence. For parent and merge relations, explain the actual connection with an evidence-grounded "why". Branches with no established relationship may grow from the root; do not invent merges or links simply to make a prettier tree.
 - When people converge on a distinct practical solution, capture the agreed decision and actual implementation, but only if the words state them.
 
 3. Rest and clicks.
 - "status": "dormant" when an idea was raised and then dropped or never taken up; otherwise "growing". Quiet ideas matter; keep them.
-- "knot": a click, a sub-question the group clearly settled: an explicit decision, a confirmed result, an option ruled out, or a conclusion others then built on. Give {"kind": "decision" | "result" | "ruled_out" | "conclusion", "settled": "one sentence on what is now settled", "m": the ref of the message where it was settled}; otherwise null. Be strict: most discussions have 0 to 3.
+- "knot": a click, a sub-question the group clearly settled: an explicit decision, a confirmed result, an option ruled out, or a conclusion others then built on. Give {"kind": "decision" | "result" | "ruled_out" | "conclusion", "settled": "one sentence on what is now settled", "m": the ref of the message where it was settled}; otherwise null. A choice between options, a ranking, an option ruled out, a confirmed result or an agreed conclusion are knots; a turn that ends with a choice usually has one. Never a knot without such words.
 
 4. Time.
-- "stages": 1 to 3 natural turns WITHIN THIS BATCH, in the order they happened, each {"n": 1, "title": "at most 6 words"}. Each idea has "stage": the stage where it first appears.
+- "stages": the turns of the discussion WITHIN THIS BATCH, in the order they happened, each {"n": 1, "title": "at most 6 words"}. A new stage begins whenever the discussion turns: a new question or request, new material (a CV, feedback, data, a result), or a decision. Usually one stage per question and its answer; up to 8 in this batch. Each idea has "stage": the stage where it first appears.
 
 5. Going back.
 - Groups often go back to an earlier point: a result is turned down (the cost will not come down, a client says no, a test fails) and they return to an idea they had before and branch out again from there. When the messages go back like this, give "returns": [{"to": the key of the earlier idea in the garden they go back to, "m": the ref of the message where they go back, "why": the reason in a few words, as they put it, "set_aside": keys of ideas in the garden they now leave behind}]. Their new ideas then grow from that earlier idea (or from what grows out of it), never from what they set aside.
 - Only a clear return; most readings have none; at most 3. Otherwise "returns": [].
 
 6. Honesty.
-- Use only what is in the messages. Do not reduce multiple distinguishable proposals, serious objections or meaningful refinements to a few vague topic headings. Aim to preserve each consequential contribution, up to 20 in this batch. Do not force a quota, and omit irrelevant chatter.
+- Use only what is in the messages. Do not reduce multiple distinguishable proposals, serious objections or meaningful refinements to a few vague topic headings. Aim to preserve each consequential contribution, up to 20 in this batch (they are kept across readings, so a long discussion grows a large tree). Do not force a quota, and omit irrelevant chatter.
 - Return "reactions" for later messages that support, restate or challenge an idea that ALREADY EXISTS in the garden, using its exact existing key. This is how a new speaker can influence an earlier branch without having to invent another idea.
 - Candidates from the first pass are only a grounded inventory to consider; read the source messages again and make independent judgments. Do not assume a first-pass claim or connection is correct.
+
+A worked example of the level of detail wanted (from another garden; never copy its content). The question was "What should we build?". One answer offered five directions and the discussion went on:
+- stage 1 "ChatGPT offers four directions": FitLoop for garment samples (answers root, growing), LessonPulse (answers root, dormant), SustainTrace (answers root, dormant), AzureSpend Guard (answers root, dormant), AccessSafe (an existing project, answers root, dormant); then One workflow engine (refines FitLoop, merges SustainTrace and AccessSafe: "these projects share one shape: feedback, revision, review, sign-off"; knot conclusion).
+- stage 2 "Collaboration looks like evolution": Collaboration as evolution (grows from One workflow engine) → Variation · selection · retention (refines it, names a theory) → Retention is the heart (refines that).
+- stage 3 "AI speeds up collaboration": AI speeds up collaboration (grows from Collaboration as evolution) → A general AI group chat (dormant: "the giants already do it") and Private channels, shared view (splits) → AI as a thermostat, A Wizard of Oz test (both refine Private channels).
+Eleven ideas from three turns, every option kept, lines four deep, one merge, one knot.
 
 Return only JSON, exactly in this shape:
 {"stages":[{"n":1,"title":"..."}],"root":null,"returns":[],"reactions":[{"key":"existing-idea-key","m":"m5","role":"supports"}],"ideas":[{"id":"short-id","label":"...","note":"...","origin":"m3","quote":"...","evidence":[],"parent":"root-or-key-or-id","nature":null,"why":"...","basis":"inferred","merges":[],"status":"growing","knot":null,"stage":1}]}`;

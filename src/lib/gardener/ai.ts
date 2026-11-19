@@ -4,7 +4,8 @@
  */
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 /** Tried in order; a model the gateway does not know falls through to the next. */
-export const GARDENER_MODELS = ["google/gemini-3.7-flash", "openai/gpt-5.5"];
+/** The stronger model reads first: the tree's grain (every option, deep lines, merges) depends on careful reading. */
+export const GARDENER_MODELS = ["openai/gpt-5.5", "google/gemini-3.7-flash"];
 /** Who said what is read once per source and decides every colour on the tree: the stronger model reads it first. */
 export const RECONSTRUCTION_MODELS = ["openai/gpt-5.5", "google/gemini-3.7-flash"];
 

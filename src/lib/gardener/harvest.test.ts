@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { checkHarvest, checkThoughtCandidates, thoughtCandidatePrompt, rootNameEquivalent, withBasis, fitMessages, harvestPrompt, parseAnswer, type HarvestInput, shorten } from "./harvest";
-import { askGardener, GardenerUnavailable } from "./ai";
+import { checkHarvest, checkThoughtCandidates, thoughtCandidatePrompt, rootNameEquivalent, withBasis, fitMessages, harvestPrompt, parseAnswer, type HarvestInput, shorten, MAX_KNOTS, MAX_STAGES } from "./harvest";
+import { askGardener, GARDENER_MODELS, GardenerUnavailable } from "./ai";
 
 const msg = (n: number, speaker: string, content: string, human = true) => ({
   ref: `m${n}`, id: `id-${n}`, speaker, personId: human ? `p-${speaker}` : `ai-${speaker}`, personIsHuman: human, sentAt: `2026-11-17T13:${String(n).padStart(2, "0")}:00Z`, content,
@@ -234,7 +234,7 @@ describe("asking the gardener through Lovable's AI gateway", () => {
       .mockResolvedValueOnce(ok("{}"));
     const r = await askGardener("s", "u", { apiKey: "k", fetchImpl: f as never });
     expect(f).toHaveBeenCalledTimes(3);
-    expect(r.model).toBe("openai/gpt-5.5");
+    expect(r.model).toBe(GARDENER_MODELS[1]);
   });
   it("says plainly when credits are used up or the gateway is busy", async () => {
     await expect(askGardener("s", "u", { apiKey: "k", fetchImpl: (async () => new Response("", { status: 402 })) as never })).rejects.toThrow(/allowance for this project is used up/);
@@ -250,5 +250,21 @@ describe("how sure a link is", () => {
   });
   it("keeps a link the words state as stated", () => {
     expect(withBasis("She replies to it directly", "stated")).toEqual({ why: "She replies to it directly", basis: "stated" });
+  });
+});
+
+describe("the origin tree's grain", () => {
+  const input = { gardenTitle: "g", conversationTitle: "c", rootKey: "root", skipped: 0, ideas: [], messages: [{ ref: "m1", id: "a", speaker: "Me", personId: "p", personIsHuman: true, sentAt: null, content: "x" }] } as unknown as Parameters<typeof harvestPrompt>[0];
+  it("asks for every option as its own idea, deep lines, merges, one stage per turn, with a worked example", () => {
+    const sys = harvestPrompt(input).system;
+    expect(sys).toMatch(/each is its own idea, siblings under the same parent/);
+    expect(sys).toMatch(/grows from the latest idea it continues/);
+    expect(sys).toMatch(/one stage per question and its answer; up to 8/);
+    expect(sys).toMatch(/A worked example of the level of detail/);
+    expect(thoughtCandidatePrompt(input).system).toMatch(/each one is its own thought-event/);
+  });
+  it("keeps up to ten stages and four knots per reading", () => {
+    expect(MAX_STAGES).toBe(10);
+    expect(MAX_KNOTS).toBe(4);
   });
 });
