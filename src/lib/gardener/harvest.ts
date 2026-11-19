@@ -49,6 +49,8 @@ export const EVIDENCE_ROLES = ["restated", "supports", "challenges"] as const;
 export const MAX_PROPOSALS = 20;
 export const MAX_KNOTS = 4;
 export const MAX_STAGES = 10;
+/** More new ideas than this growing straight from the root reads as a broom, not a tree: the gardener is asked once more. */
+export const ROOT_CROWD = 6;
 
 export type Proposal = {
   temp: string; label: string; note: string; personId: string | null; originMessageId: string; quote: string | null;
@@ -134,6 +136,7 @@ Messages are listed in the order they were said, across every source. Order is e
 - Keep the alternatives distinct. Three people proposing three different mechanisms for the same need are three competing branches, not one topic heading; merge them only when someone actually combines them.
 - Fine grain. When one message offers several options, directions, candidates or a ranking, each is its own idea, siblings under the same parent; the ones not taken forward are "dormant". A concept the discussion leans on (a theory, a method, a principle that is named and then used) is an idea. A long answer usually holds three to six ideas.
 - Deep lineage. An idea grows from the latest idea it continues (the one it refines, answers, applies or objects to), not from the root, unless it really opens a new thread. Real discussions run in long lines: question → options → the chosen one → its refinement → what it is applied to.
+- Sub-questions. When someone raises a sub-question or an agenda item ("what power source?", "next, the look and feel", "who is it for?"), that question is an idea of the person who raised it, and the options and decisions about it grow from it. The root usually has only a handful of direct children (sub-questions or main directions), rarely more than eight; if many ideas would grow straight from the root, find the sub-question each one answers.
 - When a later idea draws on two or more earlier ideas (builds on both, joins them, finds they share one shape), give "merges"; in a real discussion this happens several times.
 - A new node must be an attributable, genuinely new argument/proposal/revision/decision. When a person merely supports, restates or challenges an already-existing idea and adds no new proposal, put the evidence in "reactions" instead of inventing a new child.
 - Do not confuse chronology with causal influence. For parent and merge relations, explain the actual connection with an evidence-grounded "why". Branches with no established relationship may grow from the root; do not invent merges or links simply to make a prettier tree.
@@ -465,4 +468,14 @@ export function fitMessages<T extends { content: string }>(messages: T[], budget
   let total = 0, start = messages.length;
   while (start > 0 && total + messages[start - 1]!.content.length + 40 <= budget) { total += messages[start - 1]!.content.length + 40; start--; }
   return { kept: messages.slice(start), skipped: start };
+}
+
+/** New ideas in this reading that grow straight from the root (the broom the origin tree never has). */
+export function crowdedRoot(proposals: Proposal[], rootKey: string): Proposal[] {
+  return proposals.filter((p) => p.parent === rootKey && !p.parentIsNew && !p.merges.length);
+}
+
+/** What the gardener is told when a reading came back as a broom: group the ideas under what they answer. */
+export function regrowNote(crowd: Proposal[]): string {
+  return `\n\nYour previous answer grew ${crowd.length} ideas straight from the root (${crowd.map((p) => `“${p.label}”`).join(", ")}). That is a broom, not a tree. Read the messages again: find the sub-questions, agenda items or main directions these ideas answer (raise them as ideas where someone actually raised them), and give each idea the parent it continues. Keep every idea that is grounded in the words; return the complete answer again.`;
 }

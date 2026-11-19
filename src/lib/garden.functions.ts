@@ -7,7 +7,7 @@ import { validateGarden, formatError, MAX_LABEL } from "./stam/validate";
 import type { StamGarden, ValidationError } from "./stam/types";
 import { prepare, checkDraft, resolveVoices, isRealName, type PrepareInput, type PrepareOptions, type Format } from "./intake";
 import { nextColor } from "./stam/palette";
-import { checkHarvest, harvestPrompt, parseAnswer, thoughtCandidatePrompt, checkThoughtCandidates } from "./gardener/harvest";
+import { checkHarvest, crowdedRoot, harvestPrompt, parseAnswer, regrowNote, ROOT_CROWD, thoughtCandidatePrompt, checkThoughtCandidates } from "./gardener/harvest";
 import { inTimeOrder, parts } from "./gardener/order";
 import { askGardener } from "./gardener/ai";
 import { checkUnderstanding, deterministicReading, forGardener, needsUnderstanding, understandingPrompt, understandingSummary, type AttributionBasis, type SemanticNormalization } from "./intake/semantic";
@@ -726,8 +726,19 @@ export const growTree = createServerFn({ method: "POST" })
       .then(r => checkThoughtCandidates(parseAnswer(r.text), input)).catch(() => []);
     // Pass 2 reconstructs links, proposals, objections and outcomes from the actual words.
     const prompt = harvestPrompt({ ...input, candidates });
-    const asked = await askGardener(prompt.system, prompt.user).catch((e) => fail((e as Error).message));
-    const { proposals, stages, dropped, root: rootName, returns, reactions } = checkHarvest(parseAnswer(asked.text), input);
+    let asked = await askGardener(prompt.system, prompt.user).catch((e) => fail((e as Error).message));
+    let harvested = checkHarvest(parseAnswer(asked.text), { ...input, candidates });
+    // a reading that hangs most new ideas straight on the root is a broom: ask once more for the sub-questions they answer,
+    // and keep the second answer only if it is less crowded and keeps nearly every idea
+    const crowd = crowdedRoot(harvested.proposals, root.key);
+    if (crowd.length > ROOT_CROWD) {
+      const again = await askGardener(prompt.system, prompt.user + regrowNote(crowd)).catch(() => null);
+      if (again) {
+        const second = checkHarvest(parseAnswer(again.text), { ...input, candidates });
+        if (crowdedRoot(second.proposals, root.key).length < crowd.length && second.proposals.length >= Math.floor(harvested.proposals.length * 0.8)) { asked = again; harvested = second; }
+      }
+    }
+    const { proposals, stages, dropped, root: rootName, returns, reactions } = harvested;
     // words with no author whose voice the reading is reasonably sure of: the idea is credited to that person,
     // marked inferred, and the person can change it (setIdeaContributor). "Me" is whoever brought the words in.
     const inferredBy = new Map<string, string>();
@@ -770,7 +781,8 @@ export const growTree = createServerFn({ method: "POST" })
 
     // a new garden's root, named from the conversation
     if (rootName) {
-      check(await supabase.from("ideas").update({ label: rootName.label, note: rootName.note, ...(rootName.personId ? { contributor_id: rootName.personId } : {}), updated_at: new Date().toISOString() }).eq("id", rootRow.id));
+      // the question belongs to whoever first raised it in the words, or to no one known; never to the importer by default
+      check(await supabase.from("ideas").update({ label: rootName.label, note: rootName.note, ...(rootName.originMessageId ? { contributor_id: rootName.personId ?? null } : {}), updated_at: new Date().toISOString() }).eq("id", rootRow.id));
       if (rootName.originMessageId) {
         check(await supabase.from("idea_evidence").insert({ garden_id: data.gardenId, idea_id: rootRow.id, message_id: rootName.originMessageId, role: "origin", note: null, created_by: userId }));
         const seeded = check(await supabase.from("thought_events").select("id").eq("idea_id", rootRow.id).eq("type", "raised").order("seq").limit(1)).at(0);
