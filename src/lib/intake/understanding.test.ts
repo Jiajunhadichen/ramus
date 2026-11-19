@@ -154,3 +154,15 @@ describe("acceptance: who speaks", () => {
     for (const f of ["01_thesis_unlabeled_messy.txt", "03_webpage_copy_messy.txt", "07_claude_copy_long.txt"]) expect(read(f)).toEqual(read(f));
   });
 });
+
+describe("text with no blank lines", () => {
+  const unbroken = "聊完了 这是chat帮我记录的过程\n恭喜，这次见面很顺利。几个关键点都和你的准备对上了。\n一、笔记里需要校正的名字：“Mursi report”应该就是 Nord-Syd 报告。\n二、和之前理解一致的地方：核心是评估方法。\n那我下一步做什么？\n先把评估指标列出来。\n";
+  it("is kept one message per line, not as one block, and attachment labels never speak", () => {
+    const d = prepare({ kind: "text", text: "会议记录.txt\nTXT\n" + unbroken }, { timeZone: "UTC" }, ctx);
+    expect(d.format).toBe("notes");
+    expect(d.kept.length).toBe(8);
+    expect(d.kept[2]!.content).toBe("聊完了 这是chat帮我记录的过程");
+    expect(contributors(d)).toEqual([]);
+    wordsKept(d);
+  });
+});
