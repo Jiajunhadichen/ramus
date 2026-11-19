@@ -7,7 +7,7 @@ import { validateGarden, formatError, MAX_LABEL } from "./stam/validate";
 import type { StamGarden, ValidationError } from "./stam/types";
 import { prepare, checkDraft, resolveVoices, isRealName, type PrepareInput, type PrepareOptions, type Format } from "./intake";
 import { nextColor } from "./stam/palette";
-import { checkHarvest, crowdedRoot, harvestPrompt, parseAnswer, regrowNote, ROOT_CROWD, thoughtCandidatePrompt, checkThoughtCandidates } from "./gardener/harvest";
+import { brokenBroom, checkHarvest, crowdedRoot, harvestPrompt, parseAnswer, regrowNote, thoughtCandidatePrompt, checkThoughtCandidates } from "./gardener/harvest";
 import { inTimeOrder, parts } from "./gardener/order";
 import { askGardener } from "./gardener/ai";
 import { checkUnderstanding, deterministicReading, forGardener, needsUnderstanding, understandingPrompt, understandingSummary, type AttributionBasis, type SemanticNormalization } from "./intake/semantic";
@@ -728,14 +728,15 @@ export const growTree = createServerFn({ method: "POST" })
     const prompt = harvestPrompt({ ...input, candidates });
     let asked = await askGardener(prompt.system, prompt.user).catch((e) => fail((e as Error).message));
     let harvested = checkHarvest(parseAnswer(asked.text), { ...input, candidates });
-    // a reading that hangs most new ideas straight on the root is a broom: ask once more for the sub-questions they answer,
-    // and keep the second answer only if it is less crowded and keeps nearly every idea
-    const crowd = crowdedRoot(harvested.proposals, root.key);
-    if (crowd.length > ROOT_CROWD) {
-      const again = await askGardener(prompt.system, prompt.user + regrowNote(crowd)).catch(() => null);
+    // a broom is kept when it is real divergence; only when the reading lost structure the discussion had (ideas raised
+    // across many turns, marked as continuing something, or answering an agenda item that is missing) is it read once more,
+    // and the second answer is kept only if it is less crowded and keeps nearly every idea (conservative)
+    const broom = brokenBroom(harvested.proposals, { ...input, candidates });
+    if (broom.reasons.length) {
+      const again = await askGardener(prompt.system, prompt.user + regrowNote(broom.crowd, broom.reasons)).catch(() => null);
       if (again) {
         const second = checkHarvest(parseAnswer(again.text), { ...input, candidates });
-        if (crowdedRoot(second.proposals, root.key).length < crowd.length && second.proposals.length >= Math.floor(harvested.proposals.length * 0.8)) { asked = again; harvested = second; }
+        if (crowdedRoot(second.proposals, root.key).length < broom.crowd.length && second.proposals.length >= Math.ceil(harvested.proposals.length * 0.9)) { asked = again; harvested = second; }
       }
     }
     const { proposals, stages, dropped, root: rootName, returns, reactions } = harvested;

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { checkHarvest, checkThoughtCandidates, thoughtCandidatePrompt, rootNameEquivalent, withBasis, fitMessages, harvestPrompt, parseAnswer, type HarvestInput, shorten, MAX_KNOTS, MAX_STAGES, crowdedRoot, regrowNote } from "./harvest";
+import { checkHarvest, checkThoughtCandidates, thoughtCandidatePrompt, rootNameEquivalent, withBasis, fitMessages, harvestPrompt, parseAnswer, type HarvestInput, shorten, MAX_KNOTS, MAX_STAGES, brokenBroom, crowdedRoot, regrowNote } from "./harvest";
 import { askGardener, GARDENER_MODELS, GardenerUnavailable } from "./ai";
 
 const msg = (n: number, speaker: string, content: string, human = true) => ({
@@ -286,5 +286,42 @@ describe("a tree, not a broom", () => {
   });
   it("tells the gardener to raise sub-questions as ideas", () => {
     expect(harvestPrompt(input).system).toMatch(/Sub-questions\. When someone raises a sub-question or an agenda item/);
+  });
+});
+
+describe("good brooms and broken brooms", () => {
+  const msg = (i: number, content: string) => ({ ref: `m${i + 1}`, id: `x${i}`, speaker: "PM", personId: "p", personIsHuman: true, sentAt: null, content });
+  const at = (k: number, extra: Record<string, unknown> = {}) => ({ id: `o${k}`, label: `Idea ${k}`, note: "n", origin: `m${k + 1}`, quote: `idea ${k}`, parent: "root", nature: "answers", why: "w", basis: "stated", merges: [], status: "growing", knot: null, stage: 1, ...extra });
+  const root = [{ key: "root", label: "TV remote design", note: "", by: "Me", parents: [], status: "growing" as const, knot: false }];
+
+  it("a burst of answers to the main question stays a broom: no second reading", () => {
+    const input: HarvestInput = { gardenTitle: "g", conversationTitle: "c", rootKey: "root", skipped: 0, ideas: root,
+      messages: [msg(0, "What could the remote be?"), ...Array.from({ length: 8 }, (_, i) => msg(i + 1, `idea ${i + 1} for it`)), ...Array.from({ length: 10 }, (_, i) => msg(i + 9, "small talk"))] };
+    const c = checkHarvest({ stages: [{ n: 1, title: "Brainstorm" }], ideas: Array.from({ length: 8 }, (_, i) => at(i + 1)) }, input);
+    expect(crowdedRoot(c.proposals, "root")).toHaveLength(8);
+    expect(brokenBroom(c.proposals, input).reasons).toEqual([]);
+  });
+
+  it("ideas raised across many turns of the discussion, all on the root: read again", () => {
+    const input: HarvestInput = { gardenTitle: "g", conversationTitle: "c", rootKey: "root", skipped: 0, ideas: root,
+      messages: Array.from({ length: 24 }, (_, i) => msg(i, `idea ${i} for it`)) };
+    const ideas = [0, 3, 6, 9, 12, 15, 18, 21].map((k, n) => at(k, { stage: (n % 4) + 1 }));
+    const c = checkHarvest({ stages: [1, 2, 3, 4].map((n) => ({ n, title: `t${n}` })), ideas }, input);
+    expect(brokenBroom(c.proposals, input).reasons.join()).toMatch(/raised in 4 different turns/);
+  });
+
+  it("ideas the gardener itself marked as refining something, on the root: read again", () => {
+    const input: HarvestInput = { gardenTitle: "g", conversationTitle: "c", rootKey: "root", skipped: 0, ideas: root, messages: Array.from({ length: 9 }, (_, i) => msg(i, `idea ${i} for it`)) };
+    const ideas = Array.from({ length: 8 }, (_, i) => at(i + 1, i < 2 ? { nature: "refines" } : {}));
+    expect(brokenBroom(checkHarvest({ stages: [{ n: 1, title: "t" }], ideas }, input).proposals, input).reasons.join()).toMatch(/marked as refining or challenging/);
+  });
+
+  it("an agenda item some of them answer, not kept as an idea: read again, naming it", () => {
+    const messages = [msg(0, "idea 0 for it"), msg(1, "idea 1 for it"), msg(2, "idea 2 for it"), msg(3, "idea 3 for it"), msg(4, "idea 4 for it"), msg(5, "接下来说电池？"), msg(6, "idea 6 for it"), msg(7, "idea 7 for it"), msg(8, "idea 8 for it")];
+    const input: HarvestInput = { gardenTitle: "g", conversationTitle: "c", rootKey: "root", skipped: 0, ideas: root, messages };
+    const ideas = [0, 1, 2, 3, 4, 6, 7, 8].map((k) => at(k));
+    const r = brokenBroom(checkHarvest({ stages: [{ n: 1, title: "t" }], ideas }, input).proposals, input);
+    expect(r.reasons.join()).toMatch(/m6 \(“接下来说电池？”\) raises a sub-question/);
+    expect(regrowNote(r.crowd, r.reasons)).toMatch(/may stay on the root/);
   });
 });
