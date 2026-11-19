@@ -221,3 +221,9 @@ describe("what is never re-read", () => {
     expect(worthReconstructing("notes", "x".repeat(300), 0, 6)).toBe(true);
   });
 });
+
+describe("reconstruction is judged by lines", () => {
+  it("one long unbroken block of many lines is still worth reconstructing", () => {
+    expect(worthReconstructing("notes", "一行\n".repeat(80), 0, 1)).toBe(true);
+  });
+});

@@ -441,6 +441,13 @@ export function parseLines(raw: string, speakers: Set<string>, tz: string, conve
 export function parseNotes(raw: string): Unit[] {
   const lines = toLines(raw);
   const out: Unit[] = [];
+  // a text with no blank lines at all (a chat copied line by line): one message per line, not one block for everything
+  const first = lines.findIndex((l) => !blank(l)), last = lines.length - 1 - [...lines].reverse().findIndex((l) => !blank(l));
+  const inner = first >= 0 ? lines.slice(first, last + 1) : [];
+  if (inner.length >= 4 && inner.every((l) => !blank(l))) {
+    lines.forEach((l, i) => { if (!blank(l)) out.push(close(raw, lines, i, i, l.start, { speakerLabel: null, ...noTime })); });
+    return out;
+  }
   let from = -1;
   lines.forEach((l, i) => {
     if (blank(l)) { if (from >= 0) { out.push(close(raw, lines, from, i - 1, lines[from]!.start, { speakerLabel: null, ...noTime })); from = -1; } }

@@ -305,6 +305,7 @@ export function validateReconstruction(raw: string, r: Reconstruction | null | u
  */
 export function worthReconstructing(format: string, raw: string, attributed: number, messages: number): boolean {
   if (!["notes", "lines", "transcript"].includes(format)) return false;
-  if (raw.trim().length < 200 || messages < 3) return false;
+  // judged by lines, not messages: a long text with no blank lines is one message but many turns
+  if (raw.trim().length < 200 || (messages < 3 && toLines(raw).filter((l) => l.text.trim()).length < 3)) return false;
   return attributed === 0;
 }
