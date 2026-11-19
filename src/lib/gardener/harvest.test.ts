@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { checkHarvest, checkThoughtCandidates, thoughtCandidatePrompt, rootNameEquivalent, withBasis, fitMessages, harvestPrompt, parseAnswer, type HarvestInput, shorten, MAX_KNOTS, MAX_STAGES } from "./harvest";
+import { checkHarvest, checkThoughtCandidates, thoughtCandidatePrompt, rootNameEquivalent, withBasis, fitMessages, harvestPrompt, parseAnswer, type HarvestInput, shorten, MAX_KNOTS, MAX_STAGES, crowdedRoot, regrowNote } from "./harvest";
 import { askGardener, GARDENER_MODELS, GardenerUnavailable } from "./ai";
 
 const msg = (n: number, speaker: string, content: string, human = true) => ({
@@ -266,5 +266,25 @@ describe("the origin tree's grain", () => {
   it("keeps up to ten stages and four knots per reading", () => {
     expect(MAX_STAGES).toBe(10);
     expect(MAX_KNOTS).toBe(4);
+  });
+});
+
+describe("a tree, not a broom", () => {
+  const input: HarvestInput = { gardenTitle: "Remote", conversationTitle: "meeting", rootKey: "root", skipped: 0,
+    ideas: [{ key: "root", label: "TV remote design", note: "", by: "Me", parents: [], status: "growing", knot: false }],
+    messages: Array.from({ length: 9 }, (_, i) => ({ ref: `m${i + 1}`, id: `x${i}`, speaker: "PM", personId: "p", personIsHuman: true, sentAt: null, content: `option number ${i + 1} for the remote` })) };
+  const flat = Array.from({ length: 8 }, (_, i) => ({ id: `o${i}`, label: `Option ${i + 1}`, note: "n", origin: `m${i + 1}`, quote: `option number ${i + 1}`, parent: "root", nature: "answers", why: "w", basis: "stated", merges: [], status: "growing", knot: null, stage: 1 }));
+  it("counts new ideas hanging straight on the root, and asks again with their names", () => {
+    const c = checkHarvest({ stages: [{ n: 1, title: "t" }], ideas: flat }, input);
+    expect(crowdedRoot(c.proposals, "root")).toHaveLength(8);
+    expect(regrowNote(crowdedRoot(c.proposals, "root"))).toMatch(/8 ideas straight from the root \(“Option 1”/);
+  });
+  it("ideas under a sub-question are not counted", () => {
+    const grouped = [{ ...flat[0]!, id: "q", label: "Which power source?", quote: "option number 1" }, ...flat.slice(1).map((x) => ({ ...x, parent: "q" }))];
+    const c = checkHarvest({ stages: [{ n: 1, title: "t" }], ideas: grouped }, input);
+    expect(crowdedRoot(c.proposals, "root")).toHaveLength(1);
+  });
+  it("tells the gardener to raise sub-questions as ideas", () => {
+    expect(harvestPrompt(input).system).toMatch(/Sub-questions\. When someone raises a sub-question or an agenda item/);
   });
 });
