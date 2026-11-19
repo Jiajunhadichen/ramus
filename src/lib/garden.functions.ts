@@ -652,7 +652,8 @@ export const growTree = createServerFn({ method: "POST" })
     if (!visible.length) fail("There are no words to read in what was brought in.");
     const stream = inTimeOrder(visible.map((m) => ({ ...m, sentAt: m.sent_at, precision: m.time_precision })));
     // Bounded chronological readings: smaller discussions no longer become one generic summary.
-    const all = parts(stream, 24000, 14);
+    // longer readings keep a discussion's lines together (the stronger model reads them first)
+    const all = parts(stream, 40000, 24);
     const range = all[data.part];
     if (!range) return { grown: 0, dropped: [], part: data.part, parts: all.length, read: 0, model: null, root: null, understanding: null };
     const slice = stream.slice(range.from, range.to);
