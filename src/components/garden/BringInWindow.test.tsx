@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { checkReconstructionPart, readingParts } from "@/lib/intake/reconstruct";
@@ -16,11 +16,13 @@ const rebuild = vi.fn(async ({ data }: { data: { text: string; part: number; voi
   const parts = readingParts(data.text);
   return { parts: parts.length, ...checkReconstructionPart(answer, data.text, parts[data.part]!, [], data.voices), model: "mock", participants: [] };
 });
-vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => (fn === "reconstructSource" ? rebuild : vi.fn(async () => ({ name: "Jiajun" }))), createServerFn: () => ({}) }));
+const allowanceFn = vi.fn(async () => ({ guest: false, left: 2, perDay: 3, siteOpen: true }));
+vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => (fn === "reconstructSource" ? rebuild : fn === "getAllowance" ? allowanceFn : vi.fn(async () => ({ name: "Jiajun" }))), createServerFn: () => ({}) }));
 vi.mock("@/lib/garden.functions", () => ({ checkOverlap: {}, createGarden: {}, getAccessionContext: {}, receiveBatch: {}, whoAmI: {}, growTree: {}, reviewAllSuggestions: {} }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@/lib/sources.functions", () => ({ fetchDiscussion: {} }));
 vi.mock("@/lib/reconstruct.functions", () => ({ reconstructSource: "reconstructSource" }));
+vi.mock("@/lib/usage.functions", () => ({ getAllowance: "getAllowance" }));
 vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
 
 const { BringInWindow } = await import("./BringInWindow");
@@ -44,6 +46,14 @@ describe("the bring-in window", () => {
     fireEvent.change(screen.getByLabelText("Paste anything"), { target: { value: "Ana: one idea\nBo: another" } });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     expect(go).not.toBeDisabled();
+  });
+  it("says before growing what is left today, and that AI models read the words", async () => {
+    open();
+    await waitFor(() => expect(screen.getByText("2 of 3 growths left today.")).toBeTruthy());
+    expect(screen.getByText(/read by AI models \(OpenAI, Google\)/)).toBeTruthy();
+    allowanceFn.mockResolvedValueOnce({ guest: false, left: 0, perDay: 3, siteOpen: false });
+    cleanup(); open();
+    await waitFor(() => expect(screen.getByText(/Ramus has read as much as it can today/)).toBeTruthy());
   });
   it("asks for nothing, but offers the day when a chat has clock times only", () => {
     open();

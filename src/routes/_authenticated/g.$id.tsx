@@ -20,6 +20,7 @@ import { Upright } from "@/components/epigraph/Epigraph";
 import { Systema } from "@/components/garden/Systema";
 import { Present } from "@/components/garden/Present";
 import { DownloadTree } from "@/components/garden/DownloadTree";
+import { askToSignUp, useGuest } from "@/hooks/use-guest";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 export const gardenQuery = (id: string) => queryOptions({ queryKey: ["garden", id], queryFn: () => getGarden({ data: { id } }) });
@@ -130,8 +131,10 @@ function GardenPage() {
     setSelected(key);
   }
   const refresh = () => qc.invalidateQueries({ queryKey: ["garden", id] });
+  const guest = useGuest();
 
   function exportJson() {
+    if (guest) return askToSignUp("export the garden");
     const blob = new Blob([JSON.stringify(toStam(stored, toIdeas(stored)), null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);

@@ -1,4 +1,5 @@
 import { SiteHeader } from "@/components/SiteHeader";
+import { SHARE_IMAGE } from "@/lib/site";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import sample from "../../docs/sample-garden.json";
@@ -19,7 +20,8 @@ export const Route = createFileRoute("/genesis")({
     { name: "description", content: "Read the historical discussion that grew into Ramus, from its first question to trust in people." },
     { property: "og:title", content: "The origin of Ramus — how one question grew" },
     { property: "og:description", content: "Every idea kept, from the first question to trust in people." },
-    { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
+    { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" },
+    { property: "og:image", content: SHARE_IMAGE }, { name: "twitter:image", content: SHARE_IMAGE },
   ] }),
   component: Genesis,
 });

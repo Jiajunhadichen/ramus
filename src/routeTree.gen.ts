@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as GenesisRouteImport } from './routes/genesis'
 import { Route as PrinciplesRouteImport } from './routes/principles'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as AuthenticatedGardensRouteImport } from './routes/_authenticated/gardens'
 import { Route as AuthenticatedGIdRouteImport } from './routes/_authenticated/g.$id'
 import { Route as AuthenticatedGIdAccessionRouteImport } from './routes/_authenticated/g.$id_.accession'
@@ -41,6 +42,11 @@ const GenesisRoute = GenesisRouteImport.update({
 const PrinciplesRoute = PrinciplesRouteImport.update({
   id: '/principles',
   path: '/principles',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedGardensRoute = AuthenticatedGardensRouteImport.update({
@@ -71,6 +77,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/genesis': typeof GenesisRoute
   '/principles': typeof PrinciplesRoute
+  '/privacy': typeof PrivacyRoute
   '/gardens': typeof AuthenticatedGardensRoute
   '/g/$id': typeof AuthenticatedGIdRoute
   '/g/$id/accession': typeof AuthenticatedGIdAccessionRoute
@@ -81,6 +88,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/genesis': typeof GenesisRoute
   '/principles': typeof PrinciplesRoute
+  '/privacy': typeof PrivacyRoute
   '/gardens': typeof AuthenticatedGardensRoute
   '/g/$id': typeof AuthenticatedGIdRoute
   '/g/$id/accession': typeof AuthenticatedGIdAccessionRoute
@@ -93,6 +101,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/genesis': typeof GenesisRoute
   '/principles': typeof PrinciplesRoute
+  '/privacy': typeof PrivacyRoute
   '/_authenticated/gardens': typeof AuthenticatedGardensRoute
   '/_authenticated/g/$id': typeof AuthenticatedGIdRoute
   '/_authenticated/g/$id_/accession': typeof AuthenticatedGIdAccessionRoute
@@ -105,6 +114,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/genesis'
     | '/principles'
+    | '/privacy'
     | '/gardens'
     | '/g/$id'
     | '/g/$id/accession'
@@ -115,6 +125,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/genesis'
     | '/principles'
+    | '/privacy'
     | '/gardens'
     | '/g/$id'
     | '/g/$id/accession'
@@ -126,6 +137,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/genesis'
     | '/principles'
+    | '/privacy'
     | '/_authenticated/gardens'
     | '/_authenticated/g/$id'
     | '/_authenticated/g/$id_/accession'
@@ -138,6 +150,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   GenesisRoute: typeof GenesisRoute
   PrinciplesRoute: typeof PrinciplesRoute
+  PrivacyRoute: typeof PrivacyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -175,6 +188,13 @@ declare module '@tanstack/react-router' {
       path: '/principles'
       fullPath: '/principles'
       preLoaderRoute: typeof PrinciplesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/gardens': {
@@ -231,6 +251,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   GenesisRoute: GenesisRoute,
   PrinciplesRoute: PrinciplesRoute,
+  PrivacyRoute: PrivacyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

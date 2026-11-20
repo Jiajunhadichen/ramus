@@ -9,7 +9,9 @@ import { prepare, checkDraft, resolveVoices, isRealName, type PrepareInput, type
 import { nextColor } from "./stam/palette";
 import { brokenBroom, checkHarvest, crowdedRoot, harvestPrompt, parseAnswer, regrowNote, thoughtCandidatePrompt, checkThoughtCandidates } from "./gardener/harvest";
 import { inTimeOrder, parts } from "./gardener/order";
-import { askGardener } from "./gardener/ai";
+import { askGardener, helperModels } from "./gardener/ai";
+import { modelsToday, mayStartGrowth, partsToRead } from "./budget";
+import type { UsageKind } from "./usage.server";
 import { checkUnderstanding, deterministicReading, forGardener, needsUnderstanding, understandingPrompt, understandingSummary, type AttributionBasis, type SemanticNormalization } from "./intake/semantic";
 import sample from "../../docs/sample-garden.json";
 
@@ -633,6 +635,18 @@ export const growTree = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     if (!check(await supabase.rpc("can_write_garden", { _garden: data.gardenId }))) fail("You cannot write to this garden.");
+    // the daily budget (src/lib/budget.ts): a growth is allowed once, before its first reading; every reading needs the site open
+    const usage = await import("@/lib/usage.server");
+    const guest = usage.isGuest(context.claims);
+    const site = await usage.siteToday();
+    const allowed = data.part === 0 ? mayStartGrowth(await usage.readerOf(userId, guest), site) : modelsToday(site);
+    if (!allowed.ok) fail(allowed.reason);
+    const models = allowed.models;
+    const ask = async (kind: UsageKind, system: string, user: string, use: string[]) => {
+      const r = await askGardener(system, user, { models: use });
+      await usage.record({ userId, gardenId: data.gardenId, kind, guest, model: r.model, usage: r.usage });
+      return r;
+    };
     const garden = check(await supabase.from("gardens").select("id,title").eq("id", data.gardenId).single());
     const people = check(await supabase.from("contributors").select("id,name,kind,user_id").eq("garden_id", data.gardenId));
     const person = new Map(people.map((p) => [p.id, p]));
@@ -653,9 +667,12 @@ export const growTree = createServerFn({ method: "POST" })
     const stream = inTimeOrder(visible.map((m) => ({ ...m, sentAt: m.sent_at, precision: m.time_precision })));
     // Bounded chronological readings: smaller discussions no longer become one generic summary.
     // longer readings keep a discussion's lines together (the stronger model reads them first)
-    const all = parts(stream, 40000, 24);
+    // a growth reads at most a few readings (src/lib/budget.ts); the rest stays in the archive, unread
+    const every = parts(stream, 40000, 24);
+    const all = every.slice(0, partsToRead(guest, every.map((r) => stream.slice(r.from, r.to).reduce((n, m) => n + m.content.length, 0))));
+    const unread = stream.length - (all.at(-1)?.to ?? 0);
     const range = all[data.part];
-    if (!range) return { grown: 0, dropped: [], part: data.part, parts: all.length, read: 0, model: null, root: null, understanding: null };
+    if (!range) return { grown: 0, dropped: [], part: data.part, parts: all.length, unread, read: 0, model: null, root: null, understanding: null };
     const slice = stream.slice(range.from, range.to);
 
     // the tree as it stands, with when each idea's first words were said
@@ -708,7 +725,7 @@ export const growTree = createServerFn({ method: "POST" })
     if (loose) {
       const u = understandingPrompt(semanticInput);
       // if the structure reading fails, the words are read as they are: nothing brought in is lost
-      reading = await askGardener(u.system, u.user)
+      reading = await ask("structure", u.system, u.user, helperModels(models))
         .then((r) => checkUnderstanding(parseAnswer(r.text), semanticInput, r.model))
         .catch(() => deterministicReading(semanticInput, ["The structure reading was not available; the words were read as they are."]));
     }
@@ -722,18 +739,18 @@ export const growTree = createServerFn({ method: "POST" })
     // Pass 1 independently inventories exact-quote-grounded statements.
     // If inventory extraction fails, the original reading still runs (no loss of imports).
     const inventory = thoughtCandidatePrompt(input);
-    const candidates = await askGardener(inventory.system, inventory.user)
+    const candidates = await ask("inventory", inventory.system, inventory.user, helperModels(models))
       .then(r => checkThoughtCandidates(parseAnswer(r.text), input)).catch(() => []);
     // Pass 2 reconstructs links, proposals, objections and outcomes from the actual words.
     const prompt = harvestPrompt({ ...input, candidates });
-    let asked = await askGardener(prompt.system, prompt.user).catch((e) => fail((e as Error).message));
+    let asked = await ask("harvest", prompt.system, prompt.user, models).catch((e) => fail((e as Error).message));
     let harvested = checkHarvest(parseAnswer(asked.text), { ...input, candidates });
     // a broom is kept when it is real divergence; only when the reading lost structure the discussion had (ideas raised
     // across many turns, marked as continuing something, or answering an agenda item that is missing) is it read once more,
     // and the second answer is kept only if it is less crowded and keeps nearly every idea (conservative)
     const broom = brokenBroom(harvested.proposals, { ...input, candidates });
     if (broom.reasons.length) {
-      const again = await askGardener(prompt.system, prompt.user + regrowNote(broom.crowd, broom.reasons)).catch(() => null);
+      const again = await ask("regrow", prompt.system, prompt.user + regrowNote(broom.crowd, broom.reasons), models).catch(() => null);
       if (again) {
         const second = checkHarvest(parseAnswer(again.text), { ...input, candidates });
         if (crowdedRoot(second.proposals, root.key).length < broom.crowd.length && second.proposals.length >= Math.ceil(harvested.proposals.length * 0.9)) { asked = again; harvested = second; }
@@ -815,7 +832,8 @@ export const growTree = createServerFn({ method: "POST" })
     if (!proposals.length) {
       await writeThoughts(supabase, thoughts);
       await noteReading();
-      return { grown: 0, dropped, part: data.part, parts: all.length, read: slice.length, model: asked.model, root: rootName?.label ?? null, understanding };
+      if (data.part === 0) await usage.record({ userId, gardenId: data.gardenId, kind: "tree", guest });
+      return { grown: 0, dropped, part: data.part, parts: all.length, unread, read: slice.length, model: asked.model, root: rootName?.label ?? null, understanding };
     }
 
     // keys and steps
@@ -863,7 +881,9 @@ export const growTree = createServerFn({ method: "POST" })
     }
     await writeThoughts(supabase, thoughts);
     await noteReading();
-    return { grown: proposals.length, dropped, part: data.part, parts: all.length, read: slice.length, model: asked.model, root: rootName?.label ?? null, understanding };
+    // a growth counts once its first reading has grown (a failed first reading does not use up the day)
+    if (data.part === 0) await usage.record({ userId, gardenId: data.gardenId, kind: "tree", guest });
+    return { grown: proposals.length, dropped, part: data.part, parts: all.length, unread, read: slice.length, model: asked.model, root: rootName?.label ?? null, understanding };
 
     /** After the last part: the audit log says what the gardener read, so it is not offered again. */
     async function noteReading() {

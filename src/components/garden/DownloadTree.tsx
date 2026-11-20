@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { askToSignUp, useGuest } from "@/hooks/use-guest";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { toast } from "sonner";
@@ -41,6 +42,7 @@ async function withPoster<T>(p: PosterInput, use: (svg: SVGSVGElement) => Promis
 /** Save the whole tree as a poster: a PNG to post or put on a slide, or an SVG for print. */
 export function DownloadTree({ poster, size = "sm" }: { poster: () => PosterInput; size?: "sm" | "default" }) {
   const [busy, setBusy] = useState(false);
+  const guest = useGuest();
   async function save(kind: "png" | "svg") {
     const p = poster();
     setBusy(true);
@@ -56,6 +58,7 @@ export function DownloadTree({ poster, size = "sm" }: { poster: () => PosterInpu
       setBusy(false);
     }
   }
+  if (guest) return <Button variant="outline" size={size} onClick={() => askToSignUp("download the tree")}>Download</Button>;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
