@@ -1,9 +1,11 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import sample from "../../docs/sample-garden.json";
 import { StamTree, type MarginNote, type TreeNode } from "@/components/stam-tree/StamTree";
 import { useReplay } from "@/components/stam-tree/useReplay";
 import { SiteHeader } from "@/components/SiteHeader";
+import { SHARE_IMAGE } from "@/lib/site";
 import { Button } from "@/components/ui/button";
 import { Epigraph } from "@/components/epigraph/Epigraph";
 import { stamToTree } from "@/lib/stam/toTree";
@@ -19,7 +21,11 @@ export const Route = createFileRoute("/")({
       { property: "og:title", content: "Ramus — Ideas grow between people" },
       { property: "og:description", content: "Ramus remembers who planted every branch, and what grew from it." },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { property: "og:image", content: SHARE_IMAGE },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { name: "twitter:image", content: SHARE_IMAGE },
     ],
   }),
   component: Landing,
@@ -70,9 +76,26 @@ function Landing() {
         <h1 className="font-display text-title font-normal leading-[1.1] xl:text-cover">Ideas grow <em>between</em> people.</h1>
         <p className="font-display text-head leading-snug xl:text-head">Ramus remembers who planted every branch, and what grew from it.</p>
         <Epigraph n={2} />
-        <div><Button asChild><Link to="/auth" search={{ mode: "up" }}>Start a garden</Link></Button></div>
+        <div className="flex flex-wrap items-center gap-4"><Button asChild><Link to="/auth" search={{ mode: "up" }}>Start a garden</Link></Button><TryFirst /></div>
       </section>
     </main>
     </>
   );
+}
+
+/** Try Ramus on your own words before signing up: a guest account in this browser, one tree, kept if they sign up. */
+function TryFirst() {
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
+  async function go() {
+    setBusy(true);
+    const { data } = await supabase.auth.getSession();
+    const { error } = data.session ? { error: null } : await supabase.auth.signInAnonymously();
+    setBusy(false);
+    if (error) return setError(true);
+    navigate({ to: "/gardens" });
+  }
+  if (error) return <span className="text-ui text-muted-foreground">Trying without an account is not open yet.</span>;
+  return <button type="button" disabled={busy} onClick={() => void go()} className="text-ui text-muted-foreground underline underline-offset-4 hover:text-foreground">{busy ? "…" : "or try it first, without an account"}</button>;
 }

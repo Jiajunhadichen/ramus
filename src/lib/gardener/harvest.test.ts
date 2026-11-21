@@ -236,6 +236,11 @@ describe("asking the gardener through Lovable's AI gateway", () => {
     expect(f).toHaveBeenCalledTimes(3);
     expect(r.model).toBe(GARDENER_MODELS[1]);
   });
+  it("reports the tokens the gateway counted, or a generous guess when it counted none", async () => {
+    const counted = new Response(JSON.stringify({ choices: [{ message: { content: "{}" } }], usage: { prompt_tokens: 900, completion_tokens: 120 } }), { status: 200 });
+    expect((await askGardener("s", "u", { apiKey: "k", fetchImpl: (async () => counted) as never })).usage).toEqual({ input: 900, output: 120 });
+    expect((await askGardener("s".repeat(250), "u".repeat(250), { apiKey: "k", fetchImpl: (async () => ok("{}")) as never })).usage).toEqual({ input: 200, output: 8000 });
+  });
   it("says plainly when credits are used up or the gateway is busy", async () => {
     await expect(askGardener("s", "u", { apiKey: "k", fetchImpl: (async () => new Response("", { status: 402 })) as never })).rejects.toThrow(/allowance for this project is used up/);
     await expect(askGardener("s", "u", { apiKey: "k", fetchImpl: (async () => new Response("", { status: 429 })) as never })).rejects.toThrow(/Try again in a minute/);

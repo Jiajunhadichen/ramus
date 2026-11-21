@@ -14,6 +14,7 @@ import { checkOverlap, createGarden, getAccessionContext, receiveBatch, whoAmI }
 import { supabase } from "@/integrations/supabase/client";
 import { grownLine, useGrow, type GrowProgress } from "./Gardener";
 import { reconstructSource } from "@/lib/reconstruct.functions";
+import { getAllowance } from "@/lib/usage.functions";
 import { confirmVoices, contextVoices, mergeParts, worthReconstructing, type ReBlock, type ReVoice } from "@/lib/intake/reconstruct";
 import { Upright } from "@/components/epigraph/Epigraph";
 
@@ -97,6 +98,9 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
   const gardenId = target.kind === "more" ? target.gardenId : plantedId;
   const grow = useGrow();
   const rebuildPart = useServerFn(reconstructSource);
+  const readAllowance = useServerFn(getAllowance);
+  const [left, setLeft] = useState<{ guest: boolean; left: number; perDay: number; siteOpen: boolean } | null>(null);
+  useEffect(() => { if (open) readAllowance().then(setLeft).catch(() => setLeft(null)); }, [open, readAllowance]);
 
   // who is bringing it in, and who is already in the garden, so voices are recognised as they will be when kept
   useEffect(() => {
@@ -344,12 +348,21 @@ export function BringInWindow({ open, onOpenChange, target, incoming, onIncoming
             {phase.kind === "failed" && keptAll && gardenId && (
               <button type="button" className="text-ui underline underline-offset-4" onClick={() => { const g = gardenId; reset(); onOpenChange(false); onGrown(g); }}>Go to the garden without it</button>
             )}
-            <p className="text-note text-muted-foreground">These conversations are kept in this garden, word for word. Bring in only conversations whose people agreed to that.</p>
+            {left && <Allowance {...left} />}
+            <p className="text-note text-muted-foreground">These conversations are kept in this garden, word for word, and read by AI models (OpenAI, Google) through Lovable to grow the tree. Bring in only conversations whose people agreed to that. <a href="/privacy" target="_blank" rel="noreferrer" className="underline underline-offset-4">Privacy</a></p>
           </div>
         )}
       </DialogContent>
     </Dialog>
   );
+}
+
+/** What reading is left today: said before the person grows, so a refusal is never a surprise. */
+function Allowance({ guest, left, perDay, siteOpen }: { guest: boolean; left: number; perDay: number; siteOpen: boolean }) {
+  const line = !siteOpen ? "Ramus has read as much as it can today. What you bring in is kept, and the gardener can read it tomorrow."
+    : guest ? (left ? "This is your free tree. Sign up afterwards to keep it and grow more." : "That was your free tree. Sign up to keep it and grow more.")
+    : left ? `${left} of ${perDay} growths left today.` : `You have grown ${perDay} trees today. What you bring in is kept, and the gardener can read it tomorrow.`;
+  return <p className="text-note text-muted-foreground" role="status">{line}</p>;
 }
 
 function Row({ item, auto, locked, onRemove, onExtra, onAccept, onFetch }: { item: Item; auto: Auto | string | undefined; locked: boolean; onRemove: () => void; onExtra: (x: AutoExtra) => void; onAccept: () => void; onFetch: (a: TopicAddress) => void }) {

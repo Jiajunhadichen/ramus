@@ -2,14 +2,22 @@
  * The gardener's one call to a model, through Lovable's AI gateway (server only).
  * LOVABLE_API_KEY is created by Lovable for every Cloud project and never reaches the browser.
  */
+import { CHEAP_MODEL, guessUsage, STRONG_MODEL, usageOf, type Usage } from "../budget";
+
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 /** Tried in order; a model the gateway does not know falls through to the next. */
-/** The stronger model reads first: the tree's grain (every option, deep lines, merges) depends on careful reading. */
-export const GARDENER_MODELS = ["openai/gpt-5.5", "google/gemini-3.7-flash"];
-/** Who said what is read once per source and decides every colour on the tree: the stronger model reads it first. */
-export const RECONSTRUCTION_MODELS = ["openai/gpt-5.5", "google/gemini-3.7-flash"];
+/** The stronger model reads first: the tree's grain (every option, deep lines, merges) depends on careful reading.
+ *  The daily budget (src/lib/budget.ts modelsToday) decides when only the cheaper one reads. */
+export const GARDENER_MODELS = [STRONG_MODEL, CHEAP_MODEL];
+/** The helper passes (structure reading, thought inventory) are guidance the gardener checks, so the cheaper model reads them first. */
+export function helperModels(models: string[]): string[] {
+  return models.includes(STRONG_MODEL) ? [CHEAP_MODEL, STRONG_MODEL] : models;
+}
 
 export class GardenerUnavailable extends Error {}
+
+/** What one answer cost in tokens: reported by the gateway, or guessed from the prompt when it is not. */
+export type Asked = { text: string; model: string; usage: Usage };
 
 type Fetch = typeof fetch;
 
@@ -21,7 +29,7 @@ function textOf(body: unknown): string {
 }
 
 /** Ask once; returns the model's text and which model answered. Errors are plain sentences for people. */
-export async function askGardener(system: string, user: string, opts: { fetchImpl?: Fetch; apiKey?: string | undefined; timeoutMs?: number; models?: string[] } = {}): Promise<{ text: string; model: string }> {
+export async function askGardener(system: string, user: string, opts: { fetchImpl?: Fetch; apiKey?: string | undefined; timeoutMs?: number; models?: string[] } = {}): Promise<Asked> {
   const key = opts.apiKey ?? process.env["LOVABLE_API_KEY"];
   if (!key) throw new GardenerUnavailable("The gardener is not set up for this project yet: Lovable AI is not enabled, so there is no LOVABLE_API_KEY.");
   const doFetch = opts.fetchImpl ?? fetch;
@@ -48,8 +56,9 @@ export async function askGardener(system: string, user: string, opts: { fetchImp
       }
       clearTimeout(timer);
       if (res.ok) {
-        const text = textOf(await res.json());
-        if (text.trim()) return { text, model };
+        const body = await res.json();
+        const text = textOf(body);
+        if (text.trim()) return { text, model, usage: usageOf(body) ?? guessUsage(system.length + user.length) };
         lastProblem = "an empty answer";
         break;
       }

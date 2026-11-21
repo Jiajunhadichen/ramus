@@ -1,10 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { askGardener, RECONSTRUCTION_MODELS } from "./gardener/ai";
+import { askGardener } from "./gardener/ai";
+import { mayRebuild } from "./budget";
 import { parseAnswer } from "./gardener/harvest";
 import { checkReconstructionPart, contextVoices, readingParts, reconstructionPrompt, type ReVoice } from "./intake/reconstruct";
 
-/** Beyond this, loose text is kept and grown unattributed rather than reconstructed (parts are ~50k characters). */
+/** Beyond this the request is refused outright; the budget (src/lib/budget.ts) sets the length actually reconstructed. */
 const MAX_TEXT = 400_000;
 
 /**
@@ -28,13 +29,19 @@ export const reconstructSource = createServerFn({ method: "POST" })
       voices: (Array.isArray(d.voices) ? d.voices : []).slice(0, 20),
     };
   })
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const parts = readingParts(data.text);
     const part = parts[data.part];
     const participants = [...new Set([...data.knownVoices, ...contextVoices(data.context)].map((v) => v.trim()).filter(Boolean))];
     if (!part) return { parts: parts.length, blocks: [], voices: data.voices, warnings: [], model: null as string | null, participants };
+    // within the person's and the site's daily budget; when over it, the words are kept and grown unattributed
+    const usage = await import("@/lib/usage.server");
+    const guest = usage.isGuest(context.claims);
+    const allowed = mayRebuild(await usage.readerOf(context.userId, guest), await usage.siteToday(), data.text.length);
+    if (!allowed.ok) throw new Error(allowed.reason);
     const p = reconstructionPrompt(data.text, part, { participants, context: data.context, voices: data.voices });
-    const asked = await askGardener(p.system, p.user, { models: RECONSTRUCTION_MODELS });
+    const asked = await askGardener(p.system, p.user, { models: allowed.models });
+    await usage.record({ userId: context.userId, gardenId: null, kind: "rebuild", guest, model: asked.model, usage: asked.usage });
     const checked = checkReconstructionPart(parseAnswer(asked.text), data.text, part, participants, data.voices);
     return { parts: parts.length, ...checked, model: asked.model as string | null, participants };
   });

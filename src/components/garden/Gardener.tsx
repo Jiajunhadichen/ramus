@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 
 export type GrowScope = { batchIds?: string[]; conversationIds?: string[] };
 export type GrowProgress = { part: number; of: number };
-export type Grown = { grown: number; parts: number; root: string | null; unattributed: number; setAside: number };
+export type Grown = { grown: number; parts: number; root: string | null; unattributed: number; setAside: number; unread: number };
 
 /** The gardener reads everything in scope, part after part, and grows the tree. */
 export function useGrow() {
@@ -17,26 +17,28 @@ export function useGrow() {
   return async function run(gardenId: string, scope: GrowScope, opts: { nameRoot?: boolean; nameGarden?: boolean; resumeFrom?: string | null; told?: string | null; from?: number; onProgress?: (p: GrowProgress) => void; onPartDone?: (partsDone: number) => void } = {}): Promise<Grown> {
     let part = opts.from ?? 0, of = Math.max(1, part + 1), grown = 0;
     let root: string | null = null;
-    let unattributed = 0, setAside = 0;
+    let unattributed = 0, setAside = 0, unread = 0;
     do {
       opts.onProgress?.({ part: part + 1, of });
       const first = part === 0;
       const r = await grow({ data: { gardenId, ...scope, part, nameRoot: first && !!opts.nameRoot, nameGarden: first && !!opts.nameGarden, resumeFrom: first ? opts.resumeFrom ?? null : null, told: first ? opts.told ?? null : null } });
       of = r.parts; grown += r.grown; root ??= r.root;
       unattributed += r.understanding?.unattributed ?? 0; setAside += r.understanding?.setAside ?? 0;
+      unread = r.unread ?? 0;
       part++;
       opts.onPartDone?.(part);
     } while (part < of);
     await qc.invalidateQueries({ queryKey: ["garden", gardenId] });
     await qc.invalidateQueries({ queryKey: ["gardens"] });
-    return { grown, parts: of, root, unattributed, setAside };
+    return { grown, parts: of, root, unattributed, setAside, unread };
   };
 }
 
-export const grownLine = (n: number, read?: { unattributed?: number; setAside?: number }) =>
+export const grownLine = (n: number, read?: { unattributed?: number; setAside?: number; unread?: number }) =>
   (n ? `The tree grew ${n} branch${n === 1 ? "" : "es"}.` : "The gardener found no ideas to grow from this.")
   + (read?.unattributed ? ` ${read.unattributed} passage${read.unattributed === 1 ? " has" : "s have"} no named author and stay${read.unattributed === 1 ? "s" : ""} unattributed.` : "")
-  + (read?.setAside ? " Page text was left out of the reading; the original is kept whole." : "");
+  + (read?.setAside ? " Page text was left out of the reading; the original is kept whole." : "")
+  + (read?.unread ? ` This was long, so Ramus read the beginning: the last ${read.unread} message${read.unread === 1 ? " is" : "s are"} kept in the archive, unread.` : "");
 
 type Conv = { id: string; title: string };
 
