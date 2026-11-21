@@ -82,7 +82,10 @@ Update AGENTS.md and docs/design-principles.md: replace the older type, label, c
 - Ultramarine: day #3D4FA0, night #9DA9F0
 - Madder crimson: day #A3354B, night #E58FA2
 - Viridian: day #2C7277, night #7EC5C9
-Text ink #1C2520. Sepia #6B4A2E only for marginalia. No browns in the people palette, so notes never look like data.
+- Cobalt violet: day #8B4C95, night #D9A0E1
+- Vermilion: day #BB4D2A, night #FBA58A
+- Sap green: day #53670E, night #98B056
+Eight inks, so up to eight people never share a colour; the ninth starts again at verdigris. The last three were chosen to sit at least as far from every other ink (and from sepia and muted ink) as verdigris and viridian sit from each other, by day and by night, and with lightness apart where red-green colour blindness would merge hues (vermilion and sap green). Text ink #1C2520. Sepia #6B4A2E only for marginalia. No browns in the people palette, so notes never look like data.
 
 4. Drawn, but calm
 - Pen wobble very subtle (displacement scale about 0.8). Hatching, top-left to bottom-right like Leonardo's left hand, only on branches thicker than 8px, at about 25% opacity.

@@ -116,6 +116,9 @@
   --person-3: #3D4FA0; /* ultramarine */
   --person-4: #A3354B; /* madder crimson */
   --person-5: #2C7277; /* viridian */
+  --person-6: #8B4C95; /* cobalt violet */
+  --person-7: #BB4D2A; /* vermilion */
+  --person-8: #53670E; /* sap green */
   --background: var(--paper);
   --foreground: var(--ink);
   --card: var(--sheet);
@@ -153,6 +156,9 @@
     --person-3: #9DA9F0;
     --person-4: #E58FA2;
     --person-5: #7EC5C9;
+    --person-6: #D9A0E1;
+    --person-7: #FBA58A;
+    --person-8: #98B056;
     --destructive: oklch(0.834 0.068 22.0);
     color-scheme: dark;
 }
