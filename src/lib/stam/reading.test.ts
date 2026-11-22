@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import sample from "../../../docs/sample-garden.json";
-import { mainLineage, readingDetail } from "./reading";
+import { livingLines, mainLineage, readingDetail, withAncestors } from "./reading";
 
 describe("reading levels", () => {
   const nodes = sample.nodes.map((n) => ({ ...n, outcome: n.id === "humans" }));
@@ -26,5 +26,20 @@ describe("reading levels", () => {
     const detail = readingDetail(nodes, "lineage", main, null);
     expect(detail.has("private")).toBe(true); expect(detail.has("woz")).toBe(false); expect(detail.has("personal")).toBe(false);
     expect(readingDetail(nodes, "record", main, null).size).toBe(nodes.length);
+  });
+  it("living lines keep every idea not set aside, and the path to it", () => {
+    const t = [
+      { id: "r", parents: [], step: 1 },
+      { id: "a", parents: ["r"], step: 2 },
+      { id: "b", parents: ["r"], step: 2, status: "dormant" },
+      { id: "c", parents: ["b"], step: 3 },
+      { id: "d", parents: ["a"], step: 3, status: "dormant" },
+      { id: "e", parents: ["d"], step: 4, status: "dormant" },
+    ];
+    expect([...livingLines(t)].sort()).toEqual(["a", "b", "c", "r"]);
+    expect([...withAncestors(t, ["e"])].sort()).toEqual(["a", "d", "e", "r"]);
+    const sampleLiving = livingLines(sample.nodes);
+    for (const n of sample.nodes) if (n.status !== "dormant") expect(sampleLiving.has(n.id)).toBe(true);
+    expect(sampleLiving.size).toBeGreaterThan(mainLineage(nodes).size);
   });
 });
