@@ -3,7 +3,7 @@
  * Share previews (og:image) need an absolute address; until this is set they fall back to a path on the same site,
  * which some apps (LinkedIn, X, Facebook) do not follow. Set it once the site is published.
  */
-export const SITE_URL = "";
+export const SITE_URL = "https://ramus-watch-ideas-grow.lovable.app";
 
 /** The share image for public pages: the landing page's tree and its line, 1200×630. */
 export const SHARE_IMAGE = `${SITE_URL}/og-ramus.jpg`;

@@ -4,6 +4,8 @@
 
 Ramus turns conversations into an evolutionary tree of ideas. You can see where an idea started, how it branched and merged, and who planted each branch.
 
+**Try it:** [ramus-watch-ideas-grow.lovable.app](https://ramus-watch-ideas-grow.lovable.app), no account needed for your first tree.
+
 ![The Ramus home page: the evolutionary tree of the conversation that became Ramus](docs/images/ramus-home.png)
 
 > You can trace how a species evolved. Ramus lets you trace how an idea evolved.
@@ -63,3 +65,5 @@ You need a `.env` with a Supabase URL and publishable key. Run the tests with `b
 我们可以追溯一个物种是怎么进化来的，Ramus 让你追溯一个想法是怎么产生的。
 
 把你和团队、朋友或 AI 的聊天记录放进去，Ramus 会把其中的想法长成一棵进化树：每个想法从哪里来，怎样分叉、融合，又是谁种下的，一眼就能看清。
+
+**在线试用：** [ramus-watch-ideas-grow.lovable.app](https://ramus-watch-ideas-grow.lovable.app)，第一棵树不用注册。
