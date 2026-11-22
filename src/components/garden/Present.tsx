@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { StamTree, type MarginNote, type SpecimenInfo, type TreeNode } from "@/components/stam-tree/StamTree";
 import { Upright } from "@/components/epigraph/Epigraph";
-import { mainLineage, readingDetail, type ReadingLevel } from "@/lib/stam/reading";
+import { livingLines, mainLineage, readingDetail, withAncestors, type ReadingLevel } from "@/lib/stam/reading";
 import { grewFrom, systema, type SysNode } from "@/lib/stam/systema";
 import { StoryEntry } from "./Systema";
 
@@ -37,6 +37,7 @@ export function Present({ title, nodes, steps = {}, level = "form", main: suppli
     return m.size > 1 ? m : mainLineage(nodes.map((n) => ({ ...n, outcome: false })));
   }, [suppliedMain, nodes]);
   const shown = useMemo(() => readingDetail(nodes, level, main, null), [nodes, level, main]);
+  const living = useMemo(() => livingLines(nodes), [nodes]);
   const color = useMemo(() => new Map(nodes.map((n) => [n.id, n.color])), [nodes]);
   const label = useMemo(() => new Map(nodes.map((n) => [n.id, n.label])), [nodes]);
   const slides: Slide[] = useMemo(() => [
@@ -74,9 +75,19 @@ export function Present({ title, nodes, steps = {}, level = "form", main: suppli
   }, [go, onClose, slides.length]);
 
   const root = s.root;
+  // where it has reached: the outcomes people marked; without them, what the group settled (knots); else the newest living idea
   const outcomes = nodes.filter((n) => n.outcome);
-  const reached = outcomes.length ? outcomes : nodes.filter((n) => main.has(n.id)).sort((a, b) => b.step - a.step).slice(0, 1);
+  const knots = nodes.filter((n) => n.knot && n.status !== "dormant").sort((a, b) => b.step - a.step);
+  const newestLiving = nodes.filter((n) => n.status !== "dormant" && n.id !== root?.id).sort((a, b) => b.step - a.step).slice(0, 1);
+  const reachedAll = outcomes.length ? outcomes : knots.length ? knots : newestLiving;
+  const reached = reachedAll.slice(0, MAX_ENTRIES);
+  const growingTips = nodes.filter((n) => n.status !== "dormant" && !nodes.some((c) => c.parents[0] === n.id)).length;
   const treeStep = slide.kind === "step" ? slide.step : lastStep;
+  // drawn in full: every line still being pursued, and on a step slide also what was said in that step (even if set aside later)
+  const stepIds = slide.kind === "step" ? nodes.filter((n) => n.step === slide.step).map((n) => n.id) : [];
+  const emphasis = new Set([...living, ...withAncestors(nodes, stepIds)]);
+  // labelled: the root, and what this slide is about
+  const labelIds = new Set([...(root ? [root.id] : []), ...(slide.kind === "step" ? stepIds : reached.map((n) => n.id))]);
 
   return (
     <div ref={box} role="dialog" aria-modal="true" aria-label={`Presenting ${title}`}
@@ -100,7 +111,7 @@ export function Present({ title, nodes, steps = {}, level = "form", main: suppli
       ) : (
         <main className="grid min-h-0 gap-8 px-8 py-4 lg:grid-cols-[minmax(0,1fr)_420px]">
           <div className="present-tree h-full min-h-0 min-w-0">
-            <StamTree nodes={nodes} step={treeStep} selected={null} level={level} main={main} notes={notes}
+            <StamTree nodes={nodes} step={treeStep} selected={null} level={level} main={main} emphasis={emphasis} labelIds={labelIds} notes={notes}
               freshStep={slide.kind === "step" ? slide.step : null} freshKey={at} ariaLabel={title} specimen={specimen ?? null} />
           </div>
           <div className="min-h-0 overflow-y-auto">
@@ -137,7 +148,8 @@ export function Present({ title, nodes, steps = {}, level = "form", main: suppli
                     <p className="smallcaps text-note"><Upright>{n.by}</Upright></p>
                   </div>
                 ))}
-                <p className="smallcaps text-note text-muted-foreground"><span className="whitespace-nowrap">{nodes.length} ideas</span> · <span className="whitespace-nowrap">{s.chapters.length} steps</span> · <span className="whitespace-nowrap">{new Set(nodes.map((n) => n.by)).size} voices</span></p>
+                {reachedAll.length > reached.length && <p className="text-note text-muted-foreground">and {reachedAll.length - reached.length} more</p>}
+                <p className="smallcaps text-note text-muted-foreground"><span className="whitespace-nowrap">{nodes.length} ideas</span> · <span className="whitespace-nowrap">{growingTips} still growing</span> · <span className="whitespace-nowrap">{s.chapters.length} steps</span> · <span className="whitespace-nowrap">{new Set(nodes.map((n) => n.by)).size} voices</span></p>
               </>
             )}
           </aside>

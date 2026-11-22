@@ -31,6 +31,10 @@ type Props = {
   notes?: MarginNote[];
   level?: ReadingLevel;
   main?: Set<string> | undefined;
+  /** Ideas drawn in full (the rest faint), instead of the reading level's choice. Present passes every living line. */
+  emphasis?: Set<string> | undefined;
+  /** Ideas that carry their label (with labels="level"), instead of those drawn in full. */
+  labelIds?: Set<string> | undefined;
   /** "zoom": labels appear by zoom and selection (the workspace); "level": by reading level (Present, landing). */
   labels?: "level" | "zoom";
   /** A miniature: no labels, legend, specimen or interaction. */
@@ -90,7 +94,7 @@ export function StamTree(props: Props) {
   return props.thumbnail ? <ThumbTree nodes={props.nodes} ariaLabel={props.ariaLabel} className={props.thumbClass ?? "h-40"} /> : <FullTree {...props} />;
 }
 
-function FullTree({ nodes, step, selected, onSelect, freshStep = null, freshKey = 0, ariaLabel = "Idea tree", specimen = null, interactive = false, notes = [], level = "record", main: suppliedMain, labels = "level", poster = null }: Props) {
+function FullTree({ nodes, step, selected, onSelect, freshStep = null, freshKey = 0, ariaLabel = "Idea tree", specimen = null, interactive = false, notes = [], level = "record", main: suppliedMain, emphasis, labelIds, labels = "level", poster = null }: Props) {
   if (poster) interactive = false;
   const widths = useMeasure(useMemo(() => nodes.map((n) => ({ label: n.label, major: !!n.knot, dormant: n.status === "dormant" })), [nodes]));
   const L = useMemo(() => computeLayout(nodes, {
@@ -101,7 +105,7 @@ function FullTree({ nodes, step, selected, onSelect, freshStep = null, freshKey 
   const [hover, setHover] = useState<string | null>(null);
   const [view, setView] = useState<View>(FIT);
   const svgRef = useRef<SVGSVGElement>(null);
-  const detail = useMemo(() => readingDetail(nodes, level, main, selected), [nodes, level, main, selected]);
+  const detail = useMemo(() => emphasis ?? readingDetail(nodes, level, main, selected), [emphasis, nodes, level, main, selected]);
   const zoomLabels = labels === "zoom" || !!poster;
   // screen pixels per tree unit at the fitted view, so labels can stay 13–18px at any zoom
   const [scr, setScr] = useState(0.6);
@@ -126,7 +130,7 @@ function FullTree({ nodes, step, selected, onSelect, freshStep = null, freshKey 
     }, main, selected, hover);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoomLabels, poster, view.k, fs, L, main, selected, hover]);
-  const labeled = (id: string) => shownZoom ? shownZoom.has(id) : detail.has(id) || hover === id;
+  const labeled = (id: string) => shownZoom ? shownZoom.has(id) : (labelIds ?? detail).has(id) || hover === id;
   const focus = useMemo(() => lineage(nodes, selected), [nodes, selected]);
   const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
@@ -246,7 +250,7 @@ function FullTree({ nodes, step, selected, onSelect, freshStep = null, freshKey 
               const p = L.byId.get(n.parents[0]!);
               if (!p) return null;
               const full = detail.has(n.id);
-              const weight = level !== "record" && main.has(n.id) ? 1.3 : 1;
+              const weight = !emphasis && level !== "record" && main.has(n.id) ? 1.3 : 1;
               const w1 = full ? Math.max(1.1, thick(n) * 0.85) * weight : 0.55;
               const w0 = full ? Math.min(thick(p), Math.max(w1 * 1.5, w1 + 1)) * weight : 0.7;
               const c = curve(p, n, 0.5, 0.3);
@@ -261,7 +265,7 @@ function FullTree({ nodes, step, selected, onSelect, freshStep = null, freshKey 
                     </mask>
                   )}
                   <path d={taper(c, w0, w1)} mask={grow ? `url(#${mid})` : undefined} className={"branch " + cls(n.id, p.id)}
-                    style={{ fill: n.color, opacity: !full ? 0.25 : n.status === "dormant" && !main.has(n.id) ? 0.3 : 0.9 }} />
+                    style={{ fill: n.color, opacity: !full ? 0.25 : n.status === "dormant" && !main.has(n.id) && !emphasis?.has(n.id) ? 0.3 : 0.9 }} />
                   {w0 > 8 && (
                     <path d={taper(c, w0, w1)} mask={grow ? `url(#${mid})` : undefined} className={"hatch " + cls(n.id, p.id)}
                       fill={`url(#hatch-${inks.indexOf(n.color)})`} pointerEvents="none" />
