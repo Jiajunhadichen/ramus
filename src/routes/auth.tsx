@@ -90,6 +90,8 @@ function AuthPage() {
       const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin + "/gardens" } });
       if (!done(error)) return;
       if (data.session) navigate({ to: "/gardens" });
+      // an email that already has an account comes back with no identities, and no email is sent
+      else if (data.user && (data.user.identities ?? []).length === 0) { setMode("in"); setError("This email already has an account. Sign in, or use “Forgot your password?” to choose a new one."); }
       else setSent({ to: email, then: "Open it to start your garden. If it is not in your inbox, look in spam." });
     } else if (mode === "forgot") {
       if (done((await supabase.auth.resetPasswordForEmail(email, { redirectTo: here("recover") })).error)) setSent({ to: email, then: "Open it to choose a new password. If it is not in your inbox, look in spam." });
