@@ -64,6 +64,13 @@
       "when": 1794962320528,
       "tag": "0008_discourse_source_format",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795372986804,
+      "tag": "0009_ai_usage_and_purge_guest",
+      "breakpoints": true
     }
   ]
 }

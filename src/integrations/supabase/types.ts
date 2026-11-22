@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_usage: {
+        Row: {
+          created_at: string
+          garden_id: string | null
+          guest: boolean
+          id: string
+          input_tokens: number
+          kind: string
+          model: string | null
+          output_tokens: number
+          usd: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          garden_id?: string | null
+          guest?: boolean
+          id?: string
+          input_tokens?: number
+          kind: string
+          model?: string | null
+          output_tokens?: number
+          usd?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          garden_id?: string | null
+          guest?: boolean
+          id?: string
+          input_tokens?: number
+          kind?: string
+          model?: string | null
+          output_tokens?: number
+          usd?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       contributors: {
         Row: {
           color: string
@@ -825,6 +864,7 @@ export type Database = {
       delete_garden_forever: { Args: { _garden: string }; Returns: undefined }
       is_garden_member: { Args: { _garden: string }; Returns: boolean }
       is_garden_owner: { Args: { _garden: string }; Returns: boolean }
+      purge_guest: { Args: { _user: string }; Returns: undefined }
       receive_batch: {
         Args: {
           _aliases: Json

@@ -17,6 +17,7 @@ import { Route as PrinciplesRouteImport } from './routes/principles'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as AuthenticatedGardensRouteImport } from './routes/_authenticated/gardens'
 import { Route as AuthenticatedGIdRouteImport } from './routes/_authenticated/g.$id'
+import { Route as ApiPublicPurgeGuestsRouteImport } from './routes/api/public/purge-guests'
 import { Route as AuthenticatedGIdAccessionRouteImport } from './routes/_authenticated/g.$id_.accession'
 import { Route as AuthenticatedGIdConversationsCidRouteImport } from './routes/_authenticated/g.$id_.conversations.$cid'
 
@@ -59,6 +60,11 @@ const AuthenticatedGIdRoute = AuthenticatedGIdRouteImport.update({
   path: '/g/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiPublicPurgeGuestsRoute = ApiPublicPurgeGuestsRouteImport.update({
+  id: '/api/public/purge-guests',
+  path: '/api/public/purge-guests',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedGIdAccessionRoute =
   AuthenticatedGIdAccessionRouteImport.update({
     id: '/g/$id_/accession',
@@ -80,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/gardens': typeof AuthenticatedGardensRoute
   '/g/$id': typeof AuthenticatedGIdRoute
+  '/api/public/purge-guests': typeof ApiPublicPurgeGuestsRoute
   '/g/$id/accession': typeof AuthenticatedGIdAccessionRoute
   '/g/$id/conversations/$cid': typeof AuthenticatedGIdConversationsCidRoute
 }
@@ -91,6 +98,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/gardens': typeof AuthenticatedGardensRoute
   '/g/$id': typeof AuthenticatedGIdRoute
+  '/api/public/purge-guests': typeof ApiPublicPurgeGuestsRoute
   '/g/$id/accession': typeof AuthenticatedGIdAccessionRoute
   '/g/$id/conversations/$cid': typeof AuthenticatedGIdConversationsCidRoute
 }
@@ -104,6 +112,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/_authenticated/gardens': typeof AuthenticatedGardensRoute
   '/_authenticated/g/$id': typeof AuthenticatedGIdRoute
+  '/api/public/purge-guests': typeof ApiPublicPurgeGuestsRoute
   '/_authenticated/g/$id_/accession': typeof AuthenticatedGIdAccessionRoute
   '/_authenticated/g/$id_/conversations/$cid': typeof AuthenticatedGIdConversationsCidRoute
 }
@@ -117,6 +126,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/gardens'
     | '/g/$id'
+    | '/api/public/purge-guests'
     | '/g/$id/accession'
     | '/g/$id/conversations/$cid'
   fileRoutesByTo: FileRoutesByTo
@@ -128,6 +138,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/gardens'
     | '/g/$id'
+    | '/api/public/purge-guests'
     | '/g/$id/accession'
     | '/g/$id/conversations/$cid'
   id:
@@ -140,6 +151,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/_authenticated/gardens'
     | '/_authenticated/g/$id'
+    | '/api/public/purge-guests'
     | '/_authenticated/g/$id_/accession'
     | '/_authenticated/g/$id_/conversations/$cid'
   fileRoutesById: FileRoutesById
@@ -151,6 +163,7 @@ export interface RootRouteChildren {
   GenesisRoute: typeof GenesisRoute
   PrinciplesRoute: typeof PrinciplesRoute
   PrivacyRoute: typeof PrivacyRoute
+  ApiPublicPurgeGuestsRoute: typeof ApiPublicPurgeGuestsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -211,6 +224,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/purge-guests': {
+      id: '/api/public/purge-guests'
+      path: '/api/public/purge-guests'
+      fullPath: '/api/public/purge-guests'
+      preLoaderRoute: typeof ApiPublicPurgeGuestsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/g/$id_/accession': {
       id: '/_authenticated/g/$id_/accession'
       path: '/g/$id/accession'
@@ -252,6 +272,7 @@ const rootRouteChildren: RootRouteChildren = {
   GenesisRoute: GenesisRoute,
   PrinciplesRoute: PrinciplesRoute,
   PrivacyRoute: PrivacyRoute,
+  ApiPublicPurgeGuestsRoute: ApiPublicPurgeGuestsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
