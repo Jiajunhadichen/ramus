@@ -56,6 +56,7 @@ function AuthPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<{ to: string; then: string } | null>(null);
+  const [resent, setResent] = useState<string | null>(null);
   // a guest (trying Ramus without an account) who signs up keeps the same account, and so their tree
   const [guest, setGuest] = useState(false);
   const navigate = useNavigate();
@@ -79,15 +80,19 @@ function AuthPage() {
     if (mode === "in") {
       if (done((await supabase.auth.signInWithPassword({ email, password })).error)) navigate({ to: "/gardens" });
     } else if (mode === "up" && guest) {
-      // the guest account becomes a real one once the email is confirmed; the password is chosen after that
-      if (done((await supabase.auth.updateUser({ email }, { emailRedirectTo: here("keep") })).error)) setSent({ to: email, then: "Open it to keep your tree." });
+      // the guest account becomes a real one once the email is confirmed; the password is chosen after that.
+      // With email confirmation switched off (auto-confirm), the email is set at once: go straight to the password.
+      const { data, error } = await supabase.auth.updateUser({ email }, { emailRedirectTo: here("keep") });
+      if (!done(error)) return;
+      const kept = data.user?.email?.toLowerCase() === email.trim().toLowerCase() && !data.user?.new_email;
+      if (kept) { setGuest(false); switchTo("keep"); } else setSent({ to: email, then: "Open it to keep your tree. If it is not in your inbox, look in spam." });
     } else if (mode === "up") {
       const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin + "/gardens" } });
       if (!done(error)) return;
       if (data.session) navigate({ to: "/gardens" });
-      else setSent({ to: email, then: "Open it to start your garden." });
+      else setSent({ to: email, then: "Open it to start your garden. If it is not in your inbox, look in spam." });
     } else if (mode === "forgot") {
-      if (done((await supabase.auth.resetPasswordForEmail(email, { redirectTo: here("recover") })).error)) setSent({ to: email, then: "Open it to choose a new password." });
+      if (done((await supabase.auth.resetPasswordForEmail(email, { redirectTo: here("recover") })).error)) setSent({ to: email, then: "Open it to choose a new password. If it is not in your inbox, look in spam." });
     } else if (done((await supabase.auth.updateUser({ password })).error)) {
       navigate({ to: "/gardens" });
     }
@@ -99,7 +104,16 @@ function AuthPage() {
     if (error) return setError("Trying Ramus without an account is not open yet. Start a garden with your email instead.");
     navigate({ to: "/gardens" });
   }
-  const switchTo = (m: Mode) => { setMode(m); setError(null); setSent(null); };
+  const switchTo = (m: Mode) => { setMode(m); setError(null); setSent(null); setResent(null); };
+  // the shared sender can be slow or land in spam: let people ask for the same email again
+  async function sendAgain() {
+    setBusy(true); setResent(null);
+    const { error } = mode === "forgot" ? await supabase.auth.resetPasswordForEmail(email, { redirectTo: here("recover") })
+      : mode === "up" && guest ? await supabase.auth.updateUser({ email }, { emailRedirectTo: here("keep") })
+      : await supabase.auth.resend({ type: "signup", email, options: { emailRedirectTo: window.location.origin + "/gardens" } });
+    setBusy(false);
+    setResent(error ? error.message : "Sent again. It can take a few minutes.");
+  }
   const [eyebrow, title] = mode === "up" && guest ? ["Herbarium of ideas", "Keep your tree"] : TITLES[mode];
   const asksEmail = mode === "in" || mode === "up" || mode === "forgot";
   const asksPassword = mode === "in" || (mode === "up" && !guest) || mode === "recover" || mode === "keep";
@@ -118,6 +132,11 @@ function AuthPage() {
             <>
               <h1 className="font-display text-title leading-[1.1]">Check your email</h1>
               <p className="text-read">We sent a link to {sent.to}. {sent.then}</p>
+              <div className="flex flex-wrap items-center gap-4">
+                <button type="button" disabled={busy} onClick={() => void sendAgain()} className="text-ui text-muted-foreground underline underline-offset-4 hover:text-foreground">{busy ? "…" : "Send it again"}</button>
+                <button type="button" onClick={() => switchTo(mode)} className="text-ui text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">Use another email</button>
+              </div>
+              {resent && <p className="text-ui text-muted-foreground" role="status">{resent}</p>}
             </>
           ) : (
             <>
